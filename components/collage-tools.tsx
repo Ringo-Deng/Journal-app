@@ -1,0 +1,77 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import type {Piece} from '@/lib/journal';
+import {journalFonts} from '@/lib/collage';
+
+type UserFont={id:string;name:string;family:string;url:string;size:number;originalName?:string};
+
+import {NumberControl} from './element-controls';
+
+export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,cropping,onCrop,busy,hasTextRange,onTextColor}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void}) {
+ const [userFonts,setUserFonts]=useState<UserFont[]>([]);
+ const [fontMessage,setFontMessage]=useState('');
+ const [fontError,setFontError]=useState(false);
+ const [fontBusy,setFontBusy]=useState(false);
+ const fontInput=useRef<HTMLInputElement>(null);
+ useEffect(()=>{let live=true;fetch('/api/fonts').then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||'读取字体失败。');if(live)setUserFonts(Array.isArray(data.fonts)?data.fonts:[]);}).catch(()=>{});return()=>{live=false};},[]);
+ async function importFonts(files:FileList|null){
+  if(!files?.length)return;
+  setFontBusy(true);setFontError(false);setFontMessage('正在导入字体…');
+  try{
+   const imported:UserFont[]=[];
+   for(const file of Array.from(files)){
+    if(file.size>80*1024*1024)throw Error(`${file.name} 太大，单个字体包不能超过 80 MB。`);
+    const response=await fetch(`/api/fonts/import?filename=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':file.name.toLowerCase().endsWith('.zip')?'application/zip':'application/octet-stream'},body:file});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||`${file.name} 导入失败。`);
+    if(Array.isArray(data.fonts))imported.push(...data.fonts);
+   }
+   const deduped=[...new Map([...userFonts,...imported].map(font=>[font.id,font])).values()];
+   setUserFonts(deduped);
+   for(const font of imported){
+    try{const face=new FontFace(font.family,`url("${font.url}")`);await face.load();document.fonts.add(face);}catch{/* CSS 刷新仍会再次加载，单个字体加载失败不影响其他字体。 */}
+   }
+   const link=document.querySelector<HTMLLinkElement>('link[data-user-fonts="true"]');
+   if(link)link.href=`/api/fonts.css?v=${Date.now()}`;
+   if(imported[0])onPatch({fontFamily:`user:${imported[0].id}`});
+   setFontMessage(imported.length?`已导入 ${imported.length} 个字体${imported[0]?'，已切换到第一个。':'。'}`:'没有找到可导入的字体文件。');
+  }catch(e){setFontError(true);setFontMessage(e instanceof Error?e.message:'字体导入失败。');}
+  finally{setFontBusy(false);if(fontInput.current)fontInput.current.value='';}
+ }
+ return <div className="collage-context-tools" aria-label="拼贴细节">
+  {p.kind==='text'&&<>
+   <label title="双击文字，选中要着色的字句">局部颜色<input type="color" aria-label="选中文字颜色" disabled={!hasTextRange} defaultValue="#af7856" onInput={e=>onTextColor(e.currentTarget.value)}/></label>
+   {hasTextRange&&<div className="text-color-swatches">{[['#b36742','赭色'],['#587a91','湖蓝'],['#608060','苔绿']].map(([color,name])=><button key={color} className="text-color-swatch" style={{background:color}} aria-label={`选中文字设为${name}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextColor(color)}/>)}</div>}
+   {!!p.colorRuns?.length&&<button className="quiet" onClick={()=>onTextColor(null)}>清除局部颜色</button>}
+   <div className="font-picker-row">
+    <label>字形<select aria-label="手写字形" value={p.fontFamily||'hand'} onChange={e=>onPatch({fontFamily:e.target.value})}>
+      <optgroup label="内置字体">{journalFonts.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</optgroup>
+      {!!userFonts.length&&<optgroup label="我的字体">{userFonts.map(f=><option key={f.id} value={`user:${f.id}`}>{f.name}</option>)}</optgroup>}
+    </select></label>
+    <button type="button" className="quiet font-import-button" disabled={fontBusy} onClick={()=>fontInput.current?.click()}>{fontBusy?'导入中…':'导入字体'}</button>
+    <input ref={fontInput} hidden type="file" multiple accept=".ttf,.otf,.woff,.woff2,.zip" onChange={e=>void importFonts(e.currentTarget.files)}/>
+   </div>
+   {!!fontMessage&&<small className={`font-import-status${fontError?' is-error':''}`}>{fontMessage}</small>}
+   <NumberControl label="行距" value={p.lineHeight||(p.role==='title'?1.4:1.9)} min={1} max={3} onCommit={lineHeight=>onPatch({lineHeight})}/>
+   <NumberControl label="字距" value={(p.letterSpacing??.03)*100} min={-5} max={40} unit="%" onCommit={v=>onPatch({letterSpacing:v/100})}/>
+   <label>粗细<select aria-label="文字粗细" value={p.fontWeight||400} onChange={e=>onPatch({fontWeight:Number(e.target.value)})}><option value={400}>常规</option><option value={600}>加粗</option></select></label>
+   <label>对齐<select aria-label="文字对齐" value={p.textAlign||'left'} onChange={e=>onPatch({textAlign:e.target.value as Piece['textAlign']})}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
+  </>}
+  {p.kind==='photo'&&<>
+   <label>装裱<select aria-label="照片装裱" value={p.frame||'polaroid'} onChange={e=>onPatch({frame:e.target.value,hideTape:true})}>{[['polaroid','拍立得'],['torn','撕纸'],['stamp','邮票'],['plain','原图'],['cutout','白边剪贴']].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+   <button className="quiet" aria-pressed={cropping} onClick={onCrop}>{cropping?'完成裁切':'自由裁切'}</button>
+   <NumberControl label="白边宽度" value={(p.photoBorder??.7)*10} min={0} max={25} onCommit={v=>onPatch({photoBorder:v/10})}/>
+   <button className="quiet" onClick={onCaption}>添加／编辑图注</button>
+   <button className="quiet" onClick={onTape}>贴一段胶带</button>
+   <button className="quiet" disabled={busy} onClick={onCutout}>{busy?'正在抠图…':'本地抠图'}</button>
+   {p.frame==='cutout'&&<NumberControl label="剪贴描边" value={(p.cutoutOutline??.18)*10} min={0} max={10} onCommit={v=>onPatch({cutoutOutline:v/10})}/>}
+   {cropping&&<div className="crop-settings"><span>拖动照片移动取景</span><NumberControl label="横向取景" value={p.crop??50} min={0} max={100} onCommit={crop=>onPatch({crop})}/><NumberControl label="纵向取景" value={p.cropY??50} min={0} max={100} onCommit={cropY=>onPatch({cropY})}/><NumberControl label="照片放大" value={(p.cropZoom??1)*100} min={100} max={400} unit="%" onCommit={v=>onPatch({cropZoom:v/100})}/><button className="quiet" onClick={()=>onPatch({crop:50,cropY:50,cropZoom:1})}>重置取景</button></div>}
+  </>}
+  {p.material==='tape'&&<>
+   <label>胶带颜色<input type="color" aria-label="胶带颜色" value={p.color||'#c5b08b'} onChange={e=>onPatch({color:e.target.value})}/></label>
+   <NumberControl label="胶带透明度" value={(p.opacity??.7)*100} min={10} max={100} unit="%" onCommit={v=>onPatch({opacity:v/100})}/>
+   <label>撕口<select aria-label="胶带撕口" value={p.tapeEdge||'torn'} onChange={e=>onPatch({tapeEdge:e.target.value as Piece['tapeEdge']})}><option value="torn">不规则撕口</option><option value="straight">平直边缘</option></select></label>
+  </>}
+  <details className="material-details"><summary>纸片质感</summary><div><NumberControl label="阴影强度" value={(p.shadow??.4)*100} min={0} max={100} unit="%" onCommit={v=>onPatch({shadow:v/100})}/>{p.kind==='asset'&&<label>材质<select aria-label="素材材质" value={p.material||'paper'} onChange={e=>onPatch({material:e.target.value as Piece['material']})}><option value="paper">纸片</option><option value="botanical">植物</option></select></label>}</div></details>
+ </div>;
+}

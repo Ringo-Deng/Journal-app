@@ -1,0 +1,223 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import http from 'node:http';
+const dir = await mkdtemp(join(tmpdir(), 'shiguang-test-'));
+const port = 4339,
+  base = `http://127.0.0.1:${port}`;
+const child = spawn(process.execPath, ['local/server.mjs'], {
+  env: { ...process.env, JOURNAL_DATA_DIR: dir, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: '4341' },
+  stdio: 'pipe',
+});
+await new Promise((ok, fail) => {
+  child.stdout.once('data', ok);
+  child.once('error', fail);
+  child.once('exit', (code) => fail(Error('server exited ' + code)));
+});
+const call = async (path, data, method = 'PUT', headers = {}) => {
+  const res = await fetch(base + path, {
+    method: data === undefined ? 'GET' : method,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  return { status: res.status, data: await res.json() };
+};
+const png =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1sAAAAASUVORK5CYII=';
+let uploaded,
+  received,
+  mode = 'ok';
+const mock = http.createServer(async (req, res) => {
+  let raw = '';
+  for await (const p of req) raw += p;
+  received = JSON.parse(raw);
+  if (mode === 'bad') {
+    res.writeHead(401);
+    res.end('{}');
+    return;
+  }
+  res.setHeader('content-type', 'application/json');
+  if(mode==='recover' && received.messages.length===2){res.end(JSON.stringify({choices:[{finish_reason:'length',message:{content:''}}]}));return;}
+  res.end(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content:
+              mode === 'hand'
+                ? JSON.stringify({theme:'archive',days:[],elements:[{kind:'doodle',motif:'arrow',w:40,h:50,x:10,y:10,path:'invalid generated path'}]})
+                : mode === 'malformed'
+                ? 'not-json'
+                : JSON.stringify({
+                    elements: [{kind:'text',role:'body',dayIndex:0,text:'今天喝了拿铁。',x:54,y:20,w:35,frame:'outline'}, {kind:'photo',dayIndex:0,photoIndex:0,x:5,y:10,w:30}],
+                    theme: 'rose',
+                    days: [
+                      {
+                        title: '一杯拿铁',
+                        text: '今天喝了拿铁。',
+                        assetIds: ['asset-001', 'nonexistent'],
+                      },
+                    ],
+                  }),
+          },
+        },
+      ],
+    }),
+  );
+});
+await new Promise((ok) => mock.listen(4340, '127.0.0.1', ok));
+test.after(() => {
+  child.kill();
+  mock.close();
+});
+test('saves durable journal data with optimistic revision conflict protection', async () => {
+  const empty = await call('/api/state');
+  assert.equal(empty.data.revision, 0);
+  const b = {
+    id: 'book1',
+    month: '2026-09',
+    title: '我的手帐',
+    cover: 'walnut',
+    spreads: [],
+  };
+  const saved = await call('/api/state', { revision: 0, books: [b] });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.revision, 1);
+  assert.equal(
+    JSON.parse(await readFile(join(dir, 'journal.json'), 'utf8')).books[0]
+      .title,
+    b.title,
+  );
+  const stale = await call('/api/state', { revision: 0, books: [] });
+  assert.equal(stale.status, 409);
+  assert.equal((await call('/api/state')).data.books.length, 1);
+  assert.equal((await stat(join(dir, 'journal.json'))).mode & 0o777, 0o600);
+});
+test('accepts the dynamically paired local web origin for saves', async () => {
+  const current = await call('/api/state');
+  const result = await call('/api/state', { revision: current.data.revision, books: current.data.books }, 'PUT', {
+    Origin: 'http://127.0.0.1:4341',
+  });
+  assert.equal(result.status, 200);
+});
+test('rejects foreign origins and invalid uploads', async () => {
+  assert.equal(
+    (
+      await call('/api/state', { revision: 1, books: [] }, 'PUT', {
+        Origin: 'https://evil.example',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        '/api/upload',
+        { data: 'data:image/png;base64,SGVsbG8=' },
+        'POST',
+      )
+    ).status,
+    400,
+  );
+  assert.equal((await fetch(base + '/uploads/..%2fsettings.json')).status, 404);
+  const result = await call('/api/upload', { data: png }, 'POST');
+  assert.equal(result.status, 200);
+  uploaded = result.data.src;
+  const res = await fetch(base + uploaded);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.ok((await res.arrayBuffer()).byteLength > 30);
+});
+test('API key stays local and missing settings do not pretend to run AI', async () => {
+  assert.equal(
+    (await call('/api/generate', { days: [{ raw: '今天喝了拿铁。' }] }, 'POST'))
+      .status,
+    409,
+  );
+  const config = await call('/api/settings', {
+    baseUrl: 'http://127.0.0.1:4340/v1',
+    model: 'test-model',
+    apiKey: 'private-test-key',
+    vision: false,
+  });
+  assert.equal(config.data.hasKey, true);
+  assert.equal(config.data.apiKey, undefined);
+  assert.ok(
+    !JSON.stringify((await call('/api/settings')).data).includes(
+      'private-test-key',
+    ),
+  );
+  assert.equal((await stat(join(dir, 'settings.json'))).mode & 0o777, 0o600);
+});
+test('real HTTP AI adapter validates output and respects photo sending preference', async () => {
+  const days = [
+    { date: '2026-09-05', raw: '今天喝了拿铁。', photos: [uploaded] },
+  ];
+  const result = await call('/api/generate', { days }, 'POST');
+  assert.equal(result.status, 200);
+  assert.equal(result.data.days[0].text, '今天喝了拿铁。');
+  assert.deepEqual(result.data.days[0].assetIds, ['asset-001']);
+  assert.equal(typeof received.messages[1].content, 'string');
+  await call('/api/settings', {
+    baseUrl: 'http://127.0.0.1:4340/v1',
+    model: 'test-model',
+    vision: true,
+  });
+  assert.equal((await call('/api/generate', { days }, 'POST')).status, 200);
+  assert.equal(
+    received.messages[1].content.some((c) => c.type === 'image_url'),
+    true,
+  );
+  mode = 'bad';
+  assert.equal((await call('/api/generate', { days }, 'POST')).status, 502);
+  mode = 'malformed';
+  assert.equal((await call('/api/generate', { days }, 'POST')).status, 502);
+});
+
+test('truncated design automatically retries once and records useful diagnostics without journal text', async()=>{
+  mode='recover';
+  const days=[{raw:'今天喝了拿铁。',photos:[uploaded]}];
+  const result=await call('/api/generate',{days},'POST');
+  assert.equal(result.status,200);
+  assert.equal(received.messages.length,3);
+  const info=JSON.parse(await readFile(join(dir,'ai-last-result.json'),'utf8'));
+  assert.equal(info.attempts.length,2);
+  assert.equal(info.attempts[0].errorCode,'truncated');
+  assert.equal(info.ok,true);
+  assert.ok(!JSON.stringify(info).includes(days[0].raw));
+  mode='ok';
+});
+test('production homepage and its bundled assets are served',async()=>{const r=await fetch(base+'/');assert.equal(r.status,200);const html=await r.text();const paths=[...new Set([...html.matchAll(/(?:src|href)="(\/[^" ]+\.(?:js|css))"/g)].map(m=>m[1]))];assert.ok(paths.length>0);for(const path of paths)assert.equal((await fetch(base+path)).status,200)});
+test('reopening and saving a blank key preserves the saved credential',async()=>{mode='ok';const before=JSON.parse(await readFile(join(dir,'settings.json'),'utf8'));const saved=await call('/api/settings',{baseUrl:before.baseUrl,model:before.model,apiKey:'',vision:before.vision});assert.equal(saved.status,200);assert.equal(saved.data.hasKey,true);const after=JSON.parse(await readFile(join(dir,'settings.json'),'utf8'));assert.equal(after.apiKey,before.apiKey);assert.equal((await call('/api/settings')).data.apiKey,undefined);assert.equal((await call('/api/settings/test',{},'POST')).status,200);const invalid=await call('/api/settings',{baseUrl:before.baseUrl,model:'same-model',apiKey:'same-model'});assert.equal(invalid.status,400);assert.match(invalid.data.error,/模型名称/);assert.equal(JSON.parse(await readFile(join(dir,'settings.json'),'utf8')).apiKey,before.apiKey)});
+test('material workbench splits a sheet, imports transparent pieces and persists the library',async()=>{
+ const initial=(await call('/api/materials')).data.length;
+ const fixture=await readFile('tests/fixtures/sticker-sheet.png');
+ const upload=await call('/api/upload',{data:'data:image/png;base64,'+fixture.toString('base64')},'POST');
+ const capabilities=(await call('/api/capabilities')).data;
+ const result=await call('/api/materials/segment',{src:upload.data.src,name:'测试素材纸',mode:'auto',tolerance:28},'POST');
+ if(!capabilities.segment){assert.equal(result.status,501);assert.match(result.data.error,/当前系统暂不支持/);return;}
+ assert.equal(result.status,200);assert.equal(result.data.items.length,3);
+ for(const item of result.data.items){const r=await fetch(base+item.src);assert.equal(r.status,200);const image=Buffer.from(await r.arrayBuffer());assert.equal(image[25],6);assert.ok(item.width>50&&item.height>50)}
+ const first=result.data.items[0];
+ const crop=await call('/api/materials/segment',{src:upload.data.src,name:'单个框选',mode:'paper',tolerance:28,rect:first.bounds},'POST');
+ assert.equal(crop.status,200);assert.equal(crop.data.items.length,1);
+ const payload={jobId:result.data.id,itemIds:result.data.items.map(i=>i.id),category:'测试贴纸',tags:'复古，测试',names:{[first.id]:'独立绿色素材'}};
+ const imported=await call('/api/materials/import',payload,'POST');assert.equal(imported.status,200);assert.equal(imported.data.added,3);assert.equal(imported.data.assets.length,initial+3);assert.equal(imported.data.assets.find(a=>a.id===first.id).name,'独立绿色素材');
+ assert.equal((await call('/api/materials/import',payload,'POST')).data.added,0);
+ assert.equal((await call('/api/materials')).data.length,initial+3);
+ assert.equal(JSON.parse(await readFile(join(dir,'materials.json'),'utf8')).length,3);
+ assert.ok((await call('/api/materials/jobs')).data.find(j=>j.id===result.data.id).items.every(i=>i.imported));
+ assert.equal((await call('/api/materials/import',{jobId:result.data.id,itemIds:['unknown']},'POST')).status,400);
+ assert.equal((await call('/api/materials/segment',{src:upload.data.src,rect:[.9,0,.5,.5]},'POST')).status,400);
+});
+
+ test('HTTP layout uses small hand-drawn motifs instead of model-authored geometry',async()=>{
+ mode='hand';
+ const result=await call('/api/generate',{days:[],elements:[],instruction:'一条自然的小弯箭头'},'POST');
+ assert.equal(result.status,200);assert.equal(result.data.elements[0].doodleMotif,'arrow');
+ assert.ok(result.data.elements[0].w<=17);assert.ok(result.data.elements[0].path.startsWith('M6'));
+ mode='ok';
+});
