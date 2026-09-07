@@ -40,10 +40,12 @@ function StaticPage({ side, z = 0.145 }: { side: 'left' | 'right'; z?: number })
 
 function SkinnedFlexiblePage({
   enabled,
+  settled,
   progressRef,
   onFlip,
 }: {
   enabled: boolean;
+  settled: boolean;
   progressRef: { current: number };
   onFlip: () => void;
 }) {
@@ -122,11 +124,20 @@ function SkinnedFlexiblePage({
     const progress = MathUtils.smoothstep(progressRef.current, 0, 1);
     const turnPulse = Math.sin(Math.PI * progress);
 
-    group.rotation.y = MathUtils.damp(group.rotation.y, -Math.PI * progress, 8, delta);
+    // The hinge must be exact. Damping this value makes the sheet keep moving
+    // after the flip state has already completed, which looks like it detaches.
+    group.rotation.y = -Math.PI * progress;
 
     const bones = mesh.skeleton.bones;
     for (let i = 0; i < bones.length; i += 1) {
       const bone = bones[i];
+
+      if (settled || progress >= 0.999) {
+        bone.rotation.y = 0;
+        bone.rotation.x = 0;
+        continue;
+      }
+
       if (i === 0) {
         bone.rotation.y = MathUtils.damp(bone.rotation.y, 0, 10, delta);
         bone.rotation.x = MathUtils.damp(bone.rotation.x, 0, 10, delta);
@@ -154,6 +165,7 @@ function SkinnedFlexiblePage({
     <group
       ref={pageGroup}
       position={[0, 0, 0.19]}
+      visible={!settled}
       onClick={(event) => {
         event.stopPropagation();
         if (enabled) onFlip();
@@ -229,9 +241,11 @@ function BookModel({
 
       {phase !== 'closed' && <StaticPage side="left" z={0.135} />}
       <StaticPage side="right" z={0.145} />
+      {phase === 'flipped' && <StaticPage side="left" z={0.2} />}
 
       <SkinnedFlexiblePage
         enabled={phase === 'open'}
+        settled={phase === 'flipped'}
         progressRef={pageProgress}
         onFlip={flipPage}
       />
@@ -290,7 +304,7 @@ const phaseCopy: Record<Phase, string> = {
   opening: '封面正在打开…',
   open: '点击右页，测试骨骼式柔性翻页',
   flipping: '纸页正在弯曲翻动…',
-  flipped: '翻页完成 · 可点击“重新测试”再看一次',
+  flipped: '翻页完成 · 页面已固定在左侧',
 };
 
 export default function Book3DTest() {
