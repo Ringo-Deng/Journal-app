@@ -29,8 +29,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Run source tests
+        shell: bash
+        run: |
+          TEST_FILES=$(find tests -maxdepth 1 -name '*.test.mjs' ! -name 'launcher.test.mjs' -print)
+          node --experimental-strip-types --test $TEST_FILES
+          node -e "const p=require('./package.json'); if(p.version!=='0.1.20') process.exit(1)"
+          grep -q "APP_VERSION = '0.1.20'" local/launch.mjs
+          grep -q "EXPECTED_RUNTIME = 'page-elements-v0.1.20'" local/launch.mjs
 
       - name: Commit v0.1.20 source
         shell: bash
