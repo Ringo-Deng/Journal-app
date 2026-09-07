@@ -1,0 +1,44 @@
+name: Apply v0.1.20 patch
+
+on:
+  push:
+    branches:
+      - chatgpt/v0.1.20
+    paths:
+      - .chatgpt-v0120/READY
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/v0.1.20
+          fetch-depth: 0
+
+      - name: Rebuild patch
+        shell: bash
+        run: |
+          cat .chatgpt-v0120/part*.txt | base64 -d > /tmp/v0120.zip
+          echo "8d642343ef326245f0e622425c52749b  /tmp/v0120.zip" | md5sum -c -
+          unzip -o /tmp/v0120.zip -d .
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Commit v0.1.20 source
+        shell: bash
+        run: |
+          rm -rf .chatgpt-v0120
+          rm -f .github/workflows/apply-v0120.yml
+          git config user.name "ChatGPT"
+          git config user.email "chatgpt@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: update Shiguang Journal to v0.1.20"
+          git push origin HEAD:chatgpt/v0.1.20
