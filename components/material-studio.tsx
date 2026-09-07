@@ -95,7 +95,8 @@ export default function MaterialStudio({
     [progress, setProgress] = useState(''),
     [pinterestOpen, setPinterestOpen] = useState(false),
     [pinterestInput, setPinterestInput] = useState(''),
-    [pinterestPreview, setPinterestPreview] = useState<{pinId:string;previewUrl:string;originalUrl:string}|null>(null),
+    [pinterestPreview, setPinterestPreview] = useState<{pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]}|null>(null),
+    [pinterestSelected, setPinterestSelected] = useState(''),
     [pinterestStatus, setPinterestStatus] = useState('等待粘贴'),
     [pinterestResolving, setPinterestResolving] = useState(false);
   const file = useRef<HTMLInputElement>(null),
@@ -106,13 +107,25 @@ export default function MaterialStudio({
     pinterestSeq = useRef(0),
     job = jobs.find((j) => j.id === active);
   useEffect(() => {
-    if (open)
-      request<Job[]>('/jobs')
-        .then((list) => {
-          setJobs(list);
-          const current=list.find(j=>j.id===active)||list[0];if(current)choose(current);
-        })
-        .catch((e) => setMessage(e.message));
+    if (!open) return;
+    request<Job[]>('/jobs')
+      .then((list) => {
+        setJobs(list);
+        const current=list.find(j=>j.id===active)||list[0];if(current)choose(current);
+      })
+      .catch((e) => setMessage(e.message));
+    request<{item?:{src:string;name:string}|null}>('/reopen')
+      .then(async ({item}) => {
+        if (!item) return;
+        setBusy(true);setProgress('正在打开已保存素材…');
+        try {
+          const next=await request<Job>('/source',{src:item.src,name:item.name});
+          setJobs(old=>[next,...old.filter(j=>j.source!==next.source)]);choose(next);
+          setMessage('已基于当前保存结果打开，可继续处理。');
+        } catch (e) { setMessage((e as Error).message); }
+        finally { setBusy(false);setProgress(''); }
+      })
+      .catch(()=>{});
   }, [open]);
   useEffect(()=>{
     const el=imageViewport.current;if(!el)return;
@@ -151,9 +164,9 @@ export default function MaterialStudio({
     if (!pinId) { setPinterestPreview(null); setPinterestStatus('未识别到 Pinterest Pin'); setPinterestResolving(false); return; }
     setPinterestPreview(null); setPinterestStatus(`已识别 Pin ${pinId} · 正在读取预览…`); setPinterestResolving(true);
     try {
-      const result = await request<{pinId:string;previewUrl:string;originalUrl:string}>('/pinterest/resolve', { input: value });
+      const result = await request<{pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]}>('/pinterest/resolve', { input: value });
       if (seq !== pinterestSeq.current) return;
-      setPinterestPreview(result); setPinterestStatus(`已识别 Pin ${result.pinId}`);
+      setPinterestPreview(result); setPinterestSelected(result.images[0]?.downloadUrl || ''); setPinterestStatus(result.images.length>1?`已识别 Pin ${result.pinId} · 请选择 1 张图片`:`已识别 Pin ${result.pinId}`);
     } catch (e) { if (seq === pinterestSeq.current) { setPinterestPreview(null); setPinterestStatus((e as Error).message); } }
     finally { if (seq === pinterestSeq.current) setPinterestResolving(false); }
   }
@@ -161,7 +174,7 @@ export default function MaterialStudio({
     if (!pinterestPreview || !pinterestInput.trim()) return;
     setBusy(true); setProgress('正在下载 Pinterest 最高质量素材图…'); setMessage('');
     try {
-      const imported = await request<{src:string;name:string;duplicate:boolean;autoSegment:boolean;pinId:string}>('/pinterest/import', { input: pinterestInput });
+      const imported = await request<{src:string;name:string;duplicate:boolean;autoSegment:boolean;pinId:string}>('/pinterest/import', { input: pinterestInput, imageUrl: pinterestSelected });
       setProgress(imported.duplicate ? '已找到现有素材，正在打开处理记录…' : imported.autoSegment ? '下载完成，正在自动拆分素材…' : '下载完成，正在打开手动裁切工作台…');
       let next = (await request<Job[]>('/jobs')).find((item) => item.source === imported.src);
       if (!next) next = imported.autoSegment ? await processImage(imported.src, imported.name) : await request<Job>('/source', { src: imported.src, name: imported.name });
@@ -347,9 +360,9 @@ export default function MaterialStudio({
             <span className={`pinterest-state ${pinterestPreview?'ready':''}`}>{pinterestResolving?'正在读取…':pinterestStatus}</span>
           </div>
           <div className="pinterest-preview">
-            {pinterestPreview ? <><img src={pinterestPreview.previewUrl} alt="Pinterest 素材预览"/><div><strong>Pin {pinterestPreview.pinId}</strong><small>将优先下载 Pinterest 可获得的最高质量原图。</small></div></> : <div className="pinterest-placeholder">粘贴后会自动识别 Pin 并显示预览</div>}
+            {pinterestPreview ? <><div className="pinterest-image-choices">{pinterestPreview.images.map(image=><button type="button" key={image.id} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>setPinterestSelected(image.downloadUrl)}><img src={image.previewUrl} alt={`Pinterest 图片 ${image.id}`}/><span>{pinterestSelected===image.downloadUrl?'已选择':'选择这张'}</span></button>)}</div><div><strong>Pin {pinterestPreview.pinId}</strong><small>{pinterestPreview.images.length>1?'这个 Pin 有多张图，请先选择其中 1 张。':'已准备好进入素材处理台。'}</small></div></> : <div className="pinterest-placeholder">粘贴后会自动识别 Pin 并显示预览</div>}
           </div>
-          <button className="primary" disabled={busy||pinterestResolving||!pinterestPreview} onClick={()=>void importPinterest()}>{busy?'正在导入…':'导入素材'}</button>
+          <button className="primary" disabled={busy||pinterestResolving||!pinterestPreview||!pinterestSelected} onClick={()=>void importPinterest()}>{busy?'正在导入…':'进入处理台'}</button>
         </section>}
         <div className="studio-body">
           <aside className="studio-history">

@@ -82,7 +82,18 @@ export function extractPinterestMetadata(html, pinId) {
     if (original && original !== current) candidates.add(original);
   }
   const sorted = [...candidates].sort((a, b) => score(b) - score(a));
-  return { pinId, video: false, candidates: sorted, previewUrl: sorted.find((u) => !/\/originals\//i.test(u)) || sorted[0] || '' };
+  const identity = (url) => {
+    try { const u = new URL(url); return u.pathname.replace(/\/(?:originals|\d{3,5}x(?:\d{3,5})?|\d{3,5}x)\//i, '/SIZE/'); } catch { return url; }
+  };
+  const groups = new Map();
+  for (const url of sorted) { const key = identity(url); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(url); }
+  const images = [...groups.values()].map((urls, index) => ({
+    id: String(index + 1),
+    previewUrl: urls.find((u) => !/\/originals\//i.test(u)) || urls[0],
+    downloadUrl: urls[0],
+    candidates: urls,
+  }));
+  return { pinId, video: false, candidates: sorted, images, previewUrl: images[0]?.previewUrl || '' };
 }
 
 async function fetchText(url, timeoutMs = 15000) {
@@ -159,10 +170,12 @@ async function fetchImage(url) {
   throw last || new Error('download failed');
 }
 
-export async function downloadPinterestImage(pinId) {
+export async function downloadPinterestImage(pinId, selectedUrl = '') {
   const metadata = await resolvePinterestPin(pinId);
+  const selected = selectedUrl && metadata.images?.find((image) => image.downloadUrl === selectedUrl || image.previewUrl === selectedUrl);
+  const candidates = selected?.candidates || metadata.candidates;
   let last;
-  for (const url of metadata.candidates) {
+  for (const url of candidates) {
     try { return { ...await fetchImage(url), metadata }; } catch (e) { last = e; if (e?.status === 413) throw e; }
   }
   throw Object.assign(new Error('Pinterest 图片下载失败，请稍后重试。'), { status: 502, cause: last });

@@ -212,10 +212,10 @@ export default function Home() {
     [uploading, setUploading] = useState(false),
     [instruction, setInstruction] = useState('');
   const [settings, setSettings] = useState<SettingsData>({
-      baseUrl: 'https://api.openai.com/v1',
-      model: '',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash-vision-exp',
       hasKey: false,
-      vision: false,
+      vision: true,
     }),
     [settingsForm, setSettingsForm] = useState<SettingsData>(settings),
     [settingsSaving, setSettingsSaving] = useState(false);
@@ -1517,7 +1517,7 @@ export default function Home() {
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
         <button aria-label="导出备份" onClick={()=>void exportBackup()}><Download/><span>备份</span></button>
         <button aria-label="AI 设置" onClick={openSettings}><Settings/><span>设置</span></button>
-        <small className="build-version" title="当前版本">v0.1.19</small>
+        <small className="build-version" title="当前版本">v0.1.20</small>
       </aside>
       <main>
         {!reading && view!=='library' && !libraryOpen && <header className="compact-bar editor-header">
@@ -2853,27 +2853,19 @@ export default function Home() {
         <DialogContent className="journal-dialog">
           <DialogTitle>连接你的 AI</DialogTitle>
           <DialogDescription>
-            使用兼容 OpenAI 的接口。密钥保存在本机，不随手帐备份导出。
+            目前固定使用 DeepSeek。默认选择 Vision，密钥保存在本机，不随手帐备份导出。
           </DialogDescription>
           <label className="field">
-            <span>API 基础地址</span>
-            <input
-              value={settingsForm.baseUrl}
-              onChange={(e) =>
-                setSettingsForm((s) => ({ ...s, baseUrl: e.target.value }))
-              }
-              placeholder="https://你的服务地址/v1"
-            />
+            <span>AI 服务</span>
+            <input value="DeepSeek" disabled readOnly />
           </label>
           <label className="field">
-            <span>模型名称</span>
-            <input
-              value={settingsForm.model}
-              onChange={(e) =>
-                setSettingsForm((s) => ({ ...s, model: e.target.value }))
-              }
-              placeholder="填写服务商提供的模型名称"
-            />
+            <span>默认模型</span>
+            <select value={settingsForm.model||'deepseek-v4-flash-vision-exp'} onChange={(e)=>setSettingsForm((v)=>({...v,model:e.target.value,vision:e.target.value.includes('vision')}))}>
+              <option value="deepseek-v4-flash-vision-exp">Vision（默认）</option>
+              <option value="deepseek-v4-flash">V4 Flash（快速）</option>
+              <option value="deepseek-v4-pro">V4 Pro（高质量）</option>
+            </select>
           </label>
           <label className="field">
             <span>
@@ -2884,67 +2876,24 @@ export default function Home() {
               type="password"
               autoComplete="off"
               value={settingsForm.apiKey || ''}
-              onChange={(e) =>
-                setSettingsForm((s) => ({ ...s, apiKey: e.target.value }))
-              }
-              placeholder={
-                settings.hasKey
-                  ? '•••••••• 已保存（留空不更改）'
-                  : '仅在此处填写密钥'
-              }
+              onChange={(e) => setSettingsForm((v) => ({ ...v, apiKey: e.target.value }))}
+              placeholder={settings.hasKey ? '•••••••• 已保存（留空不更改）' : '仅在此处填写密钥'}
             />
           </label>
-          <p className="microcopy">
-            密钥不会回显；重新打开时留空不代表被清除。需要更换时直接粘贴新密钥。
-          </p>
-          <div className="lock-card">
-            <div>
-              <ImageIcon />
-              <p>
-                让 AI 理解照片
-                <small>
-                  开启后，本次照片会发送给所选服务商。
-                  <br />
-                  需使用支持图片的模型。
-                </small>
-              </p>
-            </div>
-            <Switch
-              aria-label="允许发送照片给 AI 理解"
-              checked={settingsForm.vision}
-              onCheckedChange={(v) =>
-                setSettingsForm((s) => ({ ...s, vision: v }))
-              }
-            />
-          </div>
-          <p className="microcopy">
-            日志只在点击 AI 生成或重新设计时发送。素材匹配、翻页和手动编辑不消耗
-            AI 用量。
-          </p>
-          <button
-            className="primary full"
-            disabled={settingsSaving}
-            onClick={() => void saveSettings()}
-          >
-            {settingsSaving ? <Loader2 className="spinning" /> : <Check />}
-            保存连接设置
+          <p className="microcopy">密钥不会回显；重新打开时留空不代表被清除。需要更换时直接粘贴新密钥。</p>
+          <div className="lock-card"><div><ImageIcon/><p>图片理解<small>{settingsForm.vision?'当前默认使用 Vision；图片仅在你主动使用相关 AI 功能时发送。':'当前模型按文字模式使用。'}</small></p></div></div>
+          <details className="ai-advanced">
+            <summary>高级设置</summary>
+            <label className="field"><span>API 基础地址</span><input value={settingsForm.baseUrl} onChange={(e)=>setSettingsForm((v)=>({...v,baseUrl:e.target.value}))} placeholder="https://api.deepseek.com"/></label>
+          </details>
+          <button className="primary full" disabled={settingsSaving} onClick={() => void saveSettings()}>
+            {settingsSaving ? <Loader2 className="spinning" /> : <Check />}保存设置
           </button>
-          <button
-            className="outline full"
-            disabled={settingsSaving}
-            onClick={() => void saveSettings(true)}
-          >
-            {settingsSaving ? <Loader2 className="spinning" /> : <RefreshCw />}
-            保存并测试连接
+          <button className="outline full" disabled={settingsSaving} onClick={() => void saveSettings(true)}>
+            {settingsSaving ? <Loader2 className="spinning" /> : <RefreshCw />}保存并完整测试 AI
           </button>
-          <p className="microcopy">
-            测试会发送一句简短测试文字，不发送日志或照片，可能产生极少量调用费用。
-          </p>
-          {settingsFeedback && (
-            <output className="settings-feedback" aria-live="polite">
-              {settingsFeedback}
-            </output>
-          )}
+          <p className="microcopy">完整测试会依次检查文字、JSON 与图片理解（Vision），可能产生少量调用费用。</p>
+          {settingsFeedback && <output className="settings-feedback" aria-live="polite">{settingsFeedback}</output>}
         </DialogContent>
       </Dialog>
       {imageExportOpen && book && (()=>{const index=reading?readingPage-1:page;const target=index<0?book.flyleaf:book.spreads[index];return target?<NotebookImageExport key={`${book.id}-${index}`} book={book} spread={target} assets={assets} pageIndex={index} flyleaf={index<0} open onClose={()=>setImageExportOpen(false)}/>:null;})()}

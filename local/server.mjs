@@ -10,7 +10,7 @@ import { editorialPrompt, prepareEditorial, checkParagraphDesign, requiredEditor
 import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
-import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig } from './ai-config.mjs';
+import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -68,10 +68,10 @@ function consolidatedJobs(jobs){
   return sources.map(source=>{const group=jobs.filter(j=>j.source===source);const base=group.find(j=>!j.rect)||group[0];const retained=group.flatMap(j=>j.items.filter(i=>i.imported||j.rect).map(i=>({...i,manual:!!j.rect||i.manual})));return {...base,items:[...new Map([...base.items,...retained].map(i=>[i.id,i])).values()]};});
 }
 let settings = await readConfigJSON('settings.json', {
-  baseUrl: 'https://api.openai.com/v1',
-  model: '',
+  baseUrl: 'https://api.deepseek.com',
+  model: DEEPSEEK_DEFAULT_MODEL,
   apiKey: '',
-  vision: false,
+  vision: true,
 });
 {
   const migrated = migrateLegacyConfig(settings);
@@ -198,6 +198,8 @@ const publicSettings = () => ({
   hasKey: !!settings.apiKey,
   vision: !!settings.vision,
   configurationIssue: configIssue(settings),
+  provider: 'deepseek',
+  models: DEEPSEEK_MODELS,
 });
 const error = (message, status = 400) =>
   Object.assign(new Error(message), { status });
@@ -487,6 +489,7 @@ async function generate(input) {
   };
 }
 const catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});
+let pendingMaterialReopen=null;
 const server = http.createServer(async (req, res) => {
   try {
     const host = req.headers.host;
@@ -508,7 +511,7 @@ const server = http.createServer(async (req, res) => {
       throw error('仅允许本机手帐页面访问。', 403);
     const url = new URL(req.url, 'http://localhost');
     const path = decodeURIComponent(url.pathname);
-    if (path === '/api/health') return json(res, { ok: true, runtimeId: 'page-elements-v0.1.19' });
+    if (path === '/api/health') return json(res, { ok: true, runtimeId: 'page-elements-v0.1.20' });
     if (path === '/api/capabilities' && req.method === 'GET') return json(res, { platform: platform(), ...nativeCapabilities });
     if (path === '/api/fonts' && req.method === 'GET') return json(res,{fonts:userFonts.map(fontPublic)});
     if (path === '/api/fonts.css' && req.method === 'GET') {
@@ -569,7 +572,7 @@ const server = http.createServer(async (req, res) => {
       const next = await body(req);
       let baseUrl;
       try {
-        baseUrl = normalizeBaseUrl(next.baseUrl);
+        baseUrl = normalizeBaseUrl(next.baseUrl || 'https://api.deepseek.com');
       } catch (e) {
         throw error(e.message || '请填写完整的 API 地址。');
       }
@@ -577,8 +580,8 @@ const server = http.createServer(async (req, res) => {
         throw error('模型名称无效。');
       let updated = {
         baseUrl,
-        model: next.model.trim(),
-        vision: !!next.vision,
+        model: (next.model || DEEPSEEK_DEFAULT_MODEL).trim(),
+        vision: next.vision !== false,
         apiKey: next.clearKey
           ? ''
           : typeof next.apiKey === 'string' && next.apiKey.trim()
@@ -597,43 +600,63 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/settings/test' && req.method === 'POST') {
       if (configIssue(settings)) throw error(configIssue(settings), 409);
-      let response;
-      try {
-        response = await fetch(
-          normalizeBaseUrl(settings.baseUrl) + '/chat/completions',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${settings.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: settings.model,
-              messages: [{ role: 'user', content: 'Reply with OK only.' }],
-              max_tokens: 64,
-              ...(new URL(settings.baseUrl).hostname === 'api.deepseek.com'
-                ? { thinking: { type: 'disabled' } }
-                : {}),
-            }),
+      const baseUrl = normalizeBaseUrl(settings.baseUrl);
+      const headers = { Authorization: `Bearer ${settings.apiKey}`, 'Content-Type': 'application/json' };
+      const stages = [];
+      async function call(messages, extra = {}) {
+        let response;
+        try {
+          response = await fetch(baseUrl + '/chat/completions', {
+            method: 'POST', headers,
+            body: JSON.stringify({ model: settings.model, messages, max_tokens: 96, ...extra }),
             signal: AbortSignal.timeout(30000),
-          },
-        );
-      } catch {
-        throw error('连接超时或网络不可用，请稍后重试。', 502);
+          });
+        } catch { throw error('连接超时或网络不可用，请稍后重试。', 502); }
+        if (!response.ok) throw error(providerError(response.status), 502);
+        let result; try { result = await response.json(); } catch { throw error('接口返回的不是有效 AI 响应。', 502); }
+        const content = result.choices?.[0]?.message?.content;
+        if (typeof content !== 'string') throw error('接口响应格式不兼容。', 502);
+        return content;
       }
-      if (!response.ok) throw error(providerError(response.status), 502);
-      let result;
-      try {
-        result = await response.json();
-      } catch {
-        throw error(
-          '接口返回的不是 AI 响应，请检查是否误填了管理网页地址。',
-          502,
-        );
+      const text = await call([{ role: 'user', content: 'Reply with OK only.' }]);
+      if(!/ok/i.test(text)) throw error('AI 能连接，但基础文字测试未返回预期结果。',502);
+      stages.push({ key: 'text', ok: true, label: '文字调用' });
+      const jsonText = await call([{ role: 'user', content: 'Return only this JSON object: {"ok":true}' }]);
+      let parsed = null; try { parsed = JSON.parse(jsonText.replace(/^```json\s*|\s*```$/g, '')); } catch {}
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw error('模型可调用，但手帐需要的 JSON 返回测试失败。', 502);
+      stages.push({ key: 'json', ok: true, label: 'JSON 返回' });
+      if (settings.vision) {
+        const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        await call([{ role: 'user', content: [{ type: 'text', text: 'Describe this image in one short word.' }, { type: 'image_url', image_url: { url: pixel } }] }]);
+        stages.push({ key: 'vision', ok: true, label: '图片理解' });
       }
-      if (!result.choices?.[0]?.message)
-        throw error('接口响应不兼容，请确认使用 Chat Completions 接口。', 502);
-      return json(res, { ok: true, message: '连接成功，密钥和模型均可调用。' });
+      return json(res, { ok: true, message: `AI 测试通过：${stages.map(s=>s.label).join('、')}。`, stages, testedAt: new Date().toISOString() });
+    }
+    if (path === '/api/materials/reopen' && req.method === 'GET') {
+      const item=pendingMaterialReopen;
+      pendingMaterialReopen=null;
+      return json(res,{item});
+    }
+    if (path === '/api/materials/reopen' && req.method === 'POST') {
+      const input=await body(req);
+      const id=String(input.id||'');
+      const assets=await rawLibrary();
+      const asset=assets.find(item=>item.id===id);
+      if(!asset)throw error('素材不存在。',404);
+      if(!(asset.sourceImage||String(asset.sourceUrl||'').startsWith('/uploads/')))throw error('仅支持重新编辑已导入素材。',400);
+      pendingMaterialReopen={id:asset.id,src:asset.src,name:asset.name};
+      return json(res,{ok:true});
+    }
+    if (path === '/api/materials/remove' && req.method === 'POST') {
+      const input = await body(req);
+      const id = String(input.id || '');
+      const asset = customAssets.find((item) => item.id === id);
+      if (!asset) throw error('这个素材不是可删除的用户素材。', 404);
+      const used = JSON.stringify(state).includes(`"assetId":"${id}"`) || JSON.stringify(state).includes(`"${id}"`);
+      if (used) throw error('这个素材已经放入手帐页面，请先从手帐中移除后再删除。', 409);
+      customAssets = customAssets.filter((item) => item.id !== id);
+      await atomic('materials.json', customAssets);
+      return json(res, { ok: true, assets: await library() });
     }
     if(catalogService.handles(path)) return json(res,await catalogService.handle(path,req.method,req.method==='GET'?undefined:await body(req)));
     if (path === '/api/materials' && req.method === 'GET')
@@ -648,12 +671,13 @@ const server = http.createServer(async (req, res) => {
         pinId: parsed.pinId,
         originalUrl: parsed.originalUrl,
         previewUrl: metadata.previewUrl || metadata.candidates[0],
+        images: (metadata.images || []).map(({ id, previewUrl, downloadUrl }) => ({ id, previewUrl, downloadUrl })),
       });
     }
     if (path === '/api/materials/pinterest/import' && req.method === 'POST') {
       const input = await body(req);
       const parsed = parsePinterestInput(input.input);
-      const resolved = await downloadPinterestImage(parsed.pinId);
+      const resolved = await downloadPinterestImage(parsed.pinId, input.imageUrl || '');
       const sha256 = createHash('sha256').update(resolved.buffer).digest('hex');
       let existing = pinterestImports.find((item) => item.pinId === parsed.pinId || item.sha256 === sha256);
       if (existing) {

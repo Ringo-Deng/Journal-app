@@ -6,6 +6,8 @@ export type Asset = {
   tags: string[];
   src: string;
   sourceUrl: string;
+  sourceImage?: string;
+  source?: {type?:string;pinId?:string;originalUrl?:string;imageUrl?:string;sha256?:string};
   license: string;
   author: string;
   styles?: string[];

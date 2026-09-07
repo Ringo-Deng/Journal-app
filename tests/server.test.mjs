@@ -41,6 +41,11 @@ const mock = http.createServer(async (req, res) => {
   }
   res.setHeader('content-type', 'application/json');
   if(mode==='recover' && received.messages.length===2){res.end(JSON.stringify({choices:[{finish_reason:'length',message:{content:''}}]}));return;}
+  const lastContent=received.messages?.at(-1)?.content;
+  const prompt=typeof lastContent==='string'?lastContent:(Array.isArray(lastContent)?lastContent.find(x=>x.type==='text')?.text||'':'');
+  if(/Reply with OK only/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'OK'}}]}));return;}
+  if(/Return only this JSON object/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'{"ok":true}'}}]}));return;}
+  if(/Describe this image/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'pixel'}}]}));return;}
   res.end(
     JSON.stringify({
       choices: [
@@ -212,6 +217,20 @@ test('material workbench splits a sheet, imports transparent pieces and persists
  assert.ok((await call('/api/materials/jobs')).data.find(j=>j.id===result.data.id).items.every(i=>i.imported));
  assert.equal((await call('/api/materials/import',{jobId:result.data.id,itemIds:['unknown']},'POST')).status,400);
  assert.equal((await call('/api/materials/segment',{src:upload.data.src,rect:[.9,0,.5,.5]},'POST')).status,400);
+});
+
+
+test('saved user material can be reopened for editing and deleted again',async()=>{
+ const source=await call('/api/materials/source',{src:uploaded,name:'可再次编辑素材'},'POST');assert.equal(source.status,200);
+ const withItem=await call('/api/materials/add-item',{jobId:source.data.id,src:uploaded,width:1,height:1,name:'可再次编辑素材'},'POST');assert.equal(withItem.status,200);
+ const item=withItem.data.items.at(-1);
+ const imported=await call('/api/materials/import',{jobId:source.data.id,itemIds:[item.id],names:{[item.id]:'可再次编辑素材'}},'POST');assert.equal(imported.status,200);
+ const custom=imported.data.assets.find(a=>a.id===item.id);assert.ok(custom?.sourceImage);
+ const queued=await call('/api/materials/reopen',{id:custom.id},'POST');assert.equal(queued.status,200);
+ const take=await call('/api/materials/reopen');assert.equal(take.status,200);assert.equal(take.data.item.id,custom.id);assert.equal(take.data.item.src,custom.src);
+ assert.equal((await call('/api/materials/reopen')).data.item,null);
+ const removed=await call('/api/materials/remove',{id:custom.id},'POST');assert.equal(removed.status,200);assert.equal(removed.data.assets.some(a=>a.id===custom.id),false);
+ assert.equal((await call('/api/materials/remove',{id:custom.id},'POST')).status,404);
 });
 
  test('HTTP layout uses small hand-drawn motifs instead of model-authored geometry',async()=>{

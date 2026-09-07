@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const read = p => readFile(new URL('../'+p, import.meta.url), 'utf8');
 
-test('v0.1.19 universal launchers share one cross-platform app launcher', async()=>{
+test('v0.1.20 universal launchers share one cross-platform app launcher', async()=>{
   const [mac,win,launch,server,pkg]=await Promise.all([
     read('packaging/START-MAC.command'),
     read('packaging/START-WINDOWS.cmd'),
@@ -31,5 +31,5 @@ test('v0.1.19 universal launchers share one cross-platform app launcher', async(
   assert.match(launch,/dist\/client\/index\.html/);
   assert.match(server,/page-elements-v0\.1\.18/);
   assert.match(server,/process\.arch !== 'arm64'/);
-  assert.equal(JSON.parse(pkg).version,'0.1.19');
+  assert.equal(JSON.parse(pkg).version,'0.1.20');
 });
