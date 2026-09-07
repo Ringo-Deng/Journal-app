@@ -19,6 +19,10 @@ import {
  * The segmented SkinnedMesh/Bone page-rig approach is adapted from
  * Adyaman Singh's `krishna-s-teachings` project (MIT License, 2025).
  * See THIRD_PARTY_NOTICES.md for the retained license notice.
+ *
+ * Important behaviour retained from the reference implementation:
+ * the turning sheet stays mounted on the spine for its entire lifecycle.
+ * We do not swap it for a second static mesh after the turn completes.
  */
 
 const PAGE_WIDTH = 3.72;
@@ -40,12 +44,10 @@ function StaticPage({ side, z = 0.145 }: { side: 'left' | 'right'; z?: number })
 
 function SkinnedFlexiblePage({
   enabled,
-  settled,
   progressRef,
   onFlip,
 }: {
   enabled: boolean;
-  settled: boolean;
   progressRef: { current: number };
   onFlip: () => void;
 }) {
@@ -60,6 +62,9 @@ function SkinnedFlexiblePage({
       PAGE_SEGMENTS,
       2,
     );
+    // The page starts at the spine (x = 0) and extends to the right.
+    // Rotating this group around x = 0 therefore keeps the sheet physically
+    // attached to the spine throughout the whole turn.
     geometry.translate(PAGE_WIDTH / 2, 0, 0);
 
     const positions = geometry.attributes.position;
@@ -124,40 +129,42 @@ function SkinnedFlexiblePage({
     const progress = MathUtils.smoothstep(progressRef.current, 0, 1);
     const turnPulse = Math.sin(Math.PI * progress);
 
-    // The hinge must be exact. Damping this value makes the sheet keep moving
-    // after the flip state has already completed, which looks like it detaches.
+    // One continuous sheet from start to finish. The hinge rotation is exact,
+    // so when progress reaches 1 the same mesh rests at -PI on the left page.
+    // Never hide or replace this object at the end of the animation.
     group.rotation.y = -Math.PI * progress;
 
     const bones = mesh.skeleton.bones;
     for (let i = 0; i < bones.length; i += 1) {
       const bone = bones[i];
 
-      if (settled || progress >= 0.999) {
+      // Keep the root rigid at the spine. Only the paper away from the spine
+      // flexes, which prevents the inner edge from visually peeling away.
+      if (i === 0) {
         bone.rotation.y = 0;
         bone.rotation.x = 0;
         continue;
       }
 
-      if (i === 0) {
-        bone.rotation.y = MathUtils.damp(bone.rotation.y, 0, 10, delta);
-        bone.rotation.x = MathUtils.damp(bone.rotation.x, 0, 10, delta);
-        continue;
-      }
-
+      const normalized = i / Math.max(1, bones.length - 1);
       const insideCurve = i < 8 ? Math.sin(i * 0.2 + 0.25) : 0;
       const outsideCurve = i >= 8 ? Math.cos(i * 0.3 + 0.09) : 0;
-      const turningCurve = Math.sin((i * Math.PI) / bones.length) * turnPulse;
+      const turningCurve = Math.sin(normalized * Math.PI) * turnPulse;
 
+      // Near-spine rigidity + softer outer half. Every term fades to zero at
+      // both ends, so the page is flat before the turn and flat again after it.
+      const flexibility = MathUtils.lerp(0.34, 1, MathUtils.smoothstep(normalized, 0.05, 1));
       const bendY =
-        (-0.026 * insideCurve + 0.011 * outsideCurve - 0.042 * turningCurve) *
-        turnPulse;
+        (-0.026 * insideCurve + 0.011 * outsideCurve - 0.046 * turningCurve) *
+        turnPulse *
+        flexibility;
 
       const foldIntensity =
-        i > 8 ? Math.sin((i * Math.PI) / bones.length - 0.5) * turnPulse : 0;
-      const foldX = 0.018 * foldIntensity;
+        i > 8 ? Math.sin(normalized * Math.PI - 0.5) * turnPulse : 0;
+      const foldX = 0.028 * foldIntensity * flexibility;
 
-      bone.rotation.y = MathUtils.damp(bone.rotation.y, bendY, 10, delta);
-      bone.rotation.x = MathUtils.damp(bone.rotation.x, foldX, 10, delta);
+      bone.rotation.y = MathUtils.damp(bone.rotation.y, bendY, 12, delta);
+      bone.rotation.x = MathUtils.damp(bone.rotation.x, foldX, 12, delta);
     }
   });
 
@@ -165,7 +172,6 @@ function SkinnedFlexiblePage({
     <group
       ref={pageGroup}
       position={[0, 0, 0.19]}
-      visible={!settled}
       onClick={(event) => {
         event.stopPropagation();
         if (enabled) onFlip();
@@ -201,7 +207,9 @@ function BookModel({
     }
 
     if (phase === 'flipping') {
-      pageProgress.current = Math.min(1, pageProgress.current + delta / 0.9);
+      // Slightly slower than the previous 0.9 s turn. smoothstep in the page
+      // component eases both take-off and landing without adding a second state.
+      pageProgress.current = Math.min(1, pageProgress.current + delta / 1.05);
       if (pageProgress.current >= 1) changePhase('flipped');
     }
 
@@ -241,11 +249,9 @@ function BookModel({
 
       {phase !== 'closed' && <StaticPage side="left" z={0.135} />}
       <StaticPage side="right" z={0.145} />
-      {phase === 'flipped' && <StaticPage side="left" z={0.2} />}
 
       <SkinnedFlexiblePage
         enabled={phase === 'open'}
-        settled={phase === 'flipped'}
         progressRef={pageProgress}
         onFlip={flipPage}
       />
@@ -304,7 +310,7 @@ const phaseCopy: Record<Phase, string> = {
   opening: '封面正在打开…',
   open: '点击右页，测试骨骼式柔性翻页',
   flipping: '纸页正在弯曲翻动…',
-  flipped: '翻页完成 · 页面已固定在左侧',
+  flipped: '翻页完成 · 同一张纸仍固定在左侧',
 };
 
 export default function Book3DTest() {
