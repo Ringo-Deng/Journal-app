@@ -1,0 +1,35 @@
+name: Build v0.1.17 Windows runtime
+
+on:
+  push:
+    branches:
+      - build/offline-v0.1.17
+  workflow_dispatch:
+
+jobs:
+  runtime:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Setup Node 22.13.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+
+      - name: Package portable runtime
+        shell: pwsh
+        run: |
+          $node = (Get-Command node).Source
+          Write-Host "Node: $node"
+          New-Item -ItemType Directory -Force -Path runtime | Out-Null
+          Copy-Item $node runtime\node.exe
+          & runtime\node.exe --version
+          Compress-Archive -Path runtime -DestinationPath shiguang-v017-windows-runtime.zip -CompressionLevel Optimal
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: shiguang-v017-windows-runtime
+          path: shiguang-v017-windows-runtime.zip
+          compression-level: 0
+          retention-days: 1
