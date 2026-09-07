@@ -14,8 +14,12 @@ import {
   FlipVertical2,
   RotateCcw,
   Type,
+  Maximize2,
+  Layers3,
 } from 'lucide-react';
 import type { Piece } from '@/lib/journal';
+import ToolbarPopover from './toolbar-popover';
+
 export function NumberControl({
   label,
   value,
@@ -74,6 +78,7 @@ export function NumberControl({
     </label>
   );
 }
+
 export default function ElementControls({
   piece: p,
   height,
@@ -106,149 +111,34 @@ export default function ElementControls({
   onReset: () => void;
 }) {
   return (
-    <fieldset className="element-controls" aria-label="素材调整">
-      <div className="tool-group">
-        <span className="tool-kind">
-          {p.kind === 'text'
-            ? '文字'
-            : p.kind === 'photo'
-              ? '照片'
-              : p.kind === 'doodle'
-                ? '手绘'
-                : '素材'}
-        </span>
-        <NumberControl
-          label="宽度"
-          value={p.w}
-          min={1}
-          max={100}
-          unit="%"
-          onCommit={(v) => onSize('w', v)}
-        />
-        <button
-          className="quiet tool-icon"
-          aria-label="锁定缩放比例"
-          aria-pressed={proportional}
-          title="锁定宽高比例，也可按住 Shift 缩放"
-          onClick={onProportional}
-        >
-          {proportional ? <Link /> : <Unlink />}
-        </button>
-        <NumberControl
-          label="高度"
-          value={height}
-          min={1}
-          max={100}
-          unit="%"
-          onCommit={(v) => onSize('h', v)}
-        />
-        <NumberControl
-          label="旋转角度"
-          value={p.rotation}
-          min={-180}
-          max={180}
-          unit="°"
-          onCommit={(v) => onPatch({ rotation: v })}
-        />
-        <button
-          className="quiet tool-icon"
-          aria-label="旋转归零"
-          title="旋转归零"
-          onClick={() => onPatch({ rotation: 0 })}
-        >
-          <RotateCcw />
-        </button>
-      </div>
-      <div className="tool-group">
-        <button
-          className="quiet"
-          aria-label="置于顶层"
-          title="置于顶层"
-          onClick={() => onLayer('top')}
-        >
-          <ArrowUpToLine />
-          <span>置顶</span>
-        </button>
-        <button
-          className="quiet"
-          aria-label="置于底层"
-          title="置于底层"
-          onClick={() => onLayer('bottom')}
-        >
-          <ArrowDownToLine />
-          <span>置底</span>
-        </button>
-        <button
-          className="quiet tool-icon"
-          aria-label="上移一层"
-          title="上移一层"
-          onClick={() => onLayer('up')}
-        >
-          <ArrowUp />
-        </button>
-        <button
-          className="quiet tool-icon"
-          aria-label="下移一层"
-          title="下移一层"
-          onClick={() => onLayer('down')}
-        >
-          <ArrowDown />
-        </button>
-        <button
-          className="quiet tool-icon"
-          aria-label="复制素材"
-          title="复制 · ⌘D"
-          onClick={onCopy}
-        >
-          <Copy />
-        </button>
-        {p.kind !== 'text' && (
-          <>
-            <button
-              className="quiet tool-icon"
-              aria-label="水平翻转"
-              title="水平翻转"
-              onClick={() => onPatch({ flipX: !p.flipX })}
-            >
-              <FlipHorizontal2 />
-            </button>
-            <button
-              className="quiet tool-icon"
-              aria-label="垂直翻转"
-              title="垂直翻转"
-              onClick={() => onPatch({ flipY: !p.flipY })}
-            >
-              <FlipVertical2 />
-            </button>
-            <button className="quiet" onClick={onReset}>
-              恢复比例
-            </button>
-          </>
-        )}
-        <button
-          className="quiet tool-icon"
-          aria-label="删除选中元素"
-          title="删除 · Delete"
-          onClick={onDelete}
-        >
-          <Trash2 />
-        </button>
-      </div>
+    <fieldset className="element-controls element-controls-compact" aria-label="素材调整">
+      <span className="tool-kind">
+        {p.kind === 'text'
+          ? '文字'
+          : p.kind === 'photo'
+            ? '照片'
+            : p.kind === 'doodle'
+              ? '手绘'
+              : '素材'}
+      </span>
+
       {p.kind === 'text' && (
-        <div className="tool-group">
-          <button className="quiet" onClick={onEdit}>
+        <>
+          <button className="quiet compact-edit-text" onClick={onEdit}>
             <Type />
-            编辑文字
+            <span>编辑文字</span>
           </button>
-          <NumberControl
-            label="字号"
-            value={p.fontSize || 18}
-            min={12}
-            max={100}
-            onCommit={(v) => onPatch({ fontSize: v })}
-          />
-          <label className="tool-color">
-            颜色
+          <div className="compact-font-size">
+            <NumberControl
+              label="字号"
+              value={p.fontSize || 18}
+              min={12}
+              max={100}
+              onCommit={(v) => onPatch({ fontSize: v })}
+            />
+          </div>
+          <label className="tool-color compact-color-control" title="文字颜色">
+            <span>颜色</span>
             <input
               type="color"
               aria-label="纸面文字颜色"
@@ -256,47 +146,95 @@ export default function ElementControls({
               onChange={(e) => onPatch({ color: e.target.value })}
             />
           </label>
-          <select
-            aria-label="文本框样式"
-            value={p.frame || 'plain'}
-            onChange={(e) => onPatch({ frame: e.target.value })}
-          >
-            {[
-              ['plain', '无边框'],
-              ['note', '便签'],
-              ['collage', '拼贴便签'],
-              ['outline', '手绘边框'],
-              ['torn', '撕纸'],
-              ['underline', '下划线'],
-              ['ticket', '票据'],
-              ['postcard', '明信片'],
-              ['vellum', '半透明纸'],
-              ['label', '标签'],
-            ].map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+        </>
       )}
-      <div className="tool-group tool-finish">
-        {p.kind === 'photo' && (
-          <button className="quiet" onClick={onReplace}>
-            换照片
+
+      {p.kind === 'photo' && (
+        <button className="quiet compact-photo-replace" onClick={onReplace}>
+          换照片
+        </button>
+      )}
+
+      <ToolbarPopover label="尺寸" icon={<Maximize2 />} align="center" className="compact-size-popover">
+        <div className="toolbar-popover-title">尺寸与旋转</div>
+        <div className="toolbar-popover-grid">
+          <NumberControl
+            label="宽度"
+            value={p.w}
+            min={1}
+            max={100}
+            unit="%"
+            onCommit={(v) => onSize('w', v)}
+          />
+          <NumberControl
+            label="高度"
+            value={height}
+            min={1}
+            max={100}
+            unit="%"
+            onCommit={(v) => onSize('h', v)}
+          />
+          <NumberControl
+            label="旋转"
+            value={p.rotation}
+            min={-180}
+            max={180}
+            unit="°"
+            onCommit={(v) => onPatch({ rotation: v })}
+          />
+        </div>
+        <div className="toolbar-popover-actions">
+          <button className="quiet" aria-pressed={proportional} onClick={onProportional}>
+            {proportional ? <Link /> : <Unlink />}
+            {proportional ? '比例已锁' : '锁定比例'}
           </button>
+          <button className="quiet" onClick={() => onPatch({ rotation: 0 })}>
+            <RotateCcw />旋转归零
+          </button>
+        </div>
+        {p.kind !== 'text' && (
+          <div className="toolbar-popover-actions">
+            <button className="quiet" onClick={() => onPatch({ flipX: !p.flipX })}>
+              <FlipHorizontal2 />水平翻转
+            </button>
+            <button className="quiet" onClick={() => onPatch({ flipY: !p.flipY })}>
+              <FlipVertical2 />垂直翻转
+            </button>
+            <button className="quiet" onClick={onReset}>恢复比例</button>
+          </div>
         )}
-        <button className="quiet" onClick={onMore}>
-          更多
-        </button>
-        <button className="quiet" aria-label="完成编辑" onClick={onFinish}>
-          <Check />
-          完成
-        </button>
-      </div>
-      <p className="tool-tip">
-        拖边框拉伸 · Shift 保持比例 / 15° 旋转 · 方向键微调 · 点击空白处完成
-      </p>
+      </ToolbarPopover>
+
+      <ToolbarPopover label="图层" icon={<Layers3 />} align="center" className="compact-layer-popover">
+        <div className="toolbar-popover-title">图层顺序</div>
+        <div className="toolbar-layer-grid">
+          <button className="quiet" onClick={() => onLayer('top')}><ArrowUpToLine />置顶</button>
+          <button className="quiet" onClick={() => onLayer('up')}><ArrowUp />上一层</button>
+          <button className="quiet" onClick={() => onLayer('down')}><ArrowDown />下一层</button>
+          <button className="quiet" onClick={() => onLayer('bottom')}><ArrowDownToLine />置底</button>
+        </div>
+      </ToolbarPopover>
+
+      <button
+        className="quiet tool-icon compact-copy"
+        aria-label="复制素材"
+        title="复制 · ⌘D"
+        onClick={onCopy}
+      >
+        <Copy />
+      </button>
+      <button
+        className="quiet tool-icon compact-delete"
+        aria-label="删除选中元素"
+        title="删除 · Delete"
+        onClick={onDelete}
+      >
+        <Trash2 />
+      </button>
+      <button className="quiet compact-more-button" onClick={onMore}>更多</button>
+      <button className="quiet tool-finish-button" aria-label="完成编辑" onClick={onFinish}>
+        <Check /><span>完成</span>
+      </button>
     </fieldset>
   );
 }
