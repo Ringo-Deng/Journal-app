@@ -17,8 +17,15 @@ export function normalizeBaseUrl(value) {
     .replace(/\/$/, '');
   return url.toString().replace(/\/$/, '');
 }
+export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash-vision-exp';
+export const DEEPSEEK_MODELS = [
+  { id: 'deepseek-v4-flash-vision-exp', label: 'Vision（默认）' },
+  { id: 'deepseek-v4-flash', label: 'V4 Flash（快速）' },
+  { id: 'deepseek-v4-pro', label: 'V4 Pro（高质量）' },
+];
+
 export function configIssue(config) {
-  if (!config.model?.trim()) return '请填写模型名称。';
+  if (!config.model?.trim()) return '请选择 DeepSeek 模型。';
   if (!config.apiKey?.trim()) return '请填写服务商后台生成的 API 密钥。';
   if (config.apiKey.trim() === config.model.trim())
     return '密钥栏填的是模型名称。请到服务商后台复制真正的 API 密钥，再粘贴到密钥栏。';

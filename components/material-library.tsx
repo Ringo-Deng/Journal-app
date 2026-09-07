@@ -1,7 +1,7 @@
 'use client';
 /* oxlint-disable next/no-img-element -- The gallery shows local material originals. */
 import {useEffect,useMemo,useState} from 'react';
-import {Layers,Search,Sparkles,Plus,Check,ImagePlus,ArrowLeft,Loader2,X,Pencil} from 'lucide-react';
+import {Layers,Search,Sparkles,Plus,Check,ImagePlus,ArrowLeft,Loader2,X,Pencil,RefreshCw,Trash2,Scissors} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import type {Asset} from '@/lib/journal';
 type Dimension='content'|'style'|'color';
@@ -90,15 +90,22 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
   if(!current||(current.group||'')===group)return;
   await mutate({action:'apply',manual:true,patches:[{id,group,review:{pending:!group}}]});
  }
- async function classify(){
+ async function classify(ids=assets.map(a=>a.id)){
   if(!hasKey){onSettings();return;}setSaving(true);setError('');
-  try{const next=await request<Job>('/classify',{ids:assets.map(a=>a.id),useImages:vision,instruction:''});setJob(next);}
+  try{const next=await request<Job>('/classify',{ids,useImages:vision,instruction:''});setJob(next);}
   catch(e){setError((e as Error).message);}finally{setSaving(false);}
  }
  async function applySuggestions(){
   if(!job)return;
   const patches=[...accepted].map(id=>{const p=job.proposals.find(p=>p.id===id);const adj=adjusted[id];if(!p||!adj)return null;return{id,group:adj.group,labels:adj.labels,review:adj.group?(p.review||{pending:false}):{pending:true,reason:p.reason||p.review?.reason||'待确认'}};}).filter(Boolean);
   if(await mutate({action:'apply',jobId:job.id,patches})){setReview(false);setJob(null);}
+ }
+ async function removeAsset(a:Asset){
+  if(!a.sourceImage&&!a.sourceUrl?.startsWith('/uploads/')){setError('内置素材不能删除。');return;}
+  if(!window.confirm(`删除素材「${a.name}」？`))return;
+  setSaving(true);setError('');
+  try{const result=await request<{assets:Asset[]}>('/remove',{id:a.id});onUpdated(result.assets);setSelected(old=>{const n=new Set(old);n.delete(a.id);return n});}
+  catch(e){setError((e as Error).message);}finally{setSaving(false);}
  }
  const groupName=groupFilter==='all'?'全部素材':groupFilter==='pending'?'待确认':groupFilter;
  return <section className="material-library">
@@ -137,7 +144,7 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
       <button className="library-card-main" draggable={!!catalog&&!busy} aria-pressed={selected.has(a.id)} aria-label={`选择素材：${a.name}`} onDragStart={e=>{e.dataTransfer.setData('text/material-id',a.id);e.dataTransfer.effectAllowed='move';setDraggingId(a.id)}} onDragEnd={()=>{setDraggingId(null);setDragOverGroup(null)}} onClick={()=>toggle(a.id)}><div className="library-thumb"><img src={a.src} alt={a.name} loading="lazy"/><span className="library-check">{selected.has(a.id)&&<Check/>}</span></div><strong>{a.name}</strong></button>
       <div className="library-chips"><span className={a.group?'':'chip-pending'}>{a.group||'待确认'}</span>{chips.slice(1,4).map((v,i)=><span key={i}>{v}</span>)}{chips.length>4&&<span className="muted">+{chips.length-4}</span>}</div>
       <label className="library-card-group"><span>分类</span><select aria-label={`设置${a.name}的分类`} value={a.group||''} disabled={busy||!catalog} onChange={e=>void setAssetGroup(a.id,e.target.value)}><option value="">待确认</option>{groups.map(g=><option key={g} value={g}>{g}</option>)}</select></label>
-      <button className="library-edit" aria-label={`编辑${a.name}的标签`} onClick={()=>openEditor(a)}><Pencil/>编辑标签</button>
+      <div className="library-card-actions"><button className="library-edit" aria-label={`编辑${a.name}的标签`} onClick={()=>openEditor(a)}><Pencil/>编辑标签</button>{(a.sourceImage||a.sourceUrl?.startsWith('/uploads/'))&&<><button className="library-edit" aria-label={`再次识别${a.name}`} disabled={busy} onClick={()=>void classify([a.id])}><RefreshCw/>再次识别</button><button className="library-edit" aria-label={`再次编辑${a.name}`} disabled={busy} onClick={()=>void request('/reopen',{id:a.id}).then(()=>onImport()).catch(e=>setError(e.message))}><Scissors/>再次编辑</button><button className="library-edit danger" aria-label={`删除${a.name}`} disabled={busy} onClick={()=>void removeAsset(a)}><Trash2/>删除</button></>}</div>
      </div>})}</div>
     {!visible.length&&<div className="library-empty">没有匹配的素材。请调整或清除筛选条件，或导入新素材。</div>}
    </div>

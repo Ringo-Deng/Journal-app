@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const APP_VERSION = '0.1.19';
-const EXPECTED_RUNTIME = 'page-elements-v0.1.19';
+const APP_VERSION = '0.1.20';
+const EXPECTED_RUNTIME = 'page-elements-v0.1.20';
 const REQUIRED_NODE = [22, 13, 0];
 const noOpen = process.env.SHIGUANG_NO_OPEN === '1';
 const exitAfterHealth = process.env.SHIGUANG_EXIT_AFTER_HEALTH === '1';
