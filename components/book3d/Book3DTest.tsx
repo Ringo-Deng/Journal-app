@@ -27,11 +27,11 @@ function StaticPage({ z = 0.16 }: { z?: number }) {
 
 function FlexiblePage({
   enabled,
-  progress,
+  progressRef,
   onFlip,
 }: {
   enabled: boolean;
-  progress: number;
+  progressRef: { current: number };
   onFlip: () => void;
 }) {
   const page = useRef<Mesh>(null);
@@ -44,6 +44,7 @@ function FlexiblePage({
     const position = mesh.geometry.attributes.position as BufferAttribute;
     if (!original.current) original.current = new Float32Array(position.array as ArrayLike<number>);
     const source = original.current;
+    const progress = progressRef.current;
 
     const lift = Math.sin(Math.PI * progress);
     const baseAngle = -Math.PI * progress;
@@ -64,7 +65,7 @@ function FlexiblePage({
 
       const x = distanceFromSpine * Math.cos(angle);
       const z =
-        distanceFromSpine * Math.sin(angle) +
+        -distanceFromSpine * Math.sin(angle) +
         lift * 0.2 * Math.sin(Math.PI * u);
 
       position.setXYZ(i, x, sourceY, z);
@@ -168,7 +169,7 @@ function BookModel({
 
       <FlexiblePage
         enabled={phase === 'open'}
-        progress={pageProgress.current}
+        progressRef={pageProgress}
         onFlip={flipPage}
       />
 
