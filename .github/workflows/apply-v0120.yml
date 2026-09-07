@@ -19,12 +19,12 @@ jobs:
           ref: chatgpt/v0.1.20
           fetch-depth: 0
 
-      - name: Rebuild patch
+      - name: Apply source patch
         shell: bash
         run: |
-          cat .chatgpt-v0120/part*.txt | base64 -d > /tmp/v0120.zip
-          echo "8d642343ef326245f0e622425c52749b  /tmp/v0120.zip" | md5sum -c -
-          unzip -o /tmp/v0120.zip -d .
+          cat .chatgpt-v0120/part*.patch > /tmp/v0120.patch
+          git apply --check /tmp/v0120.patch
+          git apply /tmp/v0120.patch
 
       - name: Install dependencies
         run: npm ci
