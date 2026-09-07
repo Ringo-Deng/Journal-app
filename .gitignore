@@ -1,0 +1,20 @@
+node_modules/
+.next/
+.vinext/
+dist/
+build/
+.runtime/
+runtime/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Local/private runtime data
+data/*
+!data/README.md
+local/cutout/
+local/segment/
+local/clean-paper/
+local/material-palette/
