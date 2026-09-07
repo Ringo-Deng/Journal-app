@@ -1,31 +1,44 @@
 'use client';
 
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BufferAttribute,
-  DoubleSide,
+  Bone,
+  BoxGeometry,
+  Float32BufferAttribute,
   Group,
   MathUtils,
-  Mesh,
+  MeshStandardMaterial,
+  Skeleton,
+  SkinnedMesh,
+  Uint16BufferAttribute,
+  Vector3,
 } from 'three';
+
+/**
+ * The segmented SkinnedMesh/Bone page-rig approach is adapted from
+ * Adyaman Singh's `krishna-s-teachings` project (MIT License, 2025).
+ * See THIRD_PARTY_NOTICES.md for the retained license notice.
+ */
 
 const PAGE_WIDTH = 3.72;
 const PAGE_HEIGHT = 5.04;
-const PAGE_SEGMENTS = 32;
+const PAGE_DEPTH = 0.018;
+const PAGE_SEGMENTS = 30;
+const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
 
 type Phase = 'closed' | 'opening' | 'open' | 'flipping' | 'flipped';
 
-function StaticPage({ z = 0.16 }: { z?: number }) {
+function StaticPage({ side, z = 0.145 }: { side: 'left' | 'right'; z?: number }) {
   return (
-    <mesh position={[PAGE_WIDTH / 2, 0, z]} receiveShadow>
+    <mesh position={[side === 'left' ? -PAGE_WIDTH / 2 : PAGE_WIDTH / 2, 0, z]} receiveShadow>
       <planeGeometry args={[PAGE_WIDTH - 0.08, PAGE_HEIGHT - 0.08]} />
-      <meshStandardMaterial color="#fffaf0" roughness={0.96} side={DoubleSide} />
+      <meshStandardMaterial color="#fffaf0" roughness={0.96} />
     </mesh>
   );
 }
 
-function FlexiblePage({
+function SkinnedFlexiblePage({
   enabled,
   progressRef,
   onFlip,
@@ -34,66 +47,120 @@ function FlexiblePage({
   progressRef: { current: number };
   onFlip: () => void;
 }) {
-  const page = useRef<Mesh>(null);
-  const original = useRef<Float32Array | null>(null);
+  const pageGroup = useRef<Group>(null);
+  const pageMesh = useRef<SkinnedMesh>(null);
 
-  useFrame(() => {
-    const mesh = page.current;
-    if (!mesh) return;
+  const rig = useMemo(() => {
+    const geometry = new BoxGeometry(
+      PAGE_WIDTH,
+      PAGE_HEIGHT,
+      PAGE_DEPTH,
+      PAGE_SEGMENTS,
+      2,
+    );
+    geometry.translate(PAGE_WIDTH / 2, 0, 0);
 
-    const position = mesh.geometry.attributes.position as BufferAttribute;
-    if (!original.current) original.current = new Float32Array(position.array as ArrayLike<number>);
-    const source = original.current;
-    const progress = progressRef.current;
+    const positions = geometry.attributes.position;
+    const vertex = new Vector3();
+    const skinIndexes: number[] = [];
+    const skinWeights: number[] = [];
 
-    const lift = Math.sin(Math.PI * progress);
-    const baseAngle = -Math.PI * progress;
+    for (let i = 0; i < positions.count; i += 1) {
+      vertex.fromBufferAttribute(positions, i);
+      const scaled = MathUtils.clamp(vertex.x / SEGMENT_WIDTH, 0, PAGE_SEGMENTS);
+      const skinIndex = Math.min(PAGE_SEGMENTS - 1, Math.floor(scaled));
+      const skinWeight = MathUtils.clamp(scaled - skinIndex, 0, 1);
 
-    for (let i = 0; i < position.count; i += 1) {
-      const sourceIndex = i * 3;
-      const sourceX = source[sourceIndex];
-      const sourceY = source[sourceIndex + 1];
-      const distanceFromSpine = sourceX + PAGE_WIDTH / 2;
-      const u = MathUtils.clamp(distanceFromSpine / PAGE_WIDTH, 0, 1);
-
-      const curl =
-        lift *
-        0.72 *
-        Math.sin(Math.PI * u) *
-        (0.28 + 0.72 * u);
-      const angle = baseAngle - curl;
-
-      const x = distanceFromSpine * Math.cos(angle);
-      const z =
-        -distanceFromSpine * Math.sin(angle) +
-        lift * 0.2 * Math.sin(Math.PI * u);
-
-      position.setXYZ(i, x, sourceY, z);
+      skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
+      skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
     }
 
-    position.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
+    geometry.setAttribute('skinIndex', new Uint16BufferAttribute(skinIndexes, 4));
+    geometry.setAttribute('skinWeight', new Float32BufferAttribute(skinWeights, 4));
+
+    const bones: Bone[] = [];
+    for (let i = 0; i <= PAGE_SEGMENTS; i += 1) {
+      const bone = new Bone();
+      bone.position.x = i === 0 ? 0 : SEGMENT_WIDTH;
+      bones.push(bone);
+      if (i > 0) bones[i - 1].add(bone);
+    }
+
+    const skeleton = new Skeleton(bones);
+    const materials = [
+      new MeshStandardMaterial({ color: '#e7decf', roughness: 0.98 }),
+      new MeshStandardMaterial({ color: '#d7cbb8', roughness: 0.98 }),
+      new MeshStandardMaterial({ color: '#eee5d7', roughness: 0.98 }),
+      new MeshStandardMaterial({ color: '#eee5d7', roughness: 0.98 }),
+      new MeshStandardMaterial({ color: '#fffdf6', roughness: 0.93 }),
+      new MeshStandardMaterial({ color: '#f7f0e4', roughness: 0.95 }),
+    ];
+
+    const mesh = new SkinnedMesh(geometry, materials);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    mesh.add(skeleton.bones[0]);
+    mesh.bind(skeleton);
+
+    return { mesh, geometry, materials };
+  }, []);
+
+  useEffect(
+    () => () => {
+      rig.geometry.dispose();
+      rig.materials.forEach((material) => material.dispose());
+    },
+    [rig],
+  );
+
+  useFrame((_, delta) => {
+    const group = pageGroup.current;
+    const mesh = pageMesh.current;
+    if (!group || !mesh) return;
+
+    const progress = MathUtils.smoothstep(progressRef.current, 0, 1);
+    const turnPulse = Math.sin(Math.PI * progress);
+
+    group.rotation.y = MathUtils.damp(group.rotation.y, -Math.PI * progress, 8, delta);
+
+    const bones = mesh.skeleton.bones;
+    for (let i = 0; i < bones.length; i += 1) {
+      const bone = bones[i];
+      if (i === 0) {
+        bone.rotation.y = MathUtils.damp(bone.rotation.y, 0, 10, delta);
+        bone.rotation.x = MathUtils.damp(bone.rotation.x, 0, 10, delta);
+        continue;
+      }
+
+      const insideCurve = i < 8 ? Math.sin(i * 0.2 + 0.25) : 0;
+      const outsideCurve = i >= 8 ? Math.cos(i * 0.3 + 0.09) : 0;
+      const turningCurve = Math.sin((i * Math.PI) / bones.length) * turnPulse;
+
+      const bendY =
+        (-0.026 * insideCurve + 0.011 * outsideCurve - 0.042 * turningCurve) *
+        turnPulse;
+
+      const foldIntensity =
+        i > 8 ? Math.sin((i * Math.PI) / bones.length - 0.5) * turnPulse : 0;
+      const foldX = 0.018 * foldIntensity;
+
+      bone.rotation.y = MathUtils.damp(bone.rotation.y, bendY, 10, delta);
+      bone.rotation.x = MathUtils.damp(bone.rotation.x, foldX, 10, delta);
+    }
   });
 
   return (
-    <mesh
-      ref={page}
+    <group
+      ref={pageGroup}
       position={[0, 0, 0.19]}
-      castShadow
-      receiveShadow
       onClick={(event) => {
         event.stopPropagation();
         if (enabled) onFlip();
       }}
     >
-      <planeGeometry args={[PAGE_WIDTH, PAGE_HEIGHT, PAGE_SEGMENTS, 1]} />
-      <meshStandardMaterial
-        color="#fffdf6"
-        roughness={0.94}
-        metalness={0}
-        side={DoubleSide}
-      />
-    </mesh>
+      <primitive object={rig.mesh} ref={pageMesh} />
+    </group>
   );
 }
 
@@ -122,7 +189,7 @@ function BookModel({
     }
 
     if (phase === 'flipping') {
-      pageProgress.current = Math.min(1, pageProgress.current + delta / 0.92);
+      pageProgress.current = Math.min(1, pageProgress.current + delta / 0.9);
       if (pageProgress.current >= 1) changePhase('flipped');
     }
 
@@ -130,12 +197,7 @@ function BookModel({
     cover.current.rotation.y = -Math.PI * easedCover;
 
     const openCenterShift = MathUtils.lerp(-PAGE_WIDTH / 2, 0, easedCover);
-    root.current.position.x = MathUtils.damp(
-      root.current.position.x,
-      openCenterShift,
-      5,
-      delta,
-    );
+    root.current.position.x = MathUtils.damp(root.current.position.x, openCenterShift, 5, delta);
 
     const targetX = -0.23 + state.pointer.y * 0.045;
     const targetY = state.pointer.x * 0.075;
@@ -165,9 +227,10 @@ function BookModel({
         <meshStandardMaterial color="#eee6d6" roughness={0.94} />
       </mesh>
 
-      <StaticPage z={0.145} />
+      {phase !== 'closed' && <StaticPage side="left" z={0.135} />}
+      <StaticPage side="right" z={0.145} />
 
-      <FlexiblePage
+      <SkinnedFlexiblePage
         enabled={phase === 'open'}
         progressRef={pageProgress}
         onFlip={flipPage}
@@ -188,7 +251,7 @@ function BookModel({
         </mesh>
         <mesh position={[PAGE_WIDTH / 2, 0, -0.086]} receiveShadow>
           <planeGeometry args={[PAGE_WIDTH - 0.08, PAGE_HEIGHT - 0.08]} />
-          <meshStandardMaterial color="#a98970" roughness={0.9} side={DoubleSide} />
+          <meshStandardMaterial color="#a98970" roughness={0.9} />
         </mesh>
       </group>
 
@@ -225,7 +288,7 @@ function BookScene({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
 const phaseCopy: Record<Phase, string> = {
   closed: '点击封面打开手帐',
   opening: '封面正在打开…',
-  open: '点击右页，测试柔性翻页',
+  open: '点击右页，测试骨骼式柔性翻页',
   flipping: '纸页正在弯曲翻动…',
   flipped: '翻页完成 · 可点击“重新测试”再看一次',
 };
@@ -271,10 +334,10 @@ export default function Book3DTest() {
                 marginBottom: 10,
               }}
             >
-              Three.js 实验页 · 不读写手帐数据
+              Three.js 实验页 · MIT 骨骼翻页方案
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              封面打开 + 柔性纸页翻动
+              封面打开 + SkinnedMesh 柔性纸页
             </h1>
             <p style={{ margin: '8px 0 0', opacity: 0.7, fontSize: 14 }}>
               {phaseCopy[phase]}
