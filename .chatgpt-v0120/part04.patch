@@ -1,0 +1,96 @@
+     if (path === '/api/materials' && req.method === 'GET')
+@@ -648,12 +671,13 @@
+         pinId: parsed.pinId,
+         originalUrl: parsed.originalUrl,
+         previewUrl: metadata.previewUrl || metadata.candidates[0],
++        images: (metadata.images || []).map(({ id, previewUrl, downloadUrl }) => ({ id, previewUrl, downloadUrl })),
+       });
+     }
+     if (path === '/api/materials/pinterest/import' && req.method === 'POST') {
+       const input = await body(req);
+       const parsed = parsePinterestInput(input.input);
+-      const resolved = await downloadPinterestImage(parsed.pinId);
++      const resolved = await downloadPinterestImage(parsed.pinId, input.imageUrl || '');
+       const sha256 = createHash('sha256').update(resolved.buffer).digest('hex');
+       let existing = pinterestImports.find((item) => item.pinId === parsed.pinId || item.sha256 === sha256);
+       if (existing) {
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "sites-project",
+-  "version": "0.1.19",
++  "version": "0.1.20",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "sites-project",
+-      "version": "0.1.19",
++      "version": "0.1.20",
+       "dependencies": {
+         "@base-ui/react": "1.7.0",
+         "@shadcn/react": "0.3.0",
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "shiguang-journal",
+-  "version": "0.1.19",
++  "version": "0.1.20",
+   "private": true,
+   "engines": {
+     "node": ">=22.13.0"
+--- a/tests/launcher.test.mjs
++++ b/tests/launcher.test.mjs
+@@ -4,7 +4,7 @@
+ 
+ const read = p => readFile(new URL('../'+p, import.meta.url), 'utf8');
+ 
+-test('v0.1.19 universal launchers share one cross-platform app launcher', async()=>{
++test('v0.1.20 universal launchers share one cross-platform app launcher', async()=>{
+   const [mac,win,launch,server,pkg]=await Promise.all([
+     read('packaging/START-MAC.command'),
+     read('packaging/START-WINDOWS.cmd'),
+@@ -31,5 +31,5 @@
+   assert.match(launch,/dist\/client\/index\.html/);
+   assert.match(server,/page-elements-v0\.1\.18/);
+   assert.match(server,/process\.arch !== 'arm64'/);
+-  assert.equal(JSON.parse(pkg).version,'0.1.19');
++  assert.equal(JSON.parse(pkg).version,'0.1.20');
+ });
+--- a/tests/server.test.mjs
++++ b/tests/server.test.mjs
+@@ -41,6 +41,11 @@
+   }
+   res.setHeader('content-type', 'application/json');
+   if(mode==='recover' && received.messages.length===2){res.end(JSON.stringify({choices:[{finish_reason:'length',message:{content:''}}]}));return;}
++  const lastContent=received.messages?.at(-1)?.content;
++  const prompt=typeof lastContent==='string'?lastContent:(Array.isArray(lastContent)?lastContent.find(x=>x.type==='text')?.text||'':'');
++  if(/Reply with OK only/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'OK'}}]}));return;}
++  if(/Return only this JSON object/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'{"ok":true}'}}]}));return;}
++  if(/Describe this image/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'pixel'}}]}));return;}
+   res.end(
+     JSON.stringify({
+       choices: [
+@@ -214,6 +219,20 @@
+  assert.equal((await call('/api/materials/segment',{src:upload.data.src,rect:[.9,0,.5,.5]},'POST')).status,400);
+ });
+ 
++
++test('saved user material can be reopened for editing and deleted again',async()=>{
++ const source=await call('/api/materials/source',{src:uploaded,name:'可再次编辑素材'},'POST');assert.equal(source.status,200);
++ const withItem=await call('/api/materials/add-item',{jobId:source.data.id,src:uploaded,width:1,height:1,name:'可再次编辑素材'},'POST');assert.equal(withItem.status,200);
++ const item=withItem.data.items.at(-1);
++ const imported=await call('/api/materials/import',{jobId:source.data.id,itemIds:[item.id],names:{[item.id]:'可再次编辑素材'}},'POST');assert.equal(imported.status,200);
++ const custom=imported.data.assets.find(a=>a.id===item.id);assert.ok(custom?.sourceImage);
++ const queued=await call('/api/materials/reopen',{id:custom.id},'POST');assert.equal(queued.status,200);
++ const take=await call('/api/materials/reopen');assert.equal(take.status,200);assert.equal(take.data.item.id,custom.id);assert.equal(take.data.item.src,custom.src);
++ assert.equal((await call('/api/materials/reopen')).data.item,null);
++ const removed=await call('/api/materials/remove',{id:custom.id},'POST');assert.equal(removed.status,200);assert.equal(removed.data.assets.some(a=>a.id===custom.id),false);
++ assert.equal((await call('/api/materials/remove',{id:custom.id},'POST')).status,404);
++});
++
+  test('HTTP layout uses small hand-drawn motifs instead of model-authored geometry',async()=>{
+  mode='hand';
+  const result=await call('/api/generate',{days:[],elements:[],instruction:'一条自然的小弯箭头'},'POST');
