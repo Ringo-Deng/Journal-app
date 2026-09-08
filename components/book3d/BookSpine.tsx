@@ -30,7 +30,11 @@ export default function BookSpine({
   title?: string;
   edition?: string;
 }) {
-  const surface = { ...COVER_MATERIALS[material], ...(color ? { color } : {}) };
+  const cleanYellowPlaid = color?.toLowerCase() === "#f4ce75";
+  // The yellow stationery edition has a distinct brown binding, while the rest
+  // of the hard-cover board remains yellow. Keep this decision local to spine geometry.
+  const spineColor = cleanYellowPlaid ? "#684631" : color;
+  const surface = { ...COVER_MATERIALS[material], ...(spineColor ? { color: spineColor } : {}) };
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -38,31 +42,54 @@ export default function BookSpine({
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = surface.color;
     ctx.fillRect(0, 0, 256, 1536);
-    for (let y = 0; y < 1536; y += 3)
-      for (let x = 0; x < 256; x += 3) {
-        const tone = ((x * 17 + y * 31) % 23) / 23;
-        ctx.fillStyle = `rgba(255,255,255,${tone * 0.045})`;
-        ctx.fillRect(x, y, 1, material === "fabric" ? 3 : 1);
+    if (cleanYellowPlaid) {
+      // Barely visible fresh-cloth weave: no noise, wear, border lines or branding.
+      ctx.strokeStyle = "#f3e3cf";
+      ctx.globalAlpha = 0.035;
+      ctx.lineWidth = 1;
+      for (let x = 1; x < 256; x += 4) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 1536);
+        ctx.stroke();
       }
-    const rgb = [1, 3, 5].map((offset) => parseInt(surface.color.slice(offset, offset + 2), 16));
-    ctx.fillStyle = rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 145 ? "#48493e" : "#eee0c7";
-    ctx.globalAlpha = 0.65;
-    ctx.fillRect(24, 90, 208, 3);
-    ctx.fillRect(24, 1443, 208, 3);
-    ctx.textAlign = "center";
-    const letters = [...title];
-    const spacing = Math.min(140, 960 / Math.max(1, letters.length));
-    ctx.font = `${Math.min(72, spacing * 0.75)}px "Songti SC", serif`;
-    const start = 768 - ((letters.length - 1) * spacing) / 2;
-    for (const [i, character] of letters.entries())
-      ctx.fillText(character, 128, start + i * spacing);
-    ctx.font = "28px Georgia";
-    if (edition) ctx.fillText(edition, 128, 1320);
+      ctx.strokeStyle = "#2f2018";
+      ctx.globalAlpha = 0.022;
+      for (let y = 1; y < 1536; y += 4) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(256, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      for (let y = 0; y < 1536; y += 3)
+        for (let x = 0; x < 256; x += 3) {
+          const tone = ((x * 17 + y * 31) % 23) / 23;
+          ctx.fillStyle = `rgba(255,255,255,${tone * 0.045})`;
+          ctx.fillRect(x, y, 1, material === "fabric" ? 3 : 1);
+        }
+      const rgb = [1, 3, 5].map((offset) => parseInt(surface.color.slice(offset, offset + 2), 16));
+      ctx.fillStyle =
+        rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 145 ? "#48493e" : "#eee0c7";
+      ctx.globalAlpha = 0.65;
+      ctx.fillRect(24, 90, 208, 3);
+      ctx.fillRect(24, 1443, 208, 3);
+      ctx.textAlign = "center";
+      const letters = [...title];
+      const spacing = Math.min(140, 960 / Math.max(1, letters.length));
+      ctx.font = `${Math.min(72, spacing * 0.75)}px "Songti SC", serif`;
+      const start = 768 - ((letters.length - 1) * spacing) / 2;
+      for (const [i, character] of letters.entries())
+        ctx.fillText(character, 128, start + i * spacing);
+      ctx.font = "28px Georgia";
+      if (edition) ctx.fillText(edition, 128, 1320);
+    }
     const result = new CanvasTexture(canvas);
     result.colorSpace = SRGBColorSpace;
     result.anisotropy = 8;
     return result;
-  }, [material, color, title, edition]);
+  }, [surface.color, material, title, edition, cleanYellowPlaid]);
   const geometry = useMemo(() => {
     const result = new BufferGeometry();
     const positions = new Float32Array(4 * 33 * 3),
