@@ -17,11 +17,30 @@ import { runtimeMatches } from './runtime-health.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const APP_VERSION = String(packageJson.version || '').trim();
-const REQUIRED_NODE = [22, 13, 0];
+const REQUIRED_NODE = [22, 21, 0];
 const noOpen = process.env.SHIGUANG_NO_OPEN === '1';
 const exitAfterHealth = process.env.SHIGUANG_EXIT_AFTER_HEALTH === '1';
 const devMode = process.env.SHIGUANG_DEV === '1';
 const requestedPath = String(process.env.SHIGUANG_OPEN_PATH || '/').trim() || '/';
+
+function localNoProxy(env = process.env) {
+  const current = String(env.NO_PROXY || env.no_proxy || '');
+  const entries = current
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  for (const host of ['127.0.0.1', 'localhost', '::1'])
+    if (!entries.includes(host)) entries.push(host);
+  return entries.join(',');
+}
+const noProxy = localNoProxy();
+const networkEnv = {
+  ...process.env,
+  NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA || '1',
+  NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY || '1',
+  NO_PROXY: noProxy,
+  no_proxy: noProxy,
+};
 
 function nodeVersionOK(version = process.versions.node) {
   const parts = String(version).split('.').map((v) => Number(v) || 0);
@@ -43,7 +62,7 @@ async function ensureDevDependencies() {
   console.log('最新源码需要本地开发依赖，正在安装一次…');
   const npm = platform() === 'win32' ? 'npm.cmd' : 'npm';
   await new Promise((ok, fail) => {
-    const child = spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
+    const child = spawn(npm, ['install'], { cwd: root, stdio: 'inherit', env: networkEnv });
     child.on('error', fail);
     child.on('exit', code => code === 0 ? ok() : fail(Error(`依赖安装失败（${code ?? 'unknown'}）`)));
   });
@@ -124,7 +143,7 @@ async function releaseLease() {
 }
 try {
   if (!APP_VERSION) throw Error('无法读取 package.json 中的应用版本。');
-  if (!nodeVersionOK()) throw Error(`Node.js 版本过旧（当前 ${process.versions.node}）。拾光手帐 v${APP_VERSION} 需要 Node.js 22.13.0 或更高版本。`);
+  if (!nodeVersionOK()) throw Error(`Node.js 版本过旧（当前 ${process.versions.node}）。拾光手帐 v${APP_VERSION} 需要 Node.js 22.21.0 或更高版本。`);
   await assertDependencyManifest(root);
   cfg = configDir();
   await ensurePersistentSettings(cfg);
@@ -150,7 +169,7 @@ try {
     child = spawn(process.execPath, ['local/dev.mjs'], {
       cwd: root,
       stdio: 'inherit',
-      env: { ...process.env, JOURNAL_API_PORT: String(apiPort), JOURNAL_WEB_PORT: String(webPort), JOURNAL_CONFIG_DIR: cfg },
+      env: { ...networkEnv, JOURNAL_API_PORT: String(apiPort), JOURNAL_WEB_PORT: String(webPort), JOURNAL_CONFIG_DIR: cfg },
     });
   } else if (production.available) {
     const port = await freePort();
@@ -158,7 +177,7 @@ try {
     child = spawn(process.execPath, ['local/server-bootstrap.mjs'], {
       cwd: root,
       stdio: 'inherit',
-      env: { ...process.env, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: String(port), JOURNAL_CONFIG_DIR: cfg },
+      env: { ...networkEnv, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: String(port), JOURNAL_CONFIG_DIR: cfg },
     });
   } else {
     if (await exists(resolve(root, 'dist/client/index.html'))) {
@@ -172,7 +191,7 @@ try {
     child = spawn(process.execPath, ['local/dev.mjs'], {
       cwd: root,
       stdio: 'inherit',
-      env: { ...process.env, JOURNAL_API_PORT: String(apiPort), JOURNAL_WEB_PORT: String(webPort), JOURNAL_CONFIG_DIR: cfg },
+      env: { ...networkEnv, JOURNAL_API_PORT: String(apiPort), JOURNAL_WEB_PORT: String(webPort), JOURNAL_CONFIG_DIR: cfg },
     });
   }
   await waitForHealth(url, child);

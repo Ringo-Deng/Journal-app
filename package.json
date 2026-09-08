@@ -1,9 +1,9 @@
 {
   "name": "shiguang-journal",
-  "version": "0.1.47",
+  "version": "0.1.48",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.21.0"
   },
   "scripts": {
     "dev": "node local/dev.mjs",

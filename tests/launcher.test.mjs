@@ -33,7 +33,7 @@ test('universal launchers share one cross-platform app launcher', async()=>{
   assert.match(launch,/ensureDevDependencies\(\)/);
   assert.match(launch,/platform\(\) === 'win32'/);
   assert.match(launch,/APPDATA/);
-  assert.match(launch,/REQUIRED_NODE = \[22, 13, 0\]/);
+  assert.match(launch,/REQUIRED_NODE = \[22, 21, 0\]/);
   assert.match(server,/page-elements-v0\.1\.20/);
   assert.match(server,/process\.arch !== 'arm64'/);
   assert.match(pkg,/vinext build && node local\/stamp-dist\.mjs/);

@@ -9,7 +9,7 @@ echo "项目目录：$SCRIPT_DIR"
 
 if ! command -v node >/dev/null 2>&1; then
   echo ""
-  echo "未检测到 Node.js。拾光手帐需要 Node.js 22.13.0 或更高版本。"
+  echo "未检测到 Node.js。拾光手帐需要 Node.js 22.21.0 或更高版本。"
   echo "安装完成后，再双击这个文件即可。"
   echo ""
   read "?按回车关闭窗口。"
