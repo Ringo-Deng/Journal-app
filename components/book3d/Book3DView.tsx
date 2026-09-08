@@ -464,6 +464,7 @@ function BookModel({
   beginDrag: (motion: Motion) => void;
 }) {
   const { BOOK, content, stackTop, coverHeight, coverPose, nextBookTurn } = useBookScene();
+  const turnStyle: PaperStyle = content ? "original" : paperStyle;
   const { camera, size } = useThree();
   const gesture = useRef<{
     id: number;
@@ -711,15 +712,15 @@ function BookModel({
       )}
       {turning && (
         <TurningPage
-          key={`${leaf}-${paperStyle}`}
+          key={`${leaf}-${turnStyle}`}
           leaf={leaf}
           progress={progress}
-          paperStyle={paperStyle}
+          paperStyle={turnStyle}
           dragControl={motion?.drag}
           reducedMotion={reducedMotion}
         />
       )}
-      {turning && paperStyle !== "original" && (
+      {turning && turnStyle !== "original" && (
         <PageShade progress={progress} leftCount={leftCount} rightCount={rightCount} />
       )}
       <group ref={cover} position={[0, 0, coverHeight("above")]}>
