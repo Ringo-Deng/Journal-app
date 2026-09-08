@@ -4,6 +4,20 @@ import { useEffect, useRef } from 'react';
 import Book3DTest from '@/components/book3d/Book3DTest';
 
 const THICKNESS_LABEL = '封面厚度';
+const MATERIAL_LABEL = '封面材质';
+
+const EXTRA_MATERIALS = [
+  { value: 'soft-leather', label: '软皮' },
+  { value: 'hardboard', label: '硬纸板' },
+] as const;
+
+const MATERIAL_NAMES: Record<string, string> = {
+  leather: '牛皮革',
+  fabric: '布艺',
+  kraft: '牛皮纸',
+  'soft-leather': '软皮',
+  hardboard: '硬纸板',
+};
 
 export default function ThreeTestClient({ appVersion }: { appVersion: string }) {
   const scopeRef = useRef<HTMLDivElement>(null);
@@ -17,6 +31,37 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
         input.closest('label')?.textContent?.includes(THICKNESS_LABEL),
       );
 
+    const findMaterialSelect = () =>
+      Array.from(scope.querySelectorAll<HTMLSelectElement>('select')).find((select) =>
+        select.closest('label')?.textContent?.includes(MATERIAL_LABEL),
+      );
+
+    const ensureMaterialOptions = () => {
+      const select = findMaterialSelect();
+      if (!select) return;
+
+      for (const material of EXTRA_MATERIALS) {
+        if (select.querySelector(`option[value="${material.value}"]`)) continue;
+        const option = document.createElement('option');
+        option.value = material.value;
+        option.textContent = material.label;
+        select.appendChild(option);
+      }
+    };
+
+    const syncMaterialLabel = () => {
+      const select = findMaterialSelect();
+      const label = select?.closest('label');
+      if (!select || !label) return;
+
+      const spans = label.querySelectorAll('span');
+      const valueSpan = spans.item(1);
+      const nextLabel = MATERIAL_NAMES[select.value];
+      if (valueSpan && nextLabel && valueSpan.textContent !== nextLabel) {
+        valueSpan.textContent = nextLabel;
+      }
+    };
+
     const syncThickness = () => {
       const root = scope.querySelector<HTMLElement>('.pf-book-root');
       const input = findThicknessInput();
@@ -27,6 +72,12 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       root.style.setProperty('--pf-book-cover-thickness', `${input.value}px`);
     };
 
+    const syncControls = () => {
+      ensureMaterialOptions();
+      syncMaterialLabel();
+      syncThickness();
+    };
+
     const handleInput = (event: Event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement) || target.type !== 'range') return;
@@ -34,15 +85,24 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       syncThickness();
     };
 
+    const handleChange = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      if (!target.closest('label')?.textContent?.includes(MATERIAL_LABEL)) return;
+      requestAnimationFrame(syncMaterialLabel);
+    };
+
     scope.addEventListener('input', handleInput);
-    const observer = new MutationObserver(syncThickness);
+    scope.addEventListener('change', handleChange);
+    const observer = new MutationObserver(syncControls);
     observer.observe(scope, { childList: true, subtree: true });
-    const frame = requestAnimationFrame(syncThickness);
+    const frame = requestAnimationFrame(syncControls);
 
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       scope.removeEventListener('input', handleInput);
+      scope.removeEventListener('change', handleChange);
     };
   }, []);
 
@@ -84,8 +144,7 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
             inset -1px 0 rgba(0,0,0,.28) !important;
         }
 
-        /* Add the missing spine-side wall. The original shell only had the
-           outer/top/bottom walls, which made an edge-on cover still read as a plane. */
+        /* Add the missing spine-side wall. */
         .three-test-cover-depth .pf-cover-shell::before {
           content: '';
           position: absolute;
@@ -104,10 +163,131 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
           opacity: 1 !important;
         }
 
+        /*
+         * Texture maps live as repo assets under /public/textures/covers.
+         * They are part of the rotating cover face, so grain/weave/fibres travel
+         * with the hard cover instead of sitting as a screen-space overlay.
+         */
         .three-test-cover-depth .pf-cover-face--outside {
+          position: absolute;
+          isolation: isolate;
+          background-image: none !important;
+          background-color: var(--pf-material-base, var(--pf-cover-base)) !important;
           box-shadow:
             inset 0 0 0 1px rgba(255,255,255,.06),
             inset 0 0 0 2px rgba(0,0,0,.08) !important;
+        }
+
+        .three-test-cover-depth .pf-cover-face--outside::before,
+        .three-test-cover-depth .pf-cover-face--outside::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+
+        .three-test-cover-depth .pf-cover-face--outside::after {
+          z-index: 1;
+          background-image: var(--pf-material-texture);
+          background-repeat: repeat;
+          background-position: center;
+          background-size: var(--pf-material-texture-size, 240px 240px);
+          opacity: var(--pf-material-texture-opacity, .96);
+          mix-blend-mode: var(--pf-material-texture-blend, normal);
+        }
+
+        .three-test-cover-depth .pf-cover-face--outside::before {
+          z-index: 2;
+          background: var(
+            --pf-material-light,
+            linear-gradient(135deg, rgba(255,255,255,.08), transparent 32%, rgba(0,0,0,.08))
+          );
+        }
+
+        .three-test-cover-depth .pf-cover-content,
+        .three-test-cover-depth .pf-back-inner {
+          position: relative;
+          z-index: 3;
+        }
+
+        /* Vegetable-tanned / full-grain leather: irregular pores + stronger grain. */
+        .three-test-cover-depth .pf-cover--leather {
+          --pf-material-base: #76523f;
+          --pf-cover-inside: #684a39;
+          --pf-cover-edge: #443026;
+          --pf-material-texture: url('/textures/covers/leather-grain.svg');
+          --pf-material-texture-size: 285px 285px;
+          --pf-material-texture-opacity: .94;
+          --pf-material-light:
+            radial-gradient(circle at 24% 16%, rgba(255,239,214,.2), transparent 27%),
+            linear-gradient(125deg, rgba(255,255,255,.05), transparent 36%, rgba(31,18,12,.11));
+        }
+
+        /* Woven cloth: visible warp/weft, matte surface, almost no specular sheen. */
+        .three-test-cover-depth .pf-cover--fabric {
+          --pf-material-base: #898276;
+          --pf-cover-inside: #756f65;
+          --pf-cover-edge: #514c45;
+          --pf-material-texture: url('/textures/covers/fabric-weave.svg');
+          --pf-material-texture-size: 128px 128px;
+          --pf-material-texture-opacity: 1;
+          --pf-material-light: linear-gradient(140deg, rgba(255,255,255,.07), transparent 42%, rgba(35,32,28,.08));
+        }
+
+        /* Existing kraft option now uses an actual paper-noise texture map. */
+        .three-test-cover-depth .pf-cover--kraft {
+          --pf-material-base: #a47a50;
+          --pf-cover-inside: #936c47;
+          --pf-cover-edge: #64472f;
+          --pf-material-texture: url('/textures/covers/kraft-paper.svg');
+          --pf-material-texture-size: 260px 260px;
+          --pf-material-texture-opacity: .98;
+          --pf-material-light: linear-gradient(130deg, rgba(255,244,220,.08), transparent 46%, rgba(70,43,24,.08));
+        }
+
+        /* Soft leather: broader wrinkles and smoother/highlighted grain. */
+        .three-test-cover-depth .pf-cover--soft-leather {
+          --pf-material-base: #765448;
+          --pf-cover-inside: #65463d;
+          --pf-cover-edge: #46312b;
+          --pf-material-texture: url('/textures/covers/soft-leather.svg');
+          --pf-material-texture-size: 320px 320px;
+          --pf-material-texture-opacity: .96;
+          --pf-material-light:
+            radial-gradient(ellipse at 30% 14%, rgba(255,238,220,.24), transparent 34%),
+            linear-gradient(118deg, rgba(255,255,255,.08), transparent 43%, rgba(38,22,17,.1));
+        }
+
+        /* Hard board: coarse fibres and a drier, flatter finish. */
+        .three-test-cover-depth .pf-cover--hardboard {
+          --pf-material-base: #a17a50;
+          --pf-cover-inside: #94704b;
+          --pf-cover-edge: #76583b;
+          --pf-material-texture: url('/textures/covers/hardboard-fiber.svg');
+          --pf-material-texture-size: 300px 300px;
+          --pf-material-texture-opacity: 1;
+          --pf-material-light: linear-gradient(135deg, rgba(255,245,220,.07), transparent 48%, rgba(72,47,28,.07));
+        }
+
+        .three-test-cover-depth .pf-cover--fabric .pf-cover-edge,
+        .three-test-cover-depth .pf-cover--fabric .pf-cover-shell::before {
+          filter: saturate(.68) brightness(.92);
+        }
+
+        .three-test-cover-depth .pf-cover--hardboard .pf-cover-edge,
+        .three-test-cover-depth .pf-cover--hardboard .pf-cover-shell::before,
+        .three-test-cover-depth .pf-cover--kraft .pf-cover-edge,
+        .three-test-cover-depth .pf-cover--kraft .pf-cover-shell::before {
+          background:
+            linear-gradient(
+              90deg,
+              #5e412a 0 10%,
+              #9f7851 10% 24%,
+              #c19a68 24% 46%,
+              #d5b786 46% 58%,
+              #aa8157 58% 80%,
+              #67482f 80% 100%
+            ) !important;
         }
       `}</style>
     </div>
