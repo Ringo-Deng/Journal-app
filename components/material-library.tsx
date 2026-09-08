@@ -42,7 +42,8 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
  async function applyJob(j:Job){
   if(!j.proposals.length){
    const failed=j.errors?.length||j.total;
-   setError(j.total===1?'识别失败，素材仍保留原分类；未分类素材会继续留在「未分类」。':`有 ${failed} 件素材没有返回有效识别结果，已保留原分类。`);
+   const failedAsset=j.total===1&&j.errors?.length?assets.find(a=>a.id===j.errors[0].id):undefined;
+   setError(j.total===1?(failedAsset?.group?`识别失败，已保留原分类「${failedAsset.group}」。`:'识别失败，素材仍保留在「未分类」。'):`有 ${failed} 件素材没有返回有效识别结果，已保留原分类。`);
    setClassifyingId(null);setJob(null);void request('/classify/'+j.id+'/discard',{}).catch(()=>{});return;
   }
   setSaving(true);setError('');
@@ -57,7 +58,7 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
  }
  const groupCounts=useMemo(()=>Object.fromEntries(groups.map(g=>[g,libraryAssets.filter(a=>a.group===g).length])),[libraryAssets,groups]);
  const pickedList=useMemo(()=>dimensions.flatMap(d=>[...picked[d]].map(value=>({dim:d,value}))),[picked]);
- const visible=useMemo(()=>libraryAssets.filter(a=>{const groupOk=groupFilter==='all'||groupFilter==='unclassified'?!a.group:a.group===groupFilter;if(!groupOk)return false;const labels=labelsOf(a);if(dimensions.some(d=>picked[d].size&&!labels[d].some(v=>picked[d].has(v))))return false;if(query){const hay=[a.name,...a.tags,a.group||'未分类',...labels.content,...labels.style,...labels.color].join(' ').toLowerCase();if(!hay.includes(query.toLowerCase()))return false}return true}),[libraryAssets,groupFilter,picked,query]);
+ const visible=useMemo(()=>libraryAssets.filter(a=>{const groupOk=groupFilter==='all'||(groupFilter==='unclassified'?!a.group:a.group===groupFilter);if(!groupOk)return false;const labels=labelsOf(a);if(dimensions.some(d=>picked[d].size&&!labels[d].some(v=>picked[d].has(v))))return false;if(query){const hay=[a.name,...a.tags,a.group||'未分类',...labels.content,...labels.style,...labels.color].join(' ').toLowerCase();if(!hay.includes(query.toLowerCase()))return false}return true}),[libraryAssets,groupFilter,picked,query]);
  const chosen=libraryAssets.filter(a=>selected.has(a.id));
  const toggle=(id:string)=>setSelected(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next});
  const togglePicked=(dim:Dimension,value:string)=>setPicked(old=>{const next={...old,[dim]:new Set(old[dim])};if(next[dim].has(value))next[dim].delete(value);else next[dim].add(value);return next});
