@@ -1,0 +1,50 @@
+/* Material Studio stability: keep auto-fit measurements from feeding scrollbar/layout oscillation. */
+.material-studio .studio-image-viewport {
+  scrollbar-gutter: stable both-edges;
+  contain: layout paint;
+}
+
+.material-studio .studio-source {
+  contain: layout paint;
+  min-width: 1px;
+  min-height: 1px;
+}
+
+.material-studio .studio-source.loading {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+
+.material-studio .studio-source.loading > img {
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.material-studio .studio-source.ready > img {
+  opacity: 1;
+}
+
+.material-studio .studio-source img {
+  animation: none !important;
+  transition: none !important;
+}
+
+.material-studio .studio-image-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #788274;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.material-studio .studio-image-loading svg {
+  width: 15px;
+  height: 15px;
+}
