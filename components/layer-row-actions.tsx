@@ -18,12 +18,13 @@ export default function LayerRowActions({
   onUp?:()=>void;
   onDown?:()=>void;
 }){
-  const buttonStyle={width:28,height:28,padding:5,minWidth:28} as const;
-  return <span className="layer-row-actions" style={{display:'flex',alignItems:'center',gap:2,flexShrink:0}} data-editor-ui="true">
-    <button type="button" className="quiet icon" style={buttonStyle} aria-label={hidden?'显示图层':'隐藏图层'} title={hidden?'显示':'隐藏'} onClick={onVisibility}>{hidden?<EyeOff/>:<Eye/>}</button>
-    <button type="button" className="quiet icon" style={buttonStyle} aria-label={locked?'解锁图层':'锁定图层'} title={locked?'解锁':'锁定'} onClick={onLock}>{locked?<Lock/>:<Unlock/>}</button>
-    <button type="button" className="quiet icon" style={buttonStyle} aria-label="重命名图层" title="重命名" onClick={onRename}><Pencil/></button>
-    {onUp&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="上移图层" title="上移一层" onClick={onUp}><ArrowUp/></button>}
-    {onDown&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="下移图层" title="下移一层" onClick={onDown}><ArrowDown/></button>}
+  const buttonStyle={width:22,height:22,padding:3,minWidth:22} as const;
+  const iconProps={size:14,strokeWidth:1.8} as const;
+  return <span className="layer-row-actions" style={{display:'flex',alignItems:'center',gap:1,flexShrink:0}} data-editor-ui="true">
+    <button type="button" className="quiet icon" style={buttonStyle} aria-label={hidden?'显示图层':'隐藏图层'} title={hidden?'显示':'隐藏'} onClick={onVisibility}>{hidden?<EyeOff {...iconProps}/>:<Eye {...iconProps}/>}</button>
+    <button type="button" className="quiet icon" style={buttonStyle} aria-label={locked?'解锁图层':'锁定图层'} title={locked?'解锁':'锁定'} onClick={onLock}>{locked?<Lock {...iconProps}/>:<Unlock {...iconProps}/>}</button>
+    <button type="button" className="quiet icon" style={buttonStyle} aria-label="重命名图层" title="重命名" onClick={onRename}><Pencil {...iconProps}/></button>
+    {onUp&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="在手帐中上移一个图层" title="在手帐中上移一个图层" onClick={onUp}><ArrowUp {...iconProps}/></button>}
+    {onDown&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="在手帐中下移一个图层" title="在手帐中下移一个图层" onClick={onDown}><ArrowDown {...iconProps}/></button>}
   </span>;
 }

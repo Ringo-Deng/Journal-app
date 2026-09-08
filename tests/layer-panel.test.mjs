@@ -4,11 +4,12 @@ import {readFile} from 'node:fs/promises';
 
 const pagePath=new URL('../app/page.tsx',import.meta.url);
 const previewPath=new URL('../components/page-turn.tsx',import.meta.url);
+const actionPath=new URL('../components/layer-row-actions.tsx',import.meta.url);
 const metaPath=new URL('../lib/layer-meta.ts',import.meta.url);
 
 test('page items panel is promoted to a real layer panel',async()=>{
   const source=await readFile(pagePath,'utf8');
-  assert.match(source,/<Layers\/\><span>图层<\/span>/);
+  assert.match(source,/<Layers\/><span>图层<\/span>/);
   assert.match(source,/\? 'LAYERS'/);
   assert.match(source,/\? '图层'/);
   assert.match(source,/\[\.\.\.pageElementRows\]\.reverse\(\)/);
@@ -17,6 +18,18 @@ test('page items panel is promoted to a real layer panel',async()=>{
   assert.match(source,/setLayerLocked/);
   assert.match(source,/renameLayer/);
   assert.match(source,/moveLayer/);
+});
+
+test('layer row actions stay compact and arrows change the journal stack',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const actions=await readFile(actionPath,'utf8');
+  assert.match(actions,/width:22,height:22,padding:3,minWidth:22/);
+  assert.match(actions,/size:14,strokeWidth:1\.8/);
+  assert.match(actions,/aria-label="在手帐中上移一个图层"/);
+  assert.match(actions,/aria-label="在手帐中下移一个图层"/);
+  assert.match(page,/onUp=\{\(\)=>moveLayer\(members,'up'\)\}/);
+  assert.match(page,/onDown=\{\(\)=>moveLayer\(members,'down'\)\}/);
+  assert.match(page,/elements:reorderLayerBlock\(s\.elements,ids,action\)/);
 });
 
 test('hidden layers stay in data but disappear from editor and previews',async()=>{
