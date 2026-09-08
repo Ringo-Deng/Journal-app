@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
 import packageJson from '../package.json';
 import RuntimeCompatibility from '@/components/runtime-compatibility';
+import ThreeTestGateway from '@/components/three-test-gateway';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
         }
       >
         <RuntimeCompatibility />
+        <ThreeTestGateway appVersion={packageJson.version} />
         <style>{`
           .build-version {
             font-size: 0 !important;
