@@ -18,7 +18,7 @@ jobs:
       - name: Reconstruct source
         shell: bash
         run: |
-          cat .ai-layer-staging/page.00.b64 .ai-layer-staging/page.01.b64 .ai-layer-staging/page.02.b64 | tr -d '\n' | base64 --decode | gzip --decompress > app/page.tsx
+          cat .ai-layer-staging/page.00.b64 .ai-layer-staging/page.01a.b64 .ai-layer-staging/page.01b.b64 .ai-layer-staging/page.01c.b64 .ai-layer-staging/page.01d.b64 .ai-layer-staging/page.02.b64 | tr -d '\n' | base64 --decode | gzip --decompress > app/page.tsx
           cat .ai-layer-staging/page-turn.b64 | tr -d '\n' | base64 --decode | gzip --decompress > components/page-turn.tsx
           cp .ai-layer-staging/layer-panel.test.mjs tests/layer-panel.test.mjs
       - name: Verify exact source blobs
