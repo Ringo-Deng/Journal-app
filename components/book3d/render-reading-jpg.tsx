@@ -12,18 +12,28 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
   const height = Math.round(width / bookFormat(book).ratio);
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
-  host.inert = true;
-  host.className = "reading-jpg-source";
-  Object.assign(host.style, {
+  // Keep off-screen placement OUTSIDE the captured node. Cloned logical inset
+  // properties can otherwise override left/top and move the entire JPG off canvas.
+  const offscreen = document.createElement("div");
+  offscreen.inert = true;
+  Object.assign(offscreen.style, {
     position: "fixed",
     left: "-20000px",
+    top: "0",
+    pointerEvents: "none",
+  });
+  host.className = "reading-jpg-source";
+  Object.assign(host.style, {
+    position: "relative",
+    left: "0",
     top: "0",
     width: `${index === null ? width / 2 : width}px`,
     height: `${height}px`,
     pointerEvents: "none",
     containerType: "inline-size",
   });
-  document.body.appendChild(host);
+  offscreen.appendChild(host);
+  document.body.appendChild(offscreen);
   const root = createRoot(host);
   try {
     const cover = coverInfo(book.cover);
@@ -82,6 +92,8 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
         position: "relative",
         left: "0",
         top: "0",
+        insetInlineStart: "0",
+        insetBlockStart: "0",
         margin: "0",
         transform: "none",
         containerType: "normal",
@@ -96,6 +108,6 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
     );
   } finally {
     root.unmount();
-    host.remove();
+    offscreen.remove();
   }
 }

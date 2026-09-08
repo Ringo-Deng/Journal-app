@@ -89,3 +89,11 @@ npm run build
 - Each 3D book decodes only a small neighborhood of saved JPGs; grid images generate/load near the viewport. Both static and 3D views release temporary object URLs. WebGL creation/context failures fall back to JPG reading.
 - Automated coverage: real spread ordering with/without flyleaf, 1–120 body spreads, traversal through the back cover, both book ratios, bounded thickness, JPG content invalidation, cached JPG reuse without a DOM/paper renderer, and existing motion/reading/version regressions.
 - Validation: focused TypeScript and lint checks, 31 related tests, production build. Browser visual/drag/JPG fidelity and real IndexedDB persistence remain **unverified**: the browser tool's administrator-policy check is unavailable in this session; no bypass was attempted.
+
+
+## v0.1.97 — Prevent unconditional fallback and off-canvas JPG capture
+
+- Confirmed the 3D fallback bug against the installed R3F source: `Canvas` always mounts its `fallback` as a native canvas child. The previous `Unavailable` effect therefore called the error callback even with working WebGL. Replaced it with passive text; real render errors/context loss still report through the existing error path.
+- Moved the negative off-screen offset to an outer wrapper that is never captured. The captured paper host remains at the origin, and its cloned physical/logical inset properties are reset. This addresses the off-canvas rendering risk observed in the white JPG report; actual JPG fidelity still requires browser validation.
+- JPG renderer signature is now 2, so v0.1.96 cached white images are regenerated without clearing journal data. Static fallback exposes the error and provides a 3D retry action.
+- Validation: 34 related tests, focused TypeScript/lint and production build. Browser opening was attempted again; the administrator-policy check is still unavailable. Visual output remains unverified; no alternate browser-control workaround was used.

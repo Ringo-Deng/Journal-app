@@ -16,15 +16,15 @@ import { readingBookPlan } from "@/lib/reading-book-plan";
 import type { BookPosition } from "@/lib/book3d-motion";
 export type ReadingBook3DHandle = Book3DHandle;
 class ReaderBoundary extends Component<
-  { children: ReactNode; onError: () => void },
+  { children: ReactNode; onError: (error?: unknown) => void },
   { failed: boolean }
 > {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
-  componentDidCatch() {
-    this.props.onError();
+  componentDidCatch(error: Error) {
+    this.props.onError(error);
   }
   render() {
     return this.state.failed ? null : this.props.children;
@@ -39,7 +39,7 @@ export default forwardRef<
     startOpen: boolean;
     onReadingIndex: (index: number) => void;
     onPosition: (position: BookPosition) => void;
-    onError: () => void;
+    onError: (error?: unknown) => void;
   }
 >(function ReadingBook3D(props, ref) {
   const { book, assets } = props;
@@ -65,7 +65,7 @@ export default forwardRef<
     });
     return () => source.dispose();
   }, [book, assets]);
-  const fail = useCallback(() => latest.current.onError(), []);
+  const fail = useCallback((error?: unknown) => latest.current.onError(error), []);
   const position = useCallback((value: BookPosition) => {
     latest.current.onPosition(value);
     if (value.opened) {

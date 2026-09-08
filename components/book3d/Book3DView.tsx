@@ -629,7 +629,7 @@ type ViewProps = {
   appVersion?: string;
   content?: Book3DContent;
   onPosition?: (position: BookPosition) => void;
-  onError?: () => void;
+  onError?: (error?: unknown) => void;
 };
 const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
   { appVersion = "dev", onPosition, onError },
@@ -659,8 +659,8 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
           setPreparedLeaf(state.turned);
         }
       },
-      () => {
-        if (!cancelled) onError?.();
+      (error) => {
+        if (!cancelled) onError?.(error);
       },
     );
     return () => {
@@ -797,7 +797,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
               dpr={[1, 2]}
               camera={{ position: [0, 0.3, 12], fov: 38, near: 0.1, far: 100 }}
               gl={{ antialias: true }}
-              fallback={<Unavailable onError={onError} />}
+              fallback={<p>当前浏览器无法显示 3D 书本。</p>}
             >
               <CameraFit zoom={zoom} pan={pan} />
               <ContextRecovery onError={onError} />
@@ -980,7 +980,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
     </div>
   );
 });
-function ContextRecovery({ onError }: { onError?: () => void }) {
+function ContextRecovery({ onError }: { onError?: (error?: unknown) => void }) {
   const { gl } = useThree();
   useEffect(() => {
     const lost = () => onError?.();
@@ -988,12 +988,6 @@ function ContextRecovery({ onError }: { onError?: () => void }) {
     return () => gl.domElement.removeEventListener("webglcontextlost", lost);
   }, [gl, onError]);
   return null;
-}
-function Unavailable({ onError }: { onError?: () => void }) {
-  useEffect(() => {
-    onError?.();
-  }, [onError]);
-  return <p>当前浏览器无法显示 3D 书本。</p>;
 }
 export default forwardRef<Book3DHandle, ViewProps>(function Book3DView(props, ref) {
   return (

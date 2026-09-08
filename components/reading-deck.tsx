@@ -29,6 +29,7 @@ export default function ReadingDeck({
   const [grid, setGrid] = useState(false);
   const [opened, setOpened] = useState(false);
   const [engineFailed, setEngineFailed] = useState(false);
+  const [readerError, setReaderError] = useState("");
   const pageFlip = useRef<ReadingBook3DHandle>(null);
 
   const offset = book.flyleaf ? 1 : 0;
@@ -44,6 +45,7 @@ export default function ReadingDeck({
     setGrid(false);
     setOpened(false);
     setEngineFailed(false);
+    setReaderError("");
   }, [book.id]);
 
   const fallbackMove = useCallback(
@@ -164,6 +166,23 @@ export default function ReadingDeck({
         </div>
       ) : engineFailed ? (
         <div className="reading-static-fallback">
+          <div className="reading-fallback-notice" role="status">
+            <p>3D 阅读暂时不可用，已切换为图片阅读。</p>
+            {readerError && (
+              <details>
+                <summary>查看原因</summary>
+                <p>{readerError}</p>
+              </details>
+            )}
+            <button
+              onClick={() => {
+                setEngineFailed(false);
+                setReaderError("");
+              }}
+            >
+              重试 3D 阅读
+            </button>
+          </div>
           {!opened ? (
             <button
               className={`reading-static-cover texture-${cover.material.id}`}
@@ -195,12 +214,18 @@ export default function ReadingDeck({
             onPosition={(state) => {
               if (state.opened) setOpened(true);
             }}
-            onError={() => setEngineFailed(true)}
+            onError={(error) => {
+              setReaderError(error instanceof Error ? error.message : "浏览器未能保持 3D 显示。");
+              setEngineFailed(true);
+            }}
           />
         </Suspense>
       )}
 
       <style>{`
+        .reading-fallback-notice { text-align: center; font-size: 13px; color: #626b59; padding: 0 16px 18px; }
+        .reading-fallback-notice button { padding: 8px 14px; border: 1px solid #c3cbb9; border-radius: 6px; }
+        .reading-fallback-notice details { max-width: 600px; overflow-wrap: anywhere; margin-bottom: 12px; }
         .reading-static-fallback {
           min-height: min(68vh, 650px);
           display: grid;
