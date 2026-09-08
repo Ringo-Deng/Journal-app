@@ -14,8 +14,9 @@ test('recognizes DeepSeek chat requests only', () => {
   assert.equal(isDeepSeekChatRequest('https://api.deepseek.com/models', init), false);
 });
 
-test('direct system curl response replaces Node 401 when direct request succeeds', async () => {
-  const host = { fetch: async () => new Response('node auth failed', { status: 401 }) };
+test('DeepSeek chat uses direct curl before Node fetch', async () => {
+  let nativeCalls = 0;
+  const host = { fetch: async () => { nativeCalls++; return new Response('node', { status: 401 }); } };
   const modes = [];
   installDeepSeekCurlFallback(host, async (_input, _init, options) => {
     modes.push(options?.direct === true ? 'direct' : 'proxy');
@@ -23,36 +24,35 @@ test('direct system curl response replaces Node 401 when direct request succeeds
   });
   const response = await host.fetch(url, init);
   assert.equal(response.status, 200);
+  assert.equal(nativeCalls, 0);
   assert.deepEqual(modes, ['direct']);
 });
 
-test('successful Node response never invokes curl', async () => {
-  const host = { fetch: async () => new Response('{}', { status: 200 }) };
+test('non-DeepSeek requests stay on native fetch', async () => {
+  let nativeCalls = 0;
   let curlCalls = 0;
+  const host = { fetch: async () => { nativeCalls++; return new Response('{}', { status: 200 }); } };
   installDeepSeekCurlFallback(host, async () => { curlCalls++; return new Response('', { status: 200 }); });
-  const response = await host.fetch(url, init);
+  const response = await host.fetch('https://example.com/api', init);
   assert.equal(response.status, 200);
+  assert.equal(nativeCalls, 1);
   assert.equal(curlCalls, 0);
 });
 
-test('direct 401 is definitive and does not retry through the same proxy', async () => {
-  const host = { fetch: async () => new Response('node auth failed', { status: 401 }) };
-  const modes = [];
-  installDeepSeekCurlFallback(host, async (_input, _init, options) => {
-    modes.push(options?.direct === true ? 'direct' : 'proxy');
-    return new Response(JSON.stringify({ error: { message: 'Authentication Fails' } }), { status: 401 });
-  });
+test('direct HTTP response is authoritative and does not invoke Node', async () => {
+  let nativeCalls = 0;
+  const host = { fetch: async () => { nativeCalls++; return new Response('node', { status: 200 }); } };
+  installDeepSeekCurlFallback(host, async () =>
+    new Response(JSON.stringify({ error: { message: 'Authentication Fails' } }), { status: 401 }),
+  );
   const response = await host.fetch(url, init);
   assert.equal(response.status, 401);
-  assert.deepEqual(modes, ['direct']);
-  const text = await response.text();
-  assert.match(text, /direct system curl also returned 401/);
-  assert.doesNotMatch(text, /sk-test/);
-  assert.equal(response.headers.get('x-shiguang-auth-transport'), 'system-curl-direct');
+  assert.equal(nativeCalls, 0);
 });
 
-test('when direct networking is blocked, proxied system curl can still rescue Node 401', async () => {
-  const host = { fetch: async () => new Response('node auth failed', { status: 401 }) };
+test('blocked direct network falls back to proxied curl', async () => {
+  let nativeCalls = 0;
+  const host = { fetch: async () => { nativeCalls++; return new Response('node', { status: 500 }); } };
   const modes = [];
   installDeepSeekCurlFallback(host, async (_input, _init, options) => {
     const mode = options?.direct === true ? 'direct' : 'proxy';
@@ -62,18 +62,17 @@ test('when direct networking is blocked, proxied system curl can still rescue No
   });
   const response = await host.fetch(url, init);
   assert.equal(response.status, 200);
+  assert.equal(nativeCalls, 0);
   assert.deepEqual(modes, ['direct', 'proxy']);
 });
 
-test('when direct is blocked and proxied curl also gets 401, result says so without leaking key', async () => {
-  const host = { fetch: async () => new Response('node auth failed', { status: 401 }) };
-  installDeepSeekCurlFallback(host, async (_input, _init, options) => {
-    if (options?.direct) throw Error('direct blocked');
-    return new Response(JSON.stringify({ error: { message: 'Authentication Fails' } }), { status: 401 });
-  });
+test('Node fetch is only used when both curl transports are unavailable', async () => {
+  let nativeCalls = 0;
+  const host = { fetch: async () => { nativeCalls++; return new Response('node fallback', { status: 200 }); } };
+  let curlCalls = 0;
+  installDeepSeekCurlFallback(host, async () => { curlCalls++; throw Error('curl missing'); });
   const response = await host.fetch(url, init);
-  assert.equal(response.status, 401);
-  const text = await response.text();
-  assert.match(text, /direct connection unavailable; proxied system curl returned 401/);
-  assert.doesNotMatch(text, /sk-test/);
+  assert.equal(response.status, 200);
+  assert.equal(nativeCalls, 1);
+  assert.equal(curlCalls, 2);
 });

@@ -3,8 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-fallback.v2');
-const AUTH_FAILURE = new Set([401, 403]);
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-primary.v3');
 
 export function isDeepSeekChatRequest(input, init) {
   try {
@@ -133,49 +132,25 @@ export async function systemCurlFetch(input, init = {}, options = {}) {
   }
 }
 
-function diagnosticResponse(response, message, transport) {
-  return response.clone().text().catch(() => '').then((body) => {
-    const headers = new Headers(response.headers);
-    headers.set('x-shiguang-auth-transport', transport);
-    return new Response(`${body}${body ? '\n' : ''}[Shiguang diagnostic: ${message}]`, {
-      status: response.status,
-      headers,
-    });
-  });
-}
-
 export function installDeepSeekCurlFallback(host = globalThis, curlFetch = systemCurlFetch) {
   if (host[PATCH_FLAG] || typeof host.fetch !== 'function') return false;
   const nativeFetch = host.fetch.bind(host);
   host.fetch = async (input, init) => {
-    const response = await nativeFetch(input, init);
-    if (!isDeepSeekChatRequest(input, init) || !AUTH_FAILURE.has(response.status))
-      return response;
+    if (!isDeepSeekChatRequest(input, init)) return nativeFetch(input, init);
 
-    // First escape environment proxies entirely. This is the only fallback that
-    // can distinguish a provider 401 from a proxy/gateway that rewrites auth.
+    // DeepSeek is curl-first. The same key and payload have been verified to
+    // reach api.deepseek.com successfully through system curl on the target Mac,
+    // while the layered Node fetch path can incorrectly produce 401.
     try {
-      const direct = await curlFetch(input, init, { direct: true });
-      if (!AUTH_FAILURE.has(direct.status)) return direct;
-      return diagnosticResponse(
-        direct,
-        `direct system curl also returned ${direct.status}`,
-        'system-curl-direct',
-      );
+      return await curlFetch(input, init, { direct: true });
     } catch {
-      // Some managed networks require their proxy for all outbound HTTPS. In
-      // that case still try system curl with the normal environment because it
-      // can differ from Node TLS/proxy handling.
+      // Some managed networks block direct outbound HTTPS but allow the system
+      // proxy. Use the same curl transport with normal proxy environment next.
       try {
-        const fallback = await curlFetch(input, init, { direct: false });
-        if (!AUTH_FAILURE.has(fallback.status)) return fallback;
-        return diagnosticResponse(
-          fallback,
-          `direct connection unavailable; proxied system curl returned ${fallback.status}`,
-          'system-curl',
-        );
+        return await curlFetch(input, init, { direct: false });
       } catch {
-        return response;
+        // Only if curl itself is unavailable do we fall back to Node fetch.
+        return nativeFetch(input, init);
       }
     }
   };
