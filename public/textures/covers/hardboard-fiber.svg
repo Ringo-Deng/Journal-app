@@ -1,26 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">
   <defs>
-    <filter id="fiber" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.22" numOctaves="3" seed="7" result="noise"/>
-      <feColorMatrix in="noise" type="matrix" values="1.25 0 0 0 -0.12  0 1.12 0 0 -0.08  0 0 0.92 0 0.02  0 0 0 0.46 0" result="paperNoise"/>
-      <feBlend in="SourceGraphic" in2="paperNoise" mode="multiply"/>
+    <filter id="fiber" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.19" numOctaves="3" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.34  0 0 0 0 0.28  0 0 0 0 0.22  0 0 0 0.16 0"/>
     </filter>
-    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#b38d61"/>
-      <stop offset="0.5" stop-color="#a17a50"/>
-      <stop offset="1" stop-color="#916b45"/>
-    </linearGradient>
   </defs>
-  <rect width="384" height="384" fill="url(#base)"/>
-  <rect width="384" height="384" filter="url(#fiber)" opacity="0.48"/>
+  <rect width="384" height="384" filter="url(#fiber)" opacity="0.6"/>
   <g fill="none" stroke-linecap="round">
-    <path d="M12 24 C74 20 101 31 160 25 S277 17 368 28" stroke="#4f341e" stroke-opacity="0.12" stroke-width="1"/>
-    <path d="M-10 77 C52 83 108 66 168 78 S296 88 398 72" stroke="#f2dfbf" stroke-opacity="0.14" stroke-width="0.8"/>
-    <path d="M4 141 C52 126 121 150 176 139 S274 128 390 149" stroke="#563a24" stroke-opacity="0.13" stroke-width="1.1"/>
-    <path d="M-8 214 C73 202 113 225 189 212 S307 205 398 219" stroke="#edd6b5" stroke-opacity="0.12" stroke-width="0.8"/>
-    <path d="M9 302 C71 289 123 312 198 297 S306 295 382 306" stroke="#553820" stroke-opacity="0.12" stroke-width="1"/>
+    <path d="M12 24 C74 20 101 31 160 25 S277 17 368 28" stroke="#5a4737" stroke-opacity="0.14" stroke-width="1"/>
+    <path d="M-10 77 C52 83 108 66 168 78 S296 88 398 72" stroke="#fff7e9" stroke-opacity="0.12" stroke-width="0.8"/>
+    <path d="M4 141 C52 126 121 150 176 139 S274 128 390 149" stroke="#544334" stroke-opacity="0.13" stroke-width="1.1"/>
+    <path d="M-8 214 C73 202 113 225 189 212 S307 205 398 219" stroke="#fff6e6" stroke-opacity="0.1" stroke-width="0.8"/>
+    <path d="M9 302 C71 289 123 312 198 297 S306 295 382 306" stroke="#574434" stroke-opacity="0.12" stroke-width="1"/>
   </g>
-  <g fill="#3b2718" fill-opacity="0.16">
+  <g fill="#433428" fill-opacity="0.14">
     <ellipse cx="61" cy="54" rx="1.2" ry="4.8" transform="rotate(18 61 54)"/>
     <ellipse cx="147" cy="188" rx="1" ry="5.4" transform="rotate(73 147 188)"/>
     <ellipse cx="288" cy="118" rx="1.1" ry="4.3" transform="rotate(32 288 118)"/>
