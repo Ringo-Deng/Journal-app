@@ -185,15 +185,6 @@
   }
 }
 
-.book3d-pan-surface {
-  position: absolute;
-  inset: 0;
-  touch-action: none;
-  cursor: grab;
-}
-.book3d-pan-surface:active {
-  cursor: grabbing;
-}
 .book3d-status {
   z-index: 2;
   text-shadow: 0 1px 4px #f7ead6;
@@ -238,4 +229,27 @@
 .book3d-zoom-controls button:focus-visible {
   outline: 2px solid #73875e;
   outline-offset: 3px;
+}
+
+.book3d-stage canvas {
+  touch-action: none;
+}
+.book3d-stage-turn canvas {
+  cursor: grab;
+}
+.book3d-stage-pan {
+  touch-action: none;
+  cursor: move;
+}
+.book3d-stage-pan canvas {
+  cursor: move;
+}
+.book3d-interaction-mode {
+  display: flex;
+  gap: 4px;
+}
+.book3d-interaction-mode button[aria-pressed="true"] {
+  background: #e2e9d9;
+  border-color: #899a76;
+  color: #435735;
 }

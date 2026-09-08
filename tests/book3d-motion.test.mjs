@@ -38,3 +38,45 @@ test("navigation clamps first and last page and returns through every spread", (
   for (let i = 0; i < BOOK.leaves; i++) page = turnTarget(page, -1);
   near(page, 0);
 });
+
+test("pointer travel drives both directions continuously and pulling back unwinds the sheet", async () => {
+  const { dragTurnProgress } = await import("../lib/book3d-motion.ts");
+  for (const direction of [-1, 1]) {
+    const progress = [0, 120, 240, 480, 160, 0].map((travel) =>
+      dragTurnProgress(-direction * travel, direction, 800),
+    );
+    assert.deepEqual(progress, [0, 0.15, 0.3, 0.6, 0.2, 0]);
+    near(dragTurnProgress(direction * 200, direction, 800), 0);
+    near(dragTurnProgress(-direction * 1000, direction, 800), 1);
+  }
+});
+
+test("100%, 200% and 300% views have identical progress for the same relative paper travel", async () => {
+  const { dragTurnProgress } = await import("../lib/book3d-motion.ts");
+  for (const zoom of [1, 2, 3]) {
+    near(dragTurnProgress(-200 * zoom, 1, 800 * zoom), 0.25);
+    near(dragTurnProgress(600 * zoom, -1, 800 * zoom), 0.75);
+  }
+});
+
+test("click completes, short drag returns, deliberate turn lands and cancellation always returns", async () => {
+  const { releaseTurn } = await import("../lib/book3d-motion.ts");
+  assert.equal(releaseTurn(0, 0), 1);
+  assert.equal(releaseTurn(0.2, 160), 0);
+  assert.equal(releaseTurn(0.6, 480), 1);
+  assert.equal(releaseTurn(0.1, 80), 0); // Pulled back before release.
+  assert.equal(releaseTurn(0.95, 760, true), 0);
+  assert.equal(releaseTurn(0, 0, true), 0);
+});
+
+test("zoomed turns remain reachable inside a narrow viewport", async () => {
+  const { dragTurnProgress, dragTurnSpan, releaseTurn } = await import("../lib/book3d-motion.ts");
+  for (const viewport of [390, 1200]) {
+    for (const zoom of [1, 2, 3]) {
+      const span = dragTurnSpan(viewport * 0.8 * zoom, viewport);
+      const distance = viewport * 0.35;
+      assert.equal(releaseTurn(dragTurnProgress(-distance, 1, span), distance), 1);
+      assert.ok(span <= viewport);
+    }
+  }
+});

@@ -1,14 +1,32 @@
 "use client";
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BackSide, CanvasTexture, Group, MathUtils, PlaneGeometry, SRGBColorSpace } from "three";
-import { BOOK, sampleSheet, stackTop, turnTarget } from "@/lib/book3d-motion";
+import {
+  BackSide,
+  CanvasTexture,
+  Group,
+  MathUtils,
+  PlaneGeometry,
+  SRGBColorSpace,
+  Vector3,
+} from "three";
+import {
+  BOOK,
+  sampleSheet,
+  stackTop,
+  turnTarget,
+  dragTurnProgress,
+  dragTurnSpan,
+  releaseTurn,
+} from "@/lib/book3d-motion";
 import "./book3d.css";
 
+type DragTurn = { progress: number; target: 0 | 1 | null };
+
 type Motion =
-  | { kind: "cover"; from: number; to: number }
-  | { kind: "page"; from: number; to: number };
+  | { kind: "cover"; from: number; to: number; drag?: DragTurn }
+  | { kind: "page"; from: number; to: number; drag?: DragTurn };
 type BookState = { opened: boolean; turned: number; motion: Motion | null };
 const initialState: BookState = { opened: false, turned: 0, motion: null };
 const titles = [
@@ -124,23 +142,16 @@ function PageSurface({
   page,
   side,
   z,
-  onClick,
+  onPointerDown,
 }: {
   page: number | "lining";
   side: -1 | 1;
   z: number;
-  onClick: () => void;
+  onPointerDown: (event: ThreeEvent<PointerEvent>) => void;
 }) {
   const map = usePaperTexture(page);
   return (
-    <mesh
-      position={[(side * BOOK.width) / 2, 0, z]}
-      receiveShadow
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-    >
+    <mesh position={[(side * BOOK.width) / 2, 0, z]} receiveShadow onPointerDown={onPointerDown}>
       <planeGeometry args={[BOOK.width, BOOK.height]} />
       <meshStandardMaterial map={map} roughness={0.93} />
     </mesh>
@@ -211,16 +222,26 @@ function TurningPage({ leaf, progress }: { leaf: number; progress: { current: nu
 function BookModel({
   state,
   complete,
-  navigate,
   tilt,
   reducedMotion,
+  beginDrag,
 }: {
   state: BookState;
   complete: () => void;
-  navigate: (direction: -1 | 1) => void;
   tilt: number;
   reducedMotion: boolean;
+  beginDrag: (motion: Motion) => void;
 }) {
+  const { camera, size } = useThree();
+  const gesture = useRef<{
+    id: number;
+    startX: number;
+    startY: number;
+    span: number;
+    direction: -1 | 1;
+    control: DragTurn;
+    element: HTMLElement;
+  } | null>(null);
   const root = useRef<Group>(null);
   const cover = useRef<Group>(null);
   const elapsed = useRef(0);
@@ -231,6 +252,75 @@ function BookModel({
   const coverMap = usePaperTexture("cover");
   const liningMap = usePaperTexture("lining", true);
   const motion = state.motion;
+  const startPageDrag = (event: ThreeEvent<PointerEvent>, direction: -1 | 1) => {
+    event.stopPropagation();
+    if (event.button !== 0 || state.motion || gesture.current || !root.current) return;
+    const coverTurn = !state.opened || (direction === -1 && state.turned === 0);
+    if (!state.opened && direction === -1) return;
+    const to = turnTarget(state.turned, direction);
+    if (!coverTurn && to === state.turned) return;
+    // Project the page's full travel into CSS pixels, including current zoom and tilt.
+    const left = root.current.localToWorld(new Vector3(-BOOK.width, 0, 0)).project(camera);
+    const right = root.current.localToWorld(new Vector3(BOOK.width, 0, 0)).project(camera);
+    const span = dragTurnSpan((Math.abs(right.x - left.x) * size.width) / 2, size.width);
+    const control: DragTurn = { progress: 0, target: null };
+    const element = event.nativeEvent.target as HTMLElement;
+    element.setPointerCapture(event.pointerId);
+    gesture.current = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      span,
+      direction,
+      control,
+      element,
+    };
+    beginDrag(
+      coverTurn
+        ? { kind: "cover", from: state.opened ? 1 : 0, to: state.opened ? 0 : 1, drag: control }
+        : { kind: "page", from: state.turned, to, drag: control },
+    );
+  };
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const current = gesture.current;
+      if (!current || current.id !== event.pointerId) return;
+      current.control.progress = dragTurnProgress(
+        event.clientX - current.startX,
+        current.direction,
+        current.span,
+      );
+    };
+    const finish = (event?: PointerEvent, cancelled = false) => {
+      const current = gesture.current;
+      if (!current || (event && current.id !== event.pointerId)) return;
+      if (event && !cancelled) move(event);
+      current.control.target = releaseTurn(
+        current.control.progress,
+        event ? Math.hypot(event.clientX - current.startX, event.clientY - current.startY) : 0,
+        cancelled,
+      );
+      gesture.current = null;
+      if (current.element.hasPointerCapture(current.id))
+        current.element.releasePointerCapture(current.id);
+    };
+    const up = (event: PointerEvent) => finish(event);
+    const cancel = (event: PointerEvent) => finish(event, true);
+    const blur = () => finish(undefined, true);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("lostpointercapture", cancel);
+    window.addEventListener("blur", blur);
+    return () => {
+      blur();
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("lostpointercapture", cancel);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
   useEffect(() => {
     elapsed.current = 0;
     notified.current = false;
@@ -243,9 +333,25 @@ function BookModel({
         Math.min(delta, 0.05) / (reducedMotion ? 0.08 : motion?.kind === "cover" ? 1.15 : 1.2),
     );
     const eased = MathUtils.smoothstep(elapsed.current, 0, 1);
+    let finished = elapsed.current === 1;
+    let turn = eased;
+    if (motion?.drag) {
+      const control = motion.drag;
+      if (control.target !== null) {
+        control.progress = MathUtils.damp(
+          control.progress,
+          control.target,
+          reducedMotion ? 70 : 12,
+          Math.min(delta, 0.05),
+        );
+        if (Math.abs(control.progress - control.target) < 0.001) control.progress = control.target;
+      }
+      turn = control.progress;
+      finished = control.target !== null && control.progress === control.target;
+    }
     let opening = state.opened ? 1 : 0;
-    if (motion?.kind === "cover") opening = MathUtils.lerp(motion.from, motion.to, eased);
-    if (motion?.kind === "page") progress.current = motion.to > motion.from ? eased : 1 - eased;
+    if (motion?.kind === "cover") opening = MathUtils.lerp(motion.from, motion.to, turn);
+    if (motion?.kind === "page") progress.current = motion.to > motion.from ? turn : 1 - turn;
     cover.current.rotation.y = -Math.PI * opening;
     cover.current.position.z = MathUtils.lerp(
       stackTop(BOOK.leaves) + 0.1,
@@ -265,7 +371,7 @@ function BookModel({
       7,
       delta,
     );
-    if (motion && elapsed.current === 1 && !notified.current) {
+    if (motion && finished && !notified.current) {
       notified.current = true;
       complete();
     }
@@ -291,14 +397,14 @@ function BookModel({
         page={rightCount ? (BOOK.leaves - rightCount) * 2 : "lining"}
         side={1}
         z={stackTop(rightCount) + 0.008}
-        onClick={() => navigate(1)}
+        onPointerDown={(event) => startPageDrag(event, 1)}
       />
       {state.opened && (
         <PageSurface
           page={leftCount ? leftCount * 2 - 1 : "lining"}
           side={-1}
           z={stackTop(leftCount) + 0.008}
-          onClick={() => navigate(-1)}
+          onPointerDown={(event) => startPageDrag(event, -1)}
         />
       )}
       {turning && <TurningPage key={leaf} leaf={leaf} progress={progress} />}
@@ -307,20 +413,14 @@ function BookModel({
           position={[BOOK.width / 2, 0, 0]}
           castShadow
           receiveShadow
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(state.opened ? -1 : 1);
-          }}
+          onPointerDown={(event) => startPageDrag(event, state.opened ? -1 : 1)}
         >
           <boxGeometry args={[BOOK.width + 0.18, BOOK.height + 0.2, 0.16]} />
           <meshStandardMaterial color="#78614c" roughness={0.86} />
         </mesh>
         <mesh
           position={[BOOK.width / 2, 0, 0.081]}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(1);
-          }}
+          onPointerDown={(event) => startPageDrag(event, 1)}
         >
           <planeGeometry args={[BOOK.width + 0.14, BOOK.height + 0.16]} />
           <meshStandardMaterial map={coverMap} roughness={0.86} />
@@ -412,10 +512,12 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
   const [tilt, setTilt] = useState(28);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [viewMode, setViewMode] = useState<"turn" | "pan">("turn");
   const drag = useRef<{ id: number; x: number; y: number } | null>(null);
   const resetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setViewMode("turn");
   };
   const [reducedMotion, setReducedMotion] = useState(false);
   const busy = state.motion !== null;
@@ -438,8 +540,12 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
       const motion = current.motion;
       if (!motion) return current;
       return motion.kind === "cover"
-        ? { ...current, opened: motion.to === 1, motion: null }
-        : { ...current, turned: motion.to, motion: null };
+        ? {
+            ...current,
+            opened: (motion.drag?.target === 0 ? motion.from : motion.to) === 1,
+            motion: null,
+          }
+        : { ...current, turned: motion.drag?.target === 0 ? motion.from : motion.to, motion: null };
     });
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -485,7 +591,51 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
           </div>
           <a href="/">返回手帐</a>
         </header>
-        <section className="book3d-stage" aria-label="3D 书本翻页预览">
+        <section
+          className={`book3d-stage ${zoom > 1 && viewMode === "pan" ? "book3d-stage-pan" : "book3d-stage-turn"}`}
+          aria-label="3D 书本翻页预览"
+          onContextMenu={(e) => e.preventDefault()}
+          onPointerDownCapture={(e) => {
+            if (
+              busy ||
+              zoom <= 1 ||
+              drag.current ||
+              !(viewMode === "pan" || e.button === 2 || e.shiftKey)
+            )
+              return;
+            e.stopPropagation();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          }}
+          onPointerMoveCapture={(e) => {
+            const previous = drag.current;
+            if (!previous || previous.id !== e.pointerId) return;
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const dx = (e.clientX - previous.x) / rect.width;
+            const dy = (e.clientY - previous.y) / rect.height;
+            setPan((value) => ({
+              x: MathUtils.clamp(value.x - (dx * 3) / zoom, -1, 1),
+              y: MathUtils.clamp(value.y + (dy * 3) / zoom, -1, 1),
+            }));
+            drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          }}
+          onPointerUpCapture={(e) => {
+            if (drag.current?.id !== e.pointerId) return;
+            e.stopPropagation();
+            drag.current = null;
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+          onClickCapture={(e) => {
+            if (zoom > 1 && (viewMode === "pan" || e.shiftKey)) e.stopPropagation();
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+          onLostPointerCapture={() => {
+            drag.current = null;
+          }}
+        >
           <span className="book3d-stage-label">拾光集 · 第一册</span>
           <Canvas
             shadows
@@ -514,55 +664,26 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
             <BookModel
               state={state}
               complete={complete}
-              navigate={navigate}
               tilt={tilt}
               reducedMotion={reducedMotion}
+              beginDrag={(motion) =>
+                setState((current) => (current.motion ? current : { ...current, motion }))
+              }
             />
             <WoodenDesk tilt={tilt} />
           </Canvas>
-          {zoom > 1 && (
-            <div
-              className="book3d-pan-surface"
-              aria-label="拖动查看放大的手帐"
-              onPointerDown={(e) => {
-                if (drag.current || e.button !== 0) return;
-                e.currentTarget.setPointerCapture(e.pointerId);
-                drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
-              }}
-              onPointerMove={(e) => {
-                const previous = drag.current;
-                if (!previous || previous.id !== e.pointerId) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                const dx = (e.clientX - previous.x) / rect.width;
-                const dy = (e.clientY - previous.y) / rect.height;
-                setPan((value) => ({
-                  x: MathUtils.clamp(value.x - (dx * 3) / zoom, -1, 1),
-                  y: MathUtils.clamp(value.y + (dy * 3) / zoom, -1, 1),
-                }));
-                drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
-              }}
-              onPointerUp={(e) => {
-                if (drag.current?.id === e.pointerId) {
-                  drag.current = null;
-                  e.currentTarget.releasePointerCapture(e.pointerId);
-                }
-              }}
-              onPointerCancel={() => {
-                drag.current = null;
-              }}
-              onLostPointerCapture={() => {
-                drag.current = null;
-              }}
-            />
-          )}
           <div className="book3d-status" role="status" aria-live="polite">
-            {zoom > 1 ? "拖动查看局部 · 使用下方按钮或方向键翻页" : status}
+            {zoom > 1 && viewMode === "pan"
+              ? "拖动移动视图 · 选择「翻页」即可拖动书页"
+              : state.opened && !busy
+                ? "左右拖动书页，松手翻过或回弹 · 放大后也可翻页"
+                : status}
           </div>
         </section>
         <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
           <button
             aria-label="缩小手帐"
-            disabled={zoom <= 1}
+            disabled={busy || zoom <= 1}
             onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
           >
             −
@@ -571,6 +692,7 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
             缩放{" "}
             <input
               aria-label="手帐缩放比例"
+              disabled={busy}
               type="range"
               min="100"
               max="300"
@@ -582,18 +704,39 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
           <output aria-live="polite">{Math.round(zoom * 100)}%</output>
           <button
             aria-label="放大手帐"
-            disabled={zoom >= 3}
+            disabled={busy || zoom >= 3}
             onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
           >
             ＋
           </button>
-          <button onClick={resetView}>恢复全景</button>
+          <button disabled={busy} onClick={resetView}>
+            恢复全景
+          </button>
+          {zoom > 1 && (
+            <div className="book3d-interaction-mode" role="group" aria-label="鼠标操作方式">
+              <button
+                disabled={busy}
+                aria-pressed={viewMode === "turn"}
+                onClick={() => setViewMode("turn")}
+              >
+                翻页
+              </button>
+              <button
+                disabled={busy}
+                aria-pressed={viewMode === "pan"}
+                onClick={() => setViewMode("pan")}
+              >
+                移动视图
+              </button>
+            </div>
+          )}
         </div>
         <footer className="book3d-controls">
           <label className="book3d-angle">
             视角{" "}
             <input
               aria-label="书本视角"
+              disabled={busy}
               type="range"
               min="0"
               max="48"

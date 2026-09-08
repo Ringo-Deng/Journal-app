@@ -37,3 +37,18 @@ export function sampleSheet(progress: number, leaf: number) {
   }
   return points;
 }
+
+/** Screen-space span comes from the projected book, so zoom does not change the gesture. */
+export function dragTurnProgress(deltaX: number, direction: -1 | 1, span: number) {
+  return Math.max(0, Math.min(1, (-direction * deltaX) / Math.max(1, span)));
+}
+
+export function releaseTurn(progress: number, distance: number, cancelled = false): 0 | 1 {
+  if (cancelled) return 0;
+  return distance <= 6 || progress >= 0.35 ? 1 : 0;
+}
+
+/** Keep a deliberate turn reachable even when a zoomed page extends off-screen. */
+export function dragTurnSpan(projectedBookWidth: number, viewportWidth: number) {
+  return Math.max(1, Math.min(projectedBookWidth, viewportWidth * 0.9));
+}
