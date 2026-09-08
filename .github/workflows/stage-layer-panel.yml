@@ -1,0 +1,39 @@
+name: Stage layer panel
+
+on:
+  push:
+    branches:
+      - automation/layer-panel-stage
+    paths:
+      - .ai-layer-staging/READY
+
+permissions:
+  contents: write
+
+jobs:
+  build-layer-panel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct source
+        shell: bash
+        run: |
+          cat .ai-layer-staging/page.00.b64 .ai-layer-staging/page.01.b64 .ai-layer-staging/page.02.b64 | tr -d '\n' | base64 --decode | gzip --decompress > app/page.tsx
+          cat .ai-layer-staging/page-turn.b64 | tr -d '\n' | base64 --decode | gzip --decompress > components/page-turn.tsx
+          cp .ai-layer-staging/layer-panel.test.mjs tests/layer-panel.test.mjs
+      - name: Verify exact source blobs
+        shell: bash
+        run: |
+          test "$(git hash-object app/page.tsx)" = "d8bf2016878db023246951a548494bfcd3bd8018"
+          test "$(git hash-object components/page-turn.tsx)" = "450bc805555d6e9cebe3734cdec3c0b19681ebcd"
+          test "$(git hash-object tests/layer-panel.test.mjs)" = "84507c86be113a9848cff4e40812374e59ac4876"
+      - name: Verify layer regressions
+        run: node --test tests/layer-panel.test.mjs
+      - name: Commit reconstructed product files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx components/page-turn.tsx tests/layer-panel.test.mjs
+          git commit -m "stage: build layer panel product blobs"
+          git push
