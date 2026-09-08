@@ -33,6 +33,7 @@ class ReaderBoundary extends Component<
 export default forwardRef<
   Book3DHandle,
   {
+    toolbar?: HTMLDivElement | null;
     book: Book;
     assets: Asset[];
     readingIndex: number;
@@ -83,6 +84,7 @@ export default forwardRef<
       <Book3DView
         key={content.id}
         content={content}
+        toolbar={props.toolbar}
         ref={ref}
         onPosition={position}
         onError={fail}

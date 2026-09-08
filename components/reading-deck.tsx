@@ -26,6 +26,7 @@ export default function ReadingDeck({
   page: number;
   onSelect: (page: number) => void;
 }) {
+  const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [grid, setGrid] = useState(false);
   const [opened, setOpened] = useState(false);
   const [engineFailed, setEngineFailed] = useState(false);
@@ -88,7 +89,7 @@ export default function ReadingDeck({
   if (!count) {
     return (
       <section
-        className={`reading-deck notebook-${book.cover} deck-large viewer-cover`}
+        className={`reading-deck reading-jpg-deck notebook-${book.cover} deck-large viewer-cover`}
         aria-label="手帐连续翻阅"
         style={
           {
@@ -108,7 +109,7 @@ export default function ReadingDeck({
 
   return (
     <section
-      className={`reading-deck notebook-${book.cover} deck-large ${opened ? "viewer-reading" : "viewer-cover"} ${grid ? "deck-grid-mode" : ""}`}
+      className={`reading-deck reading-jpg-deck notebook-${book.cover} deck-large ${opened ? "viewer-reading" : "viewer-cover"} ${grid ? "deck-grid-mode" : ""}`}
       aria-label="手帐连续翻阅"
       style={
         {
@@ -134,6 +135,7 @@ export default function ReadingDeck({
 
       <header className="deck-heading">
         <h1>{book.title || "拾光集"}</h1>
+        {!grid && !engineFailed && <div className="reading-toolbar" ref={setToolbar} />}
         <p>
           {book.spreads.length} 个跨页 · {book.spreads.length * 2} 页
         </p>
@@ -206,6 +208,7 @@ export default function ReadingDeck({
           <ReadingBook3D
             key={book.id}
             ref={pageFlip}
+            toolbar={toolbar}
             book={book}
             assets={assets}
             readingIndex={current}

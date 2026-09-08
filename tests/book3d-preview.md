@@ -97,3 +97,11 @@ npm run build
 - Moved the negative off-screen offset to an outer wrapper that is never captured. The captured paper host remains at the origin, and its cloned physical/logical inset properties are reset. This addresses the off-canvas rendering risk observed in the white JPG report; actual JPG fidelity still requires browser validation.
 - JPG renderer signature is now 2, so v0.1.96 cached white images are regenerated without clearing journal data. Static fallback exposes the error and provides a 3D retry action.
 - Validation: 34 related tests, focused TypeScript/lint and production build. Browser opening was attempted again; the administrator-policy check is still unavailable. Visual output remains unverified; no alternate browser-control workaround was used.
+
+
+## v0.1.98 — Full-height desk and preloaded JPG reading
+
+- Moved embedded zoom, angle and navigation controls into the title row via a portal. The desk flexes to fill the remaining reading viewport; narrow toolbars scroll horizontally rather than reducing the table height. Experiment layout remains separate.
+- Each reading session prepares all saved JPG blobs once before showing the book. Nearby decoded canvases remain bounded, but subsequent turns decode from the in-memory JPG buffer rather than requesting storage/generation again. Disposing the reader releases the buffer.
+- The white preparation overlay is restricted to initial loading. Subsequent nearby decoding keeps the rendered book visible; input briefly waits for preparation when needed. First-time generation of a long book may take longer because all JPGs are prepared up front.
+- Validation: 37 related checks, focused TypeScript/lint and production build. Actual browser layout and animation remain unverified because this session's browser administrator-policy check is unavailable.

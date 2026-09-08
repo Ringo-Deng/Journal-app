@@ -27,6 +27,7 @@ import {
 } from "@/lib/book3d-motion";
 import { COVER_MATERIALS, createCoverTextures, type CoverMaterial } from "./cover-materials";
 import "./book3d.css";
+import { createPortal } from "react-dom";
 import {
   BookSceneContext,
   useBookScene,
@@ -626,13 +627,14 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
 }
 
 type ViewProps = {
+  toolbar?: HTMLDivElement | null;
   appVersion?: string;
   content?: Book3DContent;
   onPosition?: (position: BookPosition) => void;
   onError?: (error?: unknown) => void;
 };
 const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
-  { appVersion = "dev", onPosition, onError },
+  { appVersion = "dev", onPosition, onError, toolbar },
   ref,
 ) {
   const { BOOK, content, nextBookTurn } = useBookScene();
@@ -730,6 +732,123 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         : state.turned === BOOK.leaves
           ? "向左拖动封底，合上这本手帐"
           : "点击左、右书页翻阅，也可以使用方向键";
+  const controls = (
+    <>
+      <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
+        <button
+          aria-label="缩小手帐"
+          disabled={busy || zoom <= 1}
+          onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
+        >
+          −
+        </button>
+        <label>
+          缩放{" "}
+          <input
+            aria-label="手帐缩放比例"
+            disabled={busy}
+            type="range"
+            min="100"
+            max="300"
+            step="25"
+            value={zoom * 100}
+            onChange={(e) => setZoom(Number(e.target.value) / 100)}
+          />
+        </label>
+        <output aria-live="polite">{Math.round(zoom * 100)}%</output>
+        <button
+          aria-label="放大手帐"
+          disabled={busy || zoom >= 3}
+          onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
+        >
+          ＋
+        </button>
+        <button disabled={busy} onClick={resetView}>
+          恢复全景
+        </button>
+        {zoom > 1 && (
+          <div className="book3d-interaction-mode" role="group" aria-label="鼠标操作方式">
+            <button
+              disabled={busy}
+              aria-pressed={viewMode === "turn"}
+              onClick={() => setViewMode("turn")}
+            >
+              翻页
+            </button>
+            <button
+              disabled={busy}
+              aria-pressed={viewMode === "pan"}
+              onClick={() => setViewMode("pan")}
+            >
+              移动视图
+            </button>
+          </div>
+        )}
+      </div>
+      <footer className="book3d-controls">
+        <label className="book3d-angle">
+          视角{" "}
+          <input
+            aria-label="书本视角"
+            disabled={busy}
+            type="range"
+            min="0"
+            max="48"
+            value={tilt}
+            onChange={(e) => setTilt(Number(e.target.value))}
+          />
+          <span>{tilt}°</span>
+        </label>
+        <div className="book3d-navigation">
+          <button disabled={busy || !state.opened} onClick={() => navigate(-1)}>
+            {state.backClosed ? "打开封底" : state.turned === 0 ? "合上封面" : "← 上一页"}
+          </button>
+          <span className="book3d-counter">
+            {state.backClosed
+              ? "封 底"
+              : state.opened
+                ? `${String(state.turned).padStart(2, "0")} / ${String(BOOK.leaves).padStart(2, "0")}`
+                : "封 面"}
+          </span>
+          <button disabled={busy || state.backClosed} onClick={() => navigate(1)}>
+            {state.backClosed
+              ? "已合上"
+              : !state.opened
+                ? "打开手帐"
+                : state.turned === BOOK.leaves
+                  ? "合上封底"
+                  : "下一页 →"}
+          </button>
+        </div>
+        <button
+          className="book3d-reset"
+          disabled={busy}
+          onClick={() => {
+            if (!content) {
+              setState(initialState);
+              resetView();
+              return;
+            }
+            setResetting(true);
+            content.prepare(0).then(
+              () => {
+                setPreparedLeaf(0);
+                setState(initialState);
+                resetView();
+                setResetting(false);
+              },
+              () => {
+                setResetting(false);
+                onError?.();
+              },
+            );
+          }}
+        >
+          重新开始
+        </button>
+      </footer>
+    </>
+  );
   return (
     <div className={`book3d-test ${content ? "book3d-embedded" : ""}`}>
       <div className="book3d-layout">
@@ -833,7 +952,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
               <WoodenDesk tilt={tilt} />
             </Canvas>
           )}
-          {preparing && (
+          {!ready && preparing && (
             <div className="book3d-loading" role="status">
               正在铺开手帐…
             </div>
@@ -862,119 +981,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
             ))}
           </div>
         )}
-        <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
-          <button
-            aria-label="缩小手帐"
-            disabled={busy || zoom <= 1}
-            onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
-          >
-            −
-          </button>
-          <label>
-            缩放{" "}
-            <input
-              aria-label="手帐缩放比例"
-              disabled={busy}
-              type="range"
-              min="100"
-              max="300"
-              step="25"
-              value={zoom * 100}
-              onChange={(e) => setZoom(Number(e.target.value) / 100)}
-            />
-          </label>
-          <output aria-live="polite">{Math.round(zoom * 100)}%</output>
-          <button
-            aria-label="放大手帐"
-            disabled={busy || zoom >= 3}
-            onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
-          >
-            ＋
-          </button>
-          <button disabled={busy} onClick={resetView}>
-            恢复全景
-          </button>
-          {zoom > 1 && (
-            <div className="book3d-interaction-mode" role="group" aria-label="鼠标操作方式">
-              <button
-                disabled={busy}
-                aria-pressed={viewMode === "turn"}
-                onClick={() => setViewMode("turn")}
-              >
-                翻页
-              </button>
-              <button
-                disabled={busy}
-                aria-pressed={viewMode === "pan"}
-                onClick={() => setViewMode("pan")}
-              >
-                移动视图
-              </button>
-            </div>
-          )}
-        </div>
-        <footer className="book3d-controls">
-          <label className="book3d-angle">
-            视角{" "}
-            <input
-              aria-label="书本视角"
-              disabled={busy}
-              type="range"
-              min="0"
-              max="48"
-              value={tilt}
-              onChange={(e) => setTilt(Number(e.target.value))}
-            />
-            <span>{tilt}°</span>
-          </label>
-          <div className="book3d-navigation">
-            <button disabled={busy || !state.opened} onClick={() => navigate(-1)}>
-              {state.backClosed ? "打开封底" : state.turned === 0 ? "合上封面" : "← 上一页"}
-            </button>
-            <span className="book3d-counter">
-              {state.backClosed
-                ? "封 底"
-                : state.opened
-                  ? `${String(state.turned).padStart(2, "0")} / ${String(BOOK.leaves).padStart(2, "0")}`
-                  : "封 面"}
-            </span>
-            <button disabled={busy || state.backClosed} onClick={() => navigate(1)}>
-              {state.backClosed
-                ? "已合上"
-                : !state.opened
-                  ? "打开手帐"
-                  : state.turned === BOOK.leaves
-                    ? "合上封底"
-                    : "下一页 →"}
-            </button>
-          </div>
-          <button
-            className="book3d-reset"
-            disabled={busy}
-            onClick={() => {
-              if (!content) {
-                setState(initialState);
-                resetView();
-                return;
-              }
-              setResetting(true);
-              content.prepare(0).then(
-                () => {
-                  setPreparedLeaf(0);
-                  setState(initialState);
-                  resetView();
-                  setResetting(false);
-                },
-                () => {
-                  setResetting(false);
-                  onError?.();
-                },
-              );
-            }}
-          >
-            重新开始
-          </button>
-        </footer>
+        {toolbar ? createPortal(controls, toolbar) : controls}
         {!content && <p className="book3d-note">翻页效果实验 · 示例内容</p>}
       </div>
     </div>

@@ -304,3 +304,22 @@
 .reading-texture-cover .cover-title-stamp i { font-size: 15px; }
 
 .reading-jpg-source > .turn-snapshot { width: 100%; height: 100%; }
+
+/* Main reader: one toolbar row, then a table filling all remaining space. */
+.reading-jpg-deck.deck-large .deck-heading { display: flex; align-items: center; gap: 16px; padding: 0 0 0 90px; margin-bottom: 10px; min-height: 42px; opacity: 1; pointer-events: auto; }
+.reading-jpg-deck .deck-heading h1 { flex: none; white-space: nowrap; }
+.reading-jpg-deck .deck-view-switch { opacity: 1; pointer-events: auto; }
+.reading-toolbar { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; overflow-x: auto; }
+.reading-toolbar .book3d-zoom-controls, .reading-toolbar .book3d-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 0; padding: 0; flex: none; }
+.reading-toolbar .book3d-navigation { gap: 6px; }
+.reading-toolbar button { padding: 6px 8px; min-width: 28px; height: 32px; font-size: 11px; white-space: nowrap; }
+.reading-toolbar label, .reading-toolbar output, .reading-toolbar .book3d-counter { font-size: 11px; white-space: nowrap; }
+.reading-toolbar input[type="range"] { width: 72px; }
+.reading-toolbar .book3d-angle { gap: 5px; }
+.reading-jpg-deck .book3d-embedded { display: flex; overflow: hidden; }
+.reading-jpg-deck .book3d-layout { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.reading-jpg-deck .book3d-stage { flex: 1; height: auto; min-height: 0; }
+.reading-jpg-deck .book3d-stage-label { display: none; }
+
+.reading-toolbar .book3d-navigation { width: auto; order: 0; }
+.reading-toolbar button { min-height: 32px; }

@@ -6,6 +6,8 @@ import { getReadingJpg } from "@/lib/reading-jpg";
 export function createReadingTextures(book: Book, assets: Asset[]) {
   const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
   const cache = new Map<number, [HTMLCanvasElement, HTMLCanvasElement]>();
+  const jpgs = new Map<number | null, Blob>();
+  let preload: Promise<void> | undefined;
   let disposed = false;
   let queue = Promise.resolve();
   let front: HTMLCanvasElement | undefined;
@@ -16,7 +18,8 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
   ctx.fillStyle = "#faf7ef";
   ctx.fillRect(0, 0, blank.width, blank.height);
   async function decode(index: number | null) {
-    const blob = await getReadingJpg(book, assets, index);
+    const blob = jpgs.get(index);
+    if (!blob) throw Error("手帐图片尚未准备完成");
     const url = URL.createObjectURL(blob);
     const image = new Image();
     try {
@@ -29,6 +32,16 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
   }
   async function prepare(leaf: number) {
     const work = queue.then(async () => {
+      if (disposed) return;
+      preload ??= (async () => {
+        for (const index of [null, ...Array.from({ length: plan.count }, (_, i) => i)]) {
+          if (disposed) return;
+          const jpg = await getReadingJpg(book, assets, index);
+          if (disposed) return;
+          jpgs.set(index, jpg);
+        }
+      })();
+      await preload;
       if (disposed) return;
       if (!front) {
         const image = await decode(null);
@@ -90,6 +103,7 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
     dispose() {
       disposed = true;
       cache.clear();
+      jpgs.clear();
       front = undefined;
     },
   };
