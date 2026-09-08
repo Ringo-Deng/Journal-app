@@ -25,6 +25,7 @@ import MaterialStudio from '@/components/material-studio';
 import MaterialLibrary from '@/components/material-library';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
+import {buildSnapTargets,snapMoveBox,type SnapGuides} from '@/lib/snap-guides';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
 /* oxlint-disable jsx-a11y/no-static-element-interactions -- Draggable canvas objects expose keyboard selection and coordinate controls. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -258,6 +259,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(100);
   const [proportional,setProportional]=useState(false);
   const [selectionSize,setSelectionSize]=useState({w:0,h:0});
+  const [snapGuides,setSnapGuides]=useState<SnapGuides>({});
   const workArea=useRef<HTMLDivElement>(null);
   const [preserveLocks, setPreserveLocks] = useState(true);
   const [designPreview,setDesignPreview]=useState<{book:Book;spread:Spread;before:string;concept?:string}|null>(null);
@@ -323,7 +325,7 @@ export default function Home() {
     drag = useRef<{
       id:string; x:number; y:number; mode:string; box:Box;
       canvasW:number; canvasH:number; cx:number; cy:number;
-      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number};
+      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; snap?:ReturnType<typeof buildSnapTargets>;
     } | null>(null);
   useEffect(() => {
     booksRef.current = books;
@@ -1017,7 +1019,10 @@ export default function Home() {
     const r=paper.getBoundingClientRect(),cw=paper.clientWidth,ch=paper.clientHeight,boxes=members.map(pieceBox);
     const box=members.length>1?unionBoxes(boxes):boxes[0];
     const cx=r.left+paper.clientLeft+box.x+box.w/2,cy=r.top+paper.clientTop+box.y+box.h/2;
-    drag.current={id,x:e.clientX,y:e.clientY,mode:cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50}};
+    const movingIds=new Set(members.map(member=>member.id));
+    const snap=mode==='move'&&!(cropping&&p.kind==='photo')?buildSnapTargets(cw,ch,(spread?.elements||[]).filter(q=>!movingIds.has(q.id)&&!isPieceHidden(q)).map(pieceBox)):undefined;
+    setSnapGuides({});
+    drag.current={id,x:e.clientX,y:e.clientY,mode:cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function pointerMove(e: React.PointerEvent) {
@@ -1033,12 +1038,18 @@ export default function Home() {
       box=resizeBox(d.box,d.mode.slice(7),dx,dy,d.members.length>1||proportional||e.shiftKey);
       const scale=Math.min(1,d.canvasW/box.w,d.canvasH/box.h);box.w*=scale;box.h*=scale;
       box.x=Math.max(0,Math.min(d.canvasW-box.w,box.x));box.y=Math.max(0,Math.min(d.canvasH-box.h,box.y));
-    }else{box.x=d.box.x+dx;box.y=d.box.y+dy;}
+    }else{
+      box.x=d.box.x+dx;box.y=d.box.y+dy;
+      if(!e.altKey&&d.snap){const snapped=snapMoveBox(box,d.snap,6);box={...box,...snapped.box};setSnapGuides(snapped.guides);}
+      else setSnapGuides({});
+    }
+    if(d.mode!=='move')setSnapGuides({});
     if(d.members.length>1){const transformed=transformCluster(d.members,d.boxes,d.box,box,d.canvasW,d.canvasH);const updates=new Map(transformed.map(p=>[p.id,p]));changeSpread(s=>({...s,elements:s.elements.map(p=>updates.get(p.id)||p)}),false);}
     else if(d.mode==='rotate')patchPiece(d.id,{rotation:box.rotation},false);
     else if(d.mode==='move')patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100},false);
     else patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100,w:box.w/d.canvasW*100,h:box.h/d.canvasH*100,stretch:true},false);
   }
+  function endPointerDrag(){drag.current=null;setSnapGuides({});}
   function insertLibraryAssets(list:Asset[]) {
     if(!book||!list.length)return false;
     const side=page===-1?1:0;
@@ -1775,6 +1786,8 @@ export default function Home() {
                         </>
                       )}
                       <div className="paper-grain" />
+                      {snapGuides.x!==undefined&&<span aria-hidden="true" data-editor-ui="true" style={{position:'absolute',left:snapGuides.x,top:0,bottom:0,width:1,background:'rgba(59,130,246,.72)',boxShadow:'0 0 0 1px rgba(255,255,255,.55)',zIndex:9999,pointerEvents:'none'}}/>}
+                      {snapGuides.y!==undefined&&<span aria-hidden="true" data-editor-ui="true" style={{position:'absolute',top:snapGuides.y,left:0,right:0,height:1,background:'rgba(59,130,246,.72)',boxShadow:'0 0 0 1px rgba(255,255,255,.55)',zIndex:9999,pointerEvents:'none'}}/>}
                       {decorative.filter(p=>!isPieceHidden(p)).map((p) => (
                         <div
                           key={p.id}
@@ -1815,12 +1828,8 @@ export default function Home() {
                           onDoubleClick={()=>{if(!reading&&!p.locked)enterGroup(p)}}
                           onPointerDown={(e) => pointerDown(e, p.id)}
                           onPointerMove={pointerMove}
-                          onPointerUp={() => {
-                            drag.current = null;
-                          }}
-                          onPointerCancel={() => {
-                            drag.current = null;
-                          }}
+                          onPointerUp={endPointerDrag}
+                          onPointerCancel={endPointerDrag}
                         >
                           {p.kind === 'text' ? (
                             inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>setInlineText(e.target.value)} onSelect={e=>{const t=e.currentTarget;setTextRange(t.selectionEnd>t.selectionStart?{id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value}:null);}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
@@ -1847,8 +1856,8 @@ export default function Home() {
                         style={clusterBox?{left:clusterBox.x,top:clusterBox.y,width:clusterBox.w,height:clusterBox.h}:{left:`${piece.x}%`,top:`${piece.y}%`,width:`${selectionSize.w||piece.w}%`,height:`${selectionSize.h||piece.h||15}%`,transform:`rotate(${piece.rotation}deg)`}}
                         onPointerDown={multiSelection?e=>pointerDown(e,piece.id,'move'):undefined}
                         onPointerMove={pointerMove}
-                        onPointerUp={()=>{drag.current=null}}
-                        onPointerCancel={()=>{drag.current=null}}
+                        onPointerUp={endPointerDrag}
+                        onPointerCancel={endPointerDrag}
                       >
                         <span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个 · 拖动框内移动`:cluster?'组合 · 等比缩放':piece.kind==='text'?'文字':piece.kind==='photo'?'照片':'素材'}</span>
                         {!multiSelection&&resizeHandles.map(([handle,label])=><button key={handle} className={`resize-handle handle-${handle}`} aria-label={label} title={label+' · Shift 保持比例'} onPointerDown={e=>pointerDown(e,piece.id,'resize-'+handle)}/>)}
@@ -2427,7 +2436,7 @@ export default function Home() {
             <span>YOUR LIFE, IN LITTLE PIECES.</span>
             <span>
               {opened
-                ? '拖动元素调整位置 · 拖动页角或使用方向键翻页'
+                ? '拖动元素调整位置 · 自动吸附并显示参考线 · 按住 Alt 临时关闭吸附'
                 : '一本属于你的，每月手帐。'}
             </span>
           </footer>
