@@ -8,6 +8,7 @@ import './globals.css';
 import './cover-materials.css';
 import './reading-cover-fixes.css';
 import './reading-back-cover-fixes.css';
+import './reading-format-fit.css';
 import './material-library-refresh.css';
 import './material-studio-stability.css';
 
