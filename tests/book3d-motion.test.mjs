@@ -167,3 +167,14 @@ test("white binding joins both resting sheets and the actual moving hinge across
     }
   }
 });
+
+test("thin covers keep their inner faces outside the paper block at both resting poses", async () => {
+  const { coverHeight } = await import("../lib/book3d-motion.ts");
+  assert.ok(BOOK.cover < 0.06); // Original .16 board looked like a thick plank.
+  assert.ok(BOOK.cover > 0);
+  const closedInside = coverHeight("above") - BOOK.cover / 2;
+  const openedInside = coverHeight("below") + BOOK.cover / 2;
+  near(closedInside - stackTop(BOOK.leaves), BOOK.coverGap);
+  near(BOOK.base - openedInside, BOOK.coverGap);
+  assert.ok(closedInside > stackTop(BOOK.leaves) + 0.008);
+});

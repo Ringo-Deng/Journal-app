@@ -253,3 +253,43 @@
   border-color: #899a76;
   color: #435735;
 }
+
+.book3d-material-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding-top: 18px;
+  color: #69725e;
+  font-size: 12px;
+}
+.book3d-material-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #d8dccd;
+  border-radius: 7px;
+  background: #fcfbf7;
+  color: #59634e;
+  cursor: pointer;
+}
+.book3d-material-controls button[aria-pressed="true"] {
+  border-color: #899a76;
+  background: #e2e9d9;
+}
+.book3d-material-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.book3d-material-controls button:focus-visible {
+  outline: 2px solid #73875e;
+  outline-offset: 3px;
+}
+.book3d-material-controls i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px #0001;
+}

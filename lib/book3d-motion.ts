@@ -6,6 +6,8 @@ export const BOOK = {
   leaves: 8,
   sheet: 0.036,
   base: -0.12,
+  cover: 0.05,
+  coverGap: 0.012,
 } as const;
 
 export function stackTop(leaves: number) {
@@ -112,4 +114,10 @@ export function bindingProfile(left: number, right: number, hinge: number) {
       z: u <= 0.5 ? left + (hinge - left) * smooth : hinge + (right - hinge) * smooth,
     };
   });
+}
+
+export function coverHeight(side: "above" | "below") {
+  return side === "above"
+    ? stackTop(BOOK.leaves) + BOOK.coverGap + BOOK.cover / 2
+    : BOOK.base - BOOK.coverGap - BOOK.cover / 2;
 }

@@ -16,6 +16,7 @@ import {
   BOOK,
   sampleSheet,
   stackTop,
+  coverHeight,
   nextBookTurn,
   finishBookTurn,
   settleDrag,
@@ -29,6 +30,7 @@ import {
   dragTurnSpan,
   releaseTurn,
 } from "@/lib/book3d-motion";
+import { COVER_MATERIALS, createCoverTextures, type CoverMaterial } from "./cover-materials";
 import "./book3d.css";
 
 type Motion = BookTurn;
@@ -45,35 +47,21 @@ const titles = [
   "下一次出发",
 ];
 
-function makeTexture(page: number | "cover" | "lining", reverse = false) {
+function makeTexture(page: number | "lining", reverse = false) {
   const canvas = document.createElement("canvas");
   canvas.width = 768;
   canvas.height = 1024;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = page === "cover" ? "#78614c" : page === "lining" ? "#d3c3a6" : "#faf5e9";
+  ctx.fillStyle = page === "lining" ? "#e6dfd0" : "#faf5e9";
   ctx.fillRect(0, 0, 768, 1024);
   // Deterministic fine grain; no image downloads or private journal data.
   for (let y = 0; y < 1024; y += 3) {
     for (let x = 0; x < 768; x += 3) {
       ctx.fillStyle = `rgba(60,42,23,${((x * 13 + y * 7) % 19) / 900})`;
-      ctx.fillRect(x, y, 1, page === "cover" ? 3 : 1);
+      ctx.fillRect(x, y, 1, 1);
     }
   }
-  if (page === "cover") {
-    ctx.strokeStyle = "#baa07d";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(42, 42, 684, 940);
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#e9d9b6";
-    ctx.font = "20px Georgia";
-    ctx.fillText("S H I G U A N G   J O U R N A L", 384, 290);
-    ctx.font = '76px "Songti SC", serif';
-    ctx.fillText("拾 光", 384, 420);
-    ctx.font = '24px "Songti SC", serif';
-    ctx.fillText("把平凡的日子，慢慢收藏", 384, 485);
-    ctx.font = "18px Georgia";
-    ctx.fillText("V O L .  0 1     /     2 0 2 6", 384, 874);
-  } else if (typeof page === "number") {
+  if (typeof page === "number") {
     const accent = ["#789080", "#b48b64", "#8a96a6", "#ae8b88"][Math.floor(page / 2) % 4];
     ctx.fillStyle = accent;
     ctx.font = "18px Georgia";
@@ -137,7 +125,7 @@ function makeTexture(page: number | "cover" | "lining", reverse = false) {
   return texture;
 }
 
-function usePaperTexture(page: number | "cover" | "lining", reverse = false) {
+function usePaperTexture(page: number | "lining", reverse = false) {
   const texture = useMemo(() => makeTexture(page, reverse), [page, reverse]);
   useEffect(() => () => texture.dispose(), [texture]);
   return texture;
@@ -214,10 +202,10 @@ function TurningPage({ leaf, progress }: { leaf: number; progress: { current: nu
   });
   return (
     <group>
-      <mesh geometry={geometry} castShadow receiveShadow>
-        <meshStandardMaterial map={front} roughness={0.93} shadowSide={BackSide} />
+      <mesh geometry={geometry} castShadow>
+        <meshStandardMaterial map={front} roughness={0.93} shadowSide={DoubleSide} />
       </mesh>
-      <mesh geometry={geometry} castShadow receiveShadow>
+      <mesh geometry={geometry}>
         <meshStandardMaterial map={back} roughness={0.93} side={BackSide} />
       </mesh>
     </group>
@@ -265,8 +253,10 @@ function BookModel({
   tilt,
   reducedMotion,
   beginDrag,
+  material,
 }: {
   state: BookState;
+  material: CoverMaterial;
   complete: () => void;
   tilt: number;
   reducedMotion: boolean;
@@ -290,7 +280,14 @@ function BookModel({
   const progress = useRef(
     state.motion?.kind === "page" && state.motion.to < state.motion.from ? 1 : 0,
   );
-  const coverMap = usePaperTexture("cover");
+  const surface = COVER_MATERIALS[material];
+  const coverTextures = useMemo(() => createCoverTextures(material), [material]);
+  useEffect(
+    () => () => {
+      Object.values(coverTextures).forEach((texture) => texture.dispose());
+    },
+    [coverTextures],
+  );
   const liningMap = usePaperTexture("lining", true);
   const motion = state.motion;
   const startPageDrag = (event: ThreeEvent<PointerEvent>, direction: -1 | 1) => {
@@ -392,17 +389,13 @@ function BookModel({
     if (motion?.kind === "cover") opening = MathUtils.lerp(motion.from, motion.to, turn);
     if (motion?.kind === "page") progress.current = motion.to > motion.from ? turn : 1 - turn;
     cover.current.rotation.y = -Math.PI * opening;
-    cover.current.position.z = MathUtils.lerp(
-      stackTop(BOOK.leaves) + 0.1,
-      BOOK.base - 0.09,
-      opening,
-    );
+    cover.current.position.z = MathUtils.lerp(coverHeight("above"), coverHeight("below"), opening);
     let backClosing = state.backClosed ? 1 : 0;
     if (motion?.kind === "back-cover") backClosing = MathUtils.lerp(motion.from, motion.to, turn);
     backCover.current.rotation.y = -Math.PI * backClosing;
     backCover.current.position.z = MathUtils.lerp(
-      BOOK.base - 0.09,
-      stackTop(BOOK.leaves) + 0.1,
+      coverHeight("below"),
+      coverHeight("above"),
       backClosing,
     );
     root.current.position.x = (-BOOK.width / 2) * (1 - opening) + (BOOK.width / 2) * backClosing;
@@ -434,31 +427,38 @@ function BookModel({
       rotation={[(-tilt * Math.PI) / 180, -0.1, 0]}
       position={[-BOOK.width / 2, 0, 0]}
     >
-      <group ref={backCover} position={[0, 0, BOOK.base - 0.09]}>
+      <group ref={backCover} position={[0, 0, coverHeight("below")]}>
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow
-          receiveShadow
           onPointerDown={(event) => startPageDrag(event, state.backClosed ? -1 : 1)}
         >
-          <boxGeometry args={[BOOK.width + 0.18, BOOK.height + 0.2, 0.16]} />
-          <meshStandardMaterial color="#78614c" roughness={0.86} />
+          <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+          <meshStandardMaterial color={surface.edge} roughness={surface.roughness} />
         </mesh>
         <mesh
-          position={[BOOK.width / 2, 0, 0.081]}
-          receiveShadow
+          position={[BOOK.width / 2, 0, BOOK.cover / 2 + 0.001]}
           onPointerDown={(event) => startPageDrag(event, 1)}
         >
           <planeGeometry args={[BOOK.width, BOOK.height]} />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
         <mesh
-          position={[BOOK.width / 2, 0, -0.081]}
+          position={[BOOK.width / 2, 0, -(BOOK.cover / 2 + 0.001)]}
           rotation={[0, Math.PI, 0]}
           onPointerDown={(event) => startPageDrag(event, -1)}
         >
-          <planeGeometry args={[BOOK.width + 0.14, BOOK.height + 0.16]} />
-          <meshStandardMaterial color="#78614c" roughness={0.86} />
+          <planeGeometry args={[BOOK.width + 0.1, BOOK.height + 0.14]} />
+          <meshPhysicalMaterial
+            map={coverTextures.back}
+            bumpMap={coverTextures.bump}
+            bumpScale={surface.bump}
+            roughness={surface.roughness}
+            clearcoat={surface.clearcoat}
+            clearcoatRoughness={0.7}
+            sheen={surface.sheen}
+            sheenColor={surface.color}
+          />
         </mesh>
       </group>
       <PaperStack side={1} count={rightCount} />
@@ -480,24 +480,32 @@ function BookModel({
         />
       )}
       {turning && <TurningPage key={leaf} leaf={leaf} progress={progress} />}
-      <group ref={cover} position={[0, 0, stackTop(BOOK.leaves) + 0.1]}>
+      <group ref={cover} position={[0, 0, coverHeight("above")]}>
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow
-          receiveShadow
           onPointerDown={(event) => startPageDrag(event, state.opened ? -1 : 1)}
         >
-          <boxGeometry args={[BOOK.width + 0.18, BOOK.height + 0.2, 0.16]} />
-          <meshStandardMaterial color="#78614c" roughness={0.86} />
+          <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+          <meshStandardMaterial color={surface.edge} roughness={surface.roughness} />
         </mesh>
         <mesh
-          position={[BOOK.width / 2, 0, 0.081]}
+          position={[BOOK.width / 2, 0, BOOK.cover / 2 + 0.001]}
           onPointerDown={(event) => startPageDrag(event, 1)}
         >
-          <planeGeometry args={[BOOK.width + 0.14, BOOK.height + 0.16]} />
-          <meshStandardMaterial map={coverMap} roughness={0.86} />
+          <planeGeometry args={[BOOK.width + 0.1, BOOK.height + 0.14]} />
+          <meshPhysicalMaterial
+            map={coverTextures.front}
+            bumpMap={coverTextures.bump}
+            bumpScale={surface.bump}
+            roughness={surface.roughness}
+            clearcoat={surface.clearcoat}
+            clearcoatRoughness={0.7}
+            sheen={surface.sheen}
+            sheenColor={surface.color}
+          />
         </mesh>
-        <mesh position={[BOOK.width / 2, 0, -0.081]} rotation={[0, Math.PI, 0]}>
+        <mesh position={[BOOK.width / 2, 0, -(BOOK.cover / 2 + 0.001)]} rotation={[0, Math.PI, 0]}>
           <planeGeometry args={[BOOK.width, BOOK.height]} />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
@@ -559,7 +567,7 @@ function WoodenDesk({ tilt }: { tilt: number }) {
   });
   return (
     <group ref={desk} rotation={[(-tilt * Math.PI) / 180, 0, 0]}>
-      <mesh position={[0, 0, BOOK.base - 0.34]} receiveShadow>
+      <mesh position={[0, 0, coverHeight("below") - BOOK.cover / 2 - 0.15 - 0.006]} receiveShadow>
         <boxGeometry args={[38, 28, 0.3]} />
         <meshStandardMaterial map={texture} roughness={0.88} />
       </mesh>
@@ -586,6 +594,7 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
 export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string }) {
   const [state, setState] = useState<BookState>(initialState);
   const [tilt, setTilt] = useState(28);
+  const [material, setMaterial] = useState<CoverMaterial>("leather");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [viewMode, setViewMode] = useState<"turn" | "pan">("turn");
@@ -702,7 +711,7 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
         >
           <span className="book3d-stage-label">拾光集 · 第一册</span>
           <Canvas
-            shadows
+            shadows="percentage"
             dpr={[1, 2]}
             camera={{ position: [0, 0.3, 12], fov: 38, near: 0.1, far: 100 }}
             gl={{ antialias: true }}
@@ -710,23 +719,24 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
           >
             <CameraFit zoom={zoom} pan={pan} />
             <color attach="background" args={["#e9e4db"]} />
-            <ambientLight intensity={0.85} />
+            <ambientLight intensity={1.05} />
             <hemisphereLight args={["#fff9eb", "#8e8272", 1.1]} />
             <directionalLight
               position={[-3, 6, 8]}
-              intensity={2.5}
+              intensity={1.6}
               castShadow
               shadow-mapSize={[2048, 2048]}
               shadow-camera-left={-8}
               shadow-camera-right={8}
               shadow-camera-top={8}
               shadow-camera-bottom={-8}
-              shadow-normalBias={0.025}
+              shadow-normalBias={0.003}
               shadow-bias={-0.0001}
-              shadow-radius={4}
+              shadow-radius={5}
             />
             <BookModel
               state={state}
+              material={material}
               complete={complete}
               tilt={tilt}
               reducedMotion={reducedMotion}
@@ -744,6 +754,20 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
                 : status}
           </div>
         </section>
+        <div className="book3d-material-controls" role="group" aria-label="封面材质">
+          <span>封面材质</span>
+          {(Object.keys(COVER_MATERIALS) as CoverMaterial[]).map((kind) => (
+            <button
+              key={kind}
+              disabled={busy}
+              aria-pressed={material === kind}
+              onClick={() => setMaterial(kind)}
+            >
+              <i style={{ background: COVER_MATERIALS[kind].color }} aria-hidden="true" />
+              {COVER_MATERIALS[kind].label}
+            </button>
+          ))}
+        </div>
         <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
           <button
             aria-label="缩小手帐"
