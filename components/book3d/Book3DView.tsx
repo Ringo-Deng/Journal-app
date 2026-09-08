@@ -37,6 +37,7 @@ import {
   type CoverMaterial,
 } from "./cover-materials";
 import "./book3d.css";
+import BookSpine from "./BookSpine";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { createPortal } from "react-dom";
 import {
@@ -478,6 +479,7 @@ function BookModel({
   const root = useRef<Group>(null);
   const cover = useRef<Group>(null);
   const backCover = useRef<Group>(null);
+  const spinePose = useRef({ front: state.opened ? 1 : 0, back: state.backClosed ? 1 : 0 });
   const elapsed = useRef(0);
   const notified = useRef(false);
   const progress = useRef(
@@ -624,6 +626,8 @@ function BookModel({
     cover.current.position.z = frontPose.z;
     let backClosing = state.backClosed ? 1 : 0;
     if (motion?.kind === "back-cover") backClosing = MathUtils.lerp(motion.from, motion.to, turn);
+    spinePose.current.front = opening;
+    spinePose.current.back = backClosing;
     const backPose = coverPose(backClosing, "back");
     backCover.current.rotation.y = backPose.angle;
     backCover.current.position.z = backPose.z;
@@ -636,7 +640,7 @@ function BookModel({
     );
     root.current.rotation.y = MathUtils.damp(
       root.current.rotation.y,
-      -0.1 * (1 - opening),
+      paperStyle === "bound" ? 0.3 * (1 - opening - backClosing) : -0.1 * (1 - opening),
       7,
       delta,
     );
@@ -653,9 +657,12 @@ function BookModel({
   return (
     <group
       ref={root}
-      rotation={[(-tilt * Math.PI) / 180, -0.1, 0]}
+      rotation={[(-tilt * Math.PI) / 180, paperStyle === "bound" ? 0.3 : -0.1, 0]}
       position={[-BOOK.width / 2, 0, 0]}
     >
+      {paperStyle === "bound" && (
+        <BookSpine book={BOOK} pose={spinePose} material={material} bump={coverTextures.bump} />
+      )}
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
         {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
         <mesh

@@ -122,3 +122,11 @@ npm run build
 - Bound pages integrate a row-dependent twist while preserving each row's length and common spine. Vertical pointer travel controls the twist through the existing drag record; automatic turns use a subtle bias. A damped response softens changes, and the twist vanishes at both endpoints. Reduced-motion preference disables twist. Existing release, cancel and cover timing are preserved.
 - Source acknowledgement for Complete Shelf added to THIRD_PARTY_NOTICES.md; upstream artwork is not bundled.
 - Validation: 34 related tests, focused TypeScript/lint and production build passed. Internal review also kept the original/soft paths on one curve calculation per frame. Browser preview was attempted, but denied because administrator policy could not be verified; material appearance, actual mouse/touch feel and mobile layout remain unverified.
+
+
+## v0.1.101 — Add the missing exterior spine
+
+- Added BookSpine to the bound experiment: a closed ribbon shell with inner/outer faces, head/tail edges, matching generated cover grain and vertical title. The prior white inner binding is retained as a separate structure.
+- Exterior profile follows both cover-edge transforms, bulges outward when closed, and folds under the open covers with desk clearance. Closed front/back views turn slightly toward their exposed spine. Geometry updates only as the cover pose changes.
+- 36 related tests, focused TypeScript/lint and production build passed. New geometry tests sample attachment endpoints throughout both cover transitions, exterior positions in both closed states, and open desk clearance for multiple book thicknesses.
+- Actual rendering remains unverified. Browser access in this task has been blocked by the unavailable administrator policy check; no alternative browser-control route was used. Geometry checks do not prove visual quality or rule out every intermediate intersection.

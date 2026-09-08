@@ -161,3 +161,35 @@ export function coverPose(progress: number, side: "front" | "back", geometry: Bo
   const to = coverHeight(side === "front" ? "below" : "above", geometry);
   return { angle: -Math.PI * p, z: from + (to - from) * eased };
 }
+
+/** Exterior spine follows both cover edges, folding below the book when open. */
+export function exteriorSpineProfile(
+  frontOpen: number,
+  backClosed: number,
+  geometry: BookGeometry = BOOK,
+) {
+  const front = coverPose(frontOpen, "front", geometry);
+  const back = coverPose(backClosed, "back", geometry);
+  const edge = -0.04;
+  const attach = (pose: { angle: number; z: number }, face: number) => ({
+    x: edge * Math.cos(pose.angle) + face * Math.sin(pose.angle),
+    z: pose.z - edge * Math.sin(pose.angle) + face * Math.cos(pose.angle),
+  });
+  const a = attach(back, -geometry.cover / 2);
+  const b = attach(front, geometry.cover / 2);
+  const angle = Math.PI + (Math.PI / 2) * (frontOpen + backClosed);
+  const outward = { x: Math.cos(angle), z: Math.sin(angle) };
+  const bow =
+    0.003 +
+    0.097 * Math.min(1, Math.abs(b.z - a.z) / Math.max(0.001, geometry.leaves * geometry.sheet));
+  return Array.from({ length: 33 }, (_, i) => {
+    const t = i / 32;
+    const bulge = Math.sin(Math.PI * t) * bow;
+    return {
+      x: a.x + (b.x - a.x) * t + outward.x * bulge,
+      z: a.z + (b.z - a.z) * t + outward.z * bulge,
+      nx: outward.x,
+      nz: outward.z,
+    };
+  });
+}
