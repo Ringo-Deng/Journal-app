@@ -32,7 +32,7 @@ type PageFlipWindow = Window & {
   };
 };
 
-type CoverMaterial = 'leather' | 'fabric' | 'kraft';
+type CoverMaterial = 'leather' | 'fabric' | 'kraft' | 'soft-leather' | 'hardboard';
 
 type DebugSettings = {
   flippingTime: number;
@@ -167,38 +167,37 @@ function coverShellMarkup(side: 'front' | 'back', settings: DebugSettings): stri
 }
 
 function makePageMarkup(settings: DebugSettings): string {
+  const materialClass = `pf-cover--${settings.coverMaterial}`;
   return `
     ${coverShellMarkup('front', settings)}
-    <div class="pf-page">
-      <div class="pf-page-inner">
-        <div class="pf-eyebrow">INNER COVER</div>
-        <div class="pf-title">打开以后，先看书是否真的成立</div>
-        <div class="pf-body">内页继续交给 StPageFlip 做软纸折叠；封面则单独补上厚度、材质层和封面专用阴影规则。</div>
-        <div class="pf-footer"><span>拾光手帐</span><span>01</span></div>
+    <div class="pf-page pf-cover-lining-page ${materialClass}">
+      <div class="pf-cover-lining pf-cover-lining--page">
+        <span>SHIGUANG JOURNAL</span>
+        <span>封面内侧</span>
       </div>
     </div>
     <div class="pf-page">
       <div class="pf-page-inner">
         <div class="pf-eyebrow">RIGHT PAGE</div>
         <div class="pf-title">现在翻这一张</div>
-        <div class="pf-body">重点观察右侧纸张：它应该从右侧抬起、弯折、越过书脊，并持续作为同一张纸落到左侧。</div>
-        <div class="pf-footer"><span>拾光手帐</span><span>02</span></div>
+        <div class="pf-body">这里才是第一张真正的纸。重点观察右侧纸张：它应该从右侧抬起、弯折、越过书脊，并持续作为同一张纸落到左侧。</div>
+        <div class="pf-footer"><span>拾光手帐</span><span>01</span></div>
       </div>
     </div>
     <div class="pf-page">
       <div class="pf-page-inner">
         <div class="pf-eyebrow">LEFT PILE</div>
         <div class="pf-title">翻完后，纸必须留在这里</div>
-        <div class="pf-body">软页翻完后稳定叠在左侧；硬封面则不使用软页那种大片动态投影。</div>
-        <div class="pf-footer"><span>拾光手帐</span><span>03</span></div>
+        <div class="pf-body">软页翻完后稳定叠在左侧；硬封面与封面内侧不再复用普通纸张的视觉样式。</div>
+        <div class="pf-footer"><span>拾光手帐</span><span>02</span></div>
       </div>
     </div>
     <div class="pf-page">
       <div class="pf-page-inner">
         <div class="pf-eyebrow">NEXT SPREAD</div>
-        <div class="pf-title">封面材质以后可以独立替换</div>
-        <div class="pf-body">牛皮革、布艺和牛皮纸目前用 CSS 纹理占位。后续可直接替换为真实贴图，而不改翻页结构。</div>
-        <div class="pf-footer"><span>拾光手帐</span><span>04</span></div>
+        <div class="pf-title">封面材质和纸张各自独立</div>
+        <div class="pf-body">封面内侧跟随牛皮革、布艺、软皮、牛皮纸或硬纸板材质；真正的内页仍由 StPageFlip 做软纸折叠。</div>
+        <div class="pf-footer"><span>拾光手帐</span><span>03</span></div>
       </div>
     </div>
     ${coverShellMarkup('back', settings)}
@@ -350,6 +349,19 @@ const pageCss = `
     transform: translateZ(calc(var(--pf-cover-thickness) / 2));
   }
 
+  .pf-cover-lining-page {
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.055), transparent 16%, transparent 84%, rgba(0,0,0,.08)),
+      var(--pf-cover-inside) !important;
+    color: rgba(255, 248, 236, .72);
+    border: 1px solid rgba(48, 34, 25, .22);
+    box-shadow: inset 0 0 24px rgba(40, 28, 20, .08);
+  }
+  .pf-cover-lining--page {
+    border: 10px solid rgba(255,255,255,.028);
+    opacity: .5;
+  }
+
   .pf-cover-edge {
     position: absolute;
     display: block;
@@ -416,6 +428,16 @@ const pageCss = `
       radial-gradient(circle at 72% 62%, rgba(255,255,255,.1) 0 1px, transparent 1.5px),
       linear-gradient(100deg, rgba(255,255,255,.05), transparent 42%, rgba(80,50,28,.07));
     background-size: 19px 21px, 23px 17px, 100% 100%;
+  }
+  .pf-cover--soft-leather {
+    --pf-cover-base: #765448;
+    --pf-cover-inside: #65463d;
+    --pf-cover-edge: #46312b;
+  }
+  .pf-cover--hardboard {
+    --pf-cover-base: #a17a50;
+    --pf-cover-inside: #94704b;
+    --pf-cover-edge: #76583b;
   }
 
   .pf-cover-content {
@@ -754,7 +776,9 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
               >
                 <option value="leather">牛皮革</option>
                 <option value="fabric">布艺</option>
+                <option value="soft-leather">软皮</option>
                 <option value="kraft">牛皮纸</option>
+                <option value="hardboard">硬纸板</option>
               </select>
             </label>
 
@@ -827,7 +851,9 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
 
 function coverMaterialLabel(material: CoverMaterial): string {
   if (material === 'fabric') return '布艺';
+  if (material === 'soft-leather') return '软皮';
   if (material === 'kraft') return '牛皮纸';
+  if (material === 'hardboard') return '硬纸板';
   return '牛皮革';
 }
 
