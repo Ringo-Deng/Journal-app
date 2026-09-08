@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { CSSProperties } from 'react';
 import packageJson from '../package.json';
 import RuntimeCompatibility from '@/components/runtime-compatibility';
 import './globals.css';
@@ -18,28 +19,23 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="/api/fonts.css" data-user-fonts="true" />
       </head>
-      <body>
+      <body
+        style={
+          {
+            '--app-version': `"v${packageJson.version}"`,
+          } as CSSProperties
+        }
+      >
         <RuntimeCompatibility />
-        <div
-          aria-label={`当前版本 v${packageJson.version}`}
-          style={{
-            position: 'fixed',
-            top: 8,
-            left: 10,
-            zIndex: 2147483647,
-            fontSize: 11,
-            lineHeight: 1,
-            padding: '4px 6px',
-            borderRadius: 6,
-            background: 'rgba(255,255,255,0.72)',
-            border: '1px solid rgba(0,0,0,0.08)',
-            color: 'rgba(0,0,0,0.48)',
-            pointerEvents: 'none',
-            backdropFilter: 'blur(6px)',
-          }}
-        >
-          v{packageJson.version}
-        </div>
+        <style>{`
+          .build-version {
+            font-size: 0 !important;
+          }
+          .build-version::after {
+            content: var(--app-version);
+            font-size: 10px;
+          }
+        `}</style>
         {children}
       </body>
     </html>
