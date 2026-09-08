@@ -25,7 +25,20 @@ test('every material can reopen from its current image instead of requiring its 
   assert.match(source,/fetch\(src,\{cache:'no-store'\}\)/);
   assert.match(source,/fetch\('\/api\/upload'/);
   assert.match(source,/request\('\/source',\{src,name:a\.name\}\)/);
+  assert.match(source,/title="以当前素材为起点继续抠图、裁切或识别"/);
   assert.match(source,/aria-label={`再次编辑\$\{a\.name\}`}/);
   assert.match(source,/onClick=\{\(\)=>void reopenAsset\(a\)\}/);
   assert.doesNotMatch(source,/request\('\/reopen'/);
+});
+
+test('single-material AI classification is available for every material and is not confused with image editing',()=>{
+  assert.match(source,/aria-label={`AI分类\$\{a\.name\}`}/);
+  assert.match(source,/重新判断这个素材的分类与标签/);
+  assert.match(source,/onClick=\{\(\)=>void classify\(\[a\.id\]\)\}/);
+  assert.doesNotMatch(source,/再次识别\$\{a\.name\}/);
+});
+
+test('built-in material cards keep the current-image edit action balanced across the card width',()=>{
+  assert.match(source,/style=\{userAsset\?undefined:\{gridColumn:'1 \/ -1'\}\}/);
+  assert.match(source,/library-card-actions\$\{userAsset\?' has-delete':''\}/);
 });
