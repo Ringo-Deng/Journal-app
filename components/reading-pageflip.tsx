@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  memo,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -40,6 +41,18 @@ type PositionState = {
   atStart: boolean;
   atEnd: boolean;
   opened: boolean;
+};
+
+type ReadingPageFlipProps = {
+  book: Book;
+  assets: Asset[];
+  readingIndex: number;
+  startOpen: boolean;
+  onReadingIndex: (index: number) => void;
+  onReadyChange: (ready: boolean) => void;
+  onOpened: () => void;
+  onPosition: (state: PositionState) => void;
+  onError: () => void;
 };
 
 function getConstructor(): PageFlipConstructor | null {
@@ -177,17 +190,7 @@ function physicalForReadingIndex(index: number) {
   return index <= 0 ? 1 : 3 + (index - 1) * 2;
 }
 
-const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
-  book: Book;
-  assets: Asset[];
-  readingIndex: number;
-  startOpen: boolean;
-  onReadingIndex: (index: number) => void;
-  onReadyChange: (ready: boolean) => void;
-  onOpened: () => void;
-  onPosition: (state: PositionState) => void;
-  onError: () => void;
-}>(function ReadingPageFlip(
+const ReadingPageFlipBase = forwardRef<ReadingPageFlipHandle, ReadingPageFlipProps>(function ReadingPageFlip(
   {
     book,
     assets,
@@ -204,7 +207,7 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
   const hostRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<PageFlipInstance | null>(null);
   const callbackRef = useRef({ onReadingIndex, onReadyChange, onOpened, onPosition, onError });
-  callbackRef.current = { onReadingIndex, onReadyChange, onOpened, onPosition, onError };
+  const initialStartPage = useRef(startOpen ? physicalForReadingIndex(readingIndex) : 0).current;
 
   const flyleaf = book.flyleaf;
   const body = book.spreads;
@@ -219,7 +222,6 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
   const backCoverIndex = finalVersoIndex + 2;
   const material = coverInfo(book.cover).material.id;
   const paper = paperSettings(book, lastSpread);
-  const startPage = startOpen ? physicalForReadingIndex(readingIndex) : 0;
 
   useImperativeHandle(ref, () => ({
     next: () => instanceRef.current?.flipNext('bottom'),
@@ -242,7 +244,7 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
         const width = 380;
         const height = Math.round(width / pageRatio);
         instance = new PageFlipCtor(host, {
-          startPage,
+          startPage: initialStartPage,
           width,
           height,
           size: 'stretch',
@@ -264,7 +266,7 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
           disableFlipByClick: false,
         });
 
-        const pages = host.querySelectorAll<HTMLElement>(':scope > .reading-flip-page');
+        const pages = host.querySelectorAll<HTMLElement>('.reading-flip-page');
         instance.loadFromHTML(pages);
         instanceRef.current = instance;
 
@@ -288,7 +290,7 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
           if (Number.isFinite(physical)) reportPosition(physical);
         });
 
-        reportPosition(startPage);
+        reportPosition(initialStartPage);
         callbackRef.current.onReadyChange(true);
       } catch (error) {
         console.error('Failed to initialise journal page flip', error);
@@ -309,7 +311,7 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
         // The library may already have detached its wrapper during unmount.
       }
     };
-  }, [backCoverIndex, book, count, finalVersoIndex, flyleaf, startPage]);
+  }, [backCoverIndex, book, count, finalVersoIndex, flyleaf, initialStartPage]);
 
   if (!flyleaf || !count) return null;
 
@@ -551,5 +553,10 @@ const ReadingPageFlip = forwardRef<ReadingPageFlipHandle, {
     </div>
   );
 });
+
+const ReadingPageFlip = memo(
+  ReadingPageFlipBase,
+  (previous, next) => previous.book === next.book && previous.assets === next.assets,
+);
 
 export default ReadingPageFlip;
