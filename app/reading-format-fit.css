@@ -1,0 +1,18 @@
+/* Fit narrow journal formats inside appreciation mode without shrinking the
+   standard book. --spread-ratio is provided by ReadingDeck (1.43 standard,
+   1.05 Travel Notes). The StPageFlip engine keeps its native geometry; only the
+   rendered book is scaled when a tall/narrow format would otherwise overflow. */
+.reading-pageflip-stage {
+  --reading-format-fit: clamp(.82, calc(var(--spread-ratio, 1.43) - .2), 1);
+}
+
+.reading-pageflip-book .stf__parent {
+  scale: var(--reading-format-fit);
+  transform-origin: 50% 50%;
+}
+
+/* Keep the closed cover and opened spreads centred in the same stage after the
+   narrow-format fit is applied. */
+.reading-pageflip-book .stf__wrapper {
+  margin-inline: auto;
+}
