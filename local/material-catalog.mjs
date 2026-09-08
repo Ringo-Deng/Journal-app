@@ -15,7 +15,7 @@ export const defaultTaxonomy={
 };
 const fail=(message,status=400)=>Object.assign(Error(message),{status});
 const dimensions=['content','style','color'];
-const CLASSIFIER_VERSION='2026-09-08-auto-managed-v5';
+const CLASSIFIER_VERSION='2026-09-09-unclassified-v6';
 // 旧 functions → 新 group；AI 全托管，不再保留待确认状态。
 const functionToGroup={'胶带':'胶带','边框':'边框','角落装饰':'边框','纸张背景':'纸张','日期数字':'文字数字','字母文字':'文字数字','票根邮票':'装饰贴纸','主题贴纸':'装饰贴纸'};
 // 旧 styles → 新 labels.style。
@@ -63,7 +63,7 @@ export function classificationProposals(output,assets,taxonomy){
   // 风格允许留空，不应仅因 style 为空视为不确定。
   const confident=aiConfident&&!missing.length;
   const reason=String(p.reason||'').slice(0,160);
-  // AI 全托管：无法可靠归类的素材直接归入「其他」，不再有待确认状态。
+  // AI 明确返回但主分类为空时继续沿用历史兼容行为，归入「其他」。
   const proposal={id:p.id,group:group||'其他',labels,confident,reason};
   if(warnings.length)proposal.warnings=warnings;
   return proposal;
@@ -88,7 +88,7 @@ export function normalizeClassificationOutput(output,assets,taxonomy){
   const reason=[String(row.reason||'').trim(),...notes].filter(Boolean).join('；').slice(0,160);
   byId.set(row.id,{id:row.id,group,labels,confident:changed?false:!!row.confident,reason});
  }
- return {items:assets.map(a=>byId.get(a.id)||{id:a.id,group:'其他',labels:{content:[],style:[],color:[]},confident:false,reason:'AI 未返回该素材的有效分类，已归入「其他」'})};
+ return {items:assets.map(a=>byId.get(a.id)||{id:a.id,group:'',labels:{content:[],style:[],color:[]},confident:false,missing:true,reason:'AI 未返回该素材的有效分类，已保留原状态。'})};
 }
 function safeClassificationError(e){
  return String(e?.message||e||'分类失败')
@@ -129,6 +129,7 @@ export async function createMaterialCatalog({readJSON,atomic,readAssets,getSetti
   await atomic('material-catalog.json',catalog);
  }
  // AI 全托管迁移（只执行一次）：清除历史「待确认」状态，无法确认的素材统一归入「其他」。
+ // 该迁移只服务旧版数据；已经完成迁移的现有素材不会因为本次“未分类”功能再次被改写。
  if(!catalog.autoManaged){
   if(!Array.isArray(catalog.taxonomy.groups))catalog.taxonomy=structuredClone(defaultTaxonomy);
   if(!catalog.taxonomy.groups.includes('其他'))catalog.taxonomy.groups.push('其他');
@@ -178,7 +179,17 @@ export async function createMaterialCatalog({readJSON,atomic,readAssets,getSetti
     for(let attempt=0;attempt<2;attempt++){
      try{
       const raw=await requestAI(messages,attempt,{},signal);
-      proposal=classificationProposals(normalizeClassificationOutput(raw,batch,taxonomy),batch,taxonomy);
+      const normalized=normalizeClassificationOutput(raw,batch,taxonomy);
+      const missing=normalized.items.filter(item=>item.missing);
+      if(missing.length&&attempt===0){
+       messages.push({role:'user',content:`检查未通过：有 ${missing.length} 件素材没有返回有效结果。请按输入 id 完整返回每一件素材的分类JSON。`});
+       continue;
+      }
+      if(missing.length)job.errors.push(...missing.map(item=>({id:item.id,message:'分类失败：AI 未返回该素材的有效结果，已保留原状态。'})));
+      const validRows=normalized.items.filter(item=>!item.missing);
+      const validIds=new Set(validRows.map(item=>item.id));
+      const validAssets=batch.filter(a=>validIds.has(a.id));
+      proposal=validRows.length?classificationProposals({items:validRows},validAssets,taxonomy):[];
       break;
      }catch(e){
       if(signal.aborted)break;
@@ -210,8 +221,10 @@ export async function createMaterialCatalog({readJSON,atomic,readAssets,getSetti
     if(input.jobId){
      aiJob=jobs.find(j=>j.id===input.jobId);
      if(!aiJob||aiJob.classifierVersion!==CLASSIFIER_VERSION||aiJob.revision!==catalog.revision)throw fail('分类依据已变化，请重新生成建议。',409);
-     if(!Array.isArray(patches))patches=aiJob.proposals.filter(p=>input.ids?.includes(p.id));
-     else if(patches.some(p=>!aiJob.proposals.some(jp=>jp.id===p.id)))throw fail('整理建议与当前任务不匹配，请重新生成。',409);
+     if(!Array.isArray(patches)){
+      const ids=Array.isArray(input.ids)?new Set(input.ids):null;
+      patches=aiJob.proposals.filter(p=>!ids||ids.has(p.id));
+     }else if(patches.some(p=>!aiJob.proposals.some(jp=>jp.id===p.id)))throw fail('整理建议与当前任务不匹配，请重新生成。',409);
     }
     if(!Array.isArray(patches)||!patches.length||patches.length>1000)throw fail('请选择需要更新的素材。');
     for(const patch of patches){
