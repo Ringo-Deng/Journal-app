@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const read = p => readFile(new URL('../'+p, import.meta.url), 'utf8');
 
-test('v0.1.20 universal launchers share one cross-platform app launcher', async()=>{
+test('universal launchers share one cross-platform app launcher', async()=>{
   const [mac,win,launch,server,pkg]=await Promise.all([
     read('packaging/START-MAC.command'),
     read('packaging/START-WINDOWS.cmd'),
@@ -12,6 +12,7 @@ test('v0.1.20 universal launchers share one cross-platform app launcher', async(
     read('local/server.mjs'),
     read('package.json')
   ]);
+  const version=JSON.parse(pkg).version;
   assert.match(mac,/uname -m/);
   assert.match(mac,/runtime\/mac-arm64/);
   assert.match(mac,/runtime\/mac-x64/);
@@ -23,13 +24,18 @@ test('v0.1.20 universal launchers share one cross-platform app launcher', async(
   assert.doesNotMatch(mac,/xattr\s+-d|spctl\s+--disable/);
   assert.match(win,/runtime\\windows-x64\\node\.exe/);
   assert.match(win,/app\\local\\launch\.mjs/);
-  assert.match(launch,/APP_VERSION = '0\.1\.18'/);
-  assert.match(launch,/EXPECTED_RUNTIME = 'page-elements-v0\.1\.18'/);
+  assert.match(launch,/package\.json/);
+  assert.match(launch,/const APP_VERSION = String\(packageJson\.version/);
+  assert.doesNotMatch(launch,/APP_VERSION\s*=\s*['"]0\.1\./);
+  assert.match(launch,/dist\/client\/\.shiguang-version/);
+  assert.match(launch,/version === APP_VERSION/);
+  assert.match(launch,/已跳过旧页面/);
+  assert.match(launch,/ensureDevDependencies\(\)/);
   assert.match(launch,/platform\(\) === 'win32'/);
   assert.match(launch,/APPDATA/);
   assert.match(launch,/REQUIRED_NODE = \[22, 13, 0\]/);
-  assert.match(launch,/dist\/client\/index\.html/);
-  assert.match(server,/page-elements-v0\.1\.18/);
+  assert.match(server,/page-elements-v0\.1\.20/);
   assert.match(server,/process\.arch !== 'arm64'/);
-  assert.equal(JSON.parse(pkg).version,'0.1.20');
+  assert.match(pkg,/vinext build && node local\/stamp-dist\.mjs/);
+  assert.match(version,/^0\.1\.\d+$/);
 });
