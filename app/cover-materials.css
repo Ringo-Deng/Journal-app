@@ -1,0 +1,153 @@
+/* Final cover material pass. Imported after globals.css on purpose so old fallback
+   gradients cannot erase the photo-derived texture layers again. */
+.texture-kraft,
+.texture-leather,
+.texture-linen,
+.texture-canvas,
+.texture-hardcover {
+  background-color: var(--cover-base) !important;
+  background-repeat: no-repeat !important;
+}
+
+.texture-leather {
+  background-image:
+    radial-gradient(ellipse at 24% 18%, #fff9ef1c 0, transparent 42%),
+    linear-gradient(96deg, #120b0738 0, transparent 10%, transparent 70%, #140b081f 100%),
+    url('/textures/leather-photo.png') !important;
+  background-size: 100% 100%, 100% 100%, cover !important;
+  background-position: center, center, 46% 50% !important;
+  background-blend-mode: soft-light, multiply, soft-light !important;
+  box-shadow:
+    inset 0 0 0 1px #fff6e70d,
+    inset 12px 0 18px -15px #140b08a8,
+    inset -7px 0 13px -12px #fff1d92b !important;
+}
+
+.texture-linen {
+  background-image:
+    linear-gradient(90deg, #00000017 0, transparent 8%, transparent 92%, #00000012 100%),
+    url('/textures/linen-photo.png') !important;
+  background-size: 100% 100%, 118% 118% !important;
+  background-position: center, 50% 46% !important;
+  background-blend-mode: multiply, soft-light !important;
+  box-shadow:
+    inset 0 0 0 1px #ffffff16,
+    inset 9px 0 14px -13px #1f1b1590 !important;
+}
+
+.texture-canvas {
+  background-image:
+    linear-gradient(90deg, #00000024 0, transparent 9%, transparent 90%, #00000018 100%),
+    url('/textures/linen-photo.png') !important;
+  background-size: 100% 100%, 165% 165% !important;
+  background-position: center, 54% 48% !important;
+  background-blend-mode: multiply, overlay !important;
+  box-shadow:
+    inset 0 0 0 1px #ffffff0c,
+    inset 10px 0 15px -13px #171915a6 !important;
+}
+
+.texture-kraft {
+  background-image:
+    linear-gradient(97deg, #3d2c1824 0, transparent 11%, transparent 74%, #24190f16 100%),
+    url('/textures/paper-photo.png') !important;
+  background-size: 100% 100%, 132% 132% !important;
+  background-position: center, 51% 49% !important;
+  background-blend-mode: multiply, soft-light !important;
+  box-shadow:
+    inset 0 0 0 1px #fff7e918,
+    inset 8px 0 12px -11px #4a321f73 !important;
+}
+
+.texture-hardcover {
+  background-image:
+    radial-gradient(ellipse at 32% 14%, #ffffff13 0, transparent 48%),
+    linear-gradient(95deg, #00000020 0, transparent 10%, transparent 82%, #00000012 100%),
+    url('/textures/paper-photo.png') !important;
+  background-size: 100% 100%, 100% 100%, 210% 210% !important;
+  background-position: center, center, 50% 50% !important;
+  background-blend-mode: soft-light, multiply, soft-light !important;
+  box-shadow:
+    inset 0 0 0 1px #ffffff12,
+    inset 8px 0 12px -12px #00000072 !important;
+}
+
+/* The inside cover stays material-like, but flatter and less glossy than the outside. */
+.cover-inside.texture-leather,
+.deck-cover-back.texture-leather,
+.rigid-back.texture-leather {
+  background-image:
+    linear-gradient(90deg, #00000028 0, transparent 12%, transparent 89%, #00000016 100%),
+    url('/textures/leather-photo.png') !important;
+  background-size: 100% 100%, 150% 150% !important;
+  background-position: center, 42% 52% !important;
+  background-blend-mode: multiply, soft-light !important;
+}
+
+.cover-inside.texture-linen,
+.deck-cover-back.texture-linen,
+.rigid-back.texture-linen {
+  background-image:
+    linear-gradient(90deg, #0000001d 0, transparent 12%, transparent 90%, #00000013 100%),
+    url('/textures/linen-photo.png') !important;
+  background-size: 100% 100%, 128% 128% !important;
+  background-position: center, 48% 52% !important;
+  background-blend-mode: multiply, soft-light !important;
+}
+
+.cover-inside.texture-canvas,
+.deck-cover-back.texture-canvas,
+.rigid-back.texture-canvas {
+  background-image:
+    linear-gradient(90deg, #00000028 0, transparent 12%, transparent 90%, #00000018 100%),
+    url('/textures/linen-photo.png') !important;
+  background-size: 100% 100%, 175% 175% !important;
+  background-position: center, 52% 52% !important;
+  background-blend-mode: multiply, overlay !important;
+}
+
+.cover-inside.texture-kraft,
+.deck-cover-back.texture-kraft,
+.rigid-back.texture-kraft {
+  background-image:
+    linear-gradient(90deg, #3d2c1829 0, transparent 12%, transparent 90%, #2d1e1218 100%),
+    url('/textures/paper-photo.png') !important;
+  background-size: 100% 100%, 145% 145% !important;
+  background-position: center, 48% 53% !important;
+  background-blend-mode: multiply, soft-light !important;
+}
+
+.cover-inside.texture-hardcover,
+.deck-cover-back.texture-hardcover,
+.rigid-back.texture-hardcover {
+  background-image:
+    linear-gradient(90deg, #00000026 0, transparent 13%, transparent 89%, #00000016 100%),
+    url('/textures/paper-photo.png') !important;
+  background-size: 100% 100%, 220% 220% !important;
+  background-position: center, 52% 50% !important;
+  background-blend-mode: multiply, soft-light !important;
+}
+
+/* Material-aware exposed edges. */
+.deck-rigid-cover:has(.texture-leather) .deck-cover-edge,
+.rigid-cover:has(.texture-leather) .cover-edge {
+  background: linear-gradient(90deg, #2a180f, color-mix(in srgb, var(--cover-base) 72%, #2a180f), #160d08) !important;
+}
+.deck-rigid-cover:has(.texture-linen) .deck-cover-edge,
+.deck-rigid-cover:has(.texture-canvas) .deck-cover-edge,
+.rigid-cover:has(.texture-linen) .cover-edge,
+.rigid-cover:has(.texture-canvas) .cover-edge {
+  background: linear-gradient(90deg, #6c6253, color-mix(in srgb, var(--cover-base) 78%, #cfc5b3), #554c40) !important;
+}
+.deck-rigid-cover:has(.texture-kraft) .deck-cover-edge,
+.deck-rigid-cover:has(.texture-hardcover) .deck-cover-edge,
+.rigid-cover:has(.texture-kraft) .cover-edge,
+.rigid-cover:has(.texture-hardcover) .cover-edge {
+  background: linear-gradient(90deg, #8b775c, #c9b99c 45%, #776349) !important;
+}
+
+/* A turning flyleaf represents only the loose sheet. The cover lining remains
+   on the stationary spread and must never be copied onto the moving leaf. */
+.reading-page-turn .flyleaf-moving .cover-inside {
+  display: none !important;
+}
