@@ -1,6 +1,6 @@
 {
   "name": "shiguang-journal",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -8,10 +8,10 @@
   "scripts": {
     "dev": "node local/dev.mjs",
     "build": "vinext build && node local/stamp-dist.mjs",
-    "start": "node local/server.mjs",
+    "start": "node local/server-bootstrap.mjs",
     "lint": "oxlint app lib local tests components/material-studio.tsx components/material-library.tsx components/journal-drawing.tsx components/page-turn.tsx components/notebook-paper.tsx",
     "format": "oxfmt",
-    "service": "node local/server.mjs",
+    "service": "node local/server-bootstrap.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
