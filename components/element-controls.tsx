@@ -16,6 +16,7 @@ import {
   Type,
   Maximize2,
   Layers3,
+  Move,
 } from 'lucide-react';
 import type { Piece } from '@/lib/journal';
 import ToolbarPopover from './toolbar-popover';
@@ -110,6 +111,11 @@ export default function ElementControls({
   onReplace: () => void;
   onReset: () => void;
 }) {
+  const maxX = Math.max(0, 100 - p.w);
+  const maxY = Math.max(0, 100 - height);
+  const centerX = maxX / 2;
+  const centerY = maxY / 2;
+
   return (
     <fieldset className="element-controls element-controls-compact" aria-label="素材调整">
       <span className="tool-kind">
@@ -203,6 +209,47 @@ export default function ElementControls({
             <button className="quiet" onClick={onReset}>恢复比例</button>
           </div>
         )}
+      </ToolbarPopover>
+
+      <ToolbarPopover label="位置" icon={<Move />} align="center" className="compact-position-popover">
+        <div className="toolbar-popover-title">位置与透明度</div>
+        <div className="toolbar-popover-grid">
+          <NumberControl
+            label="横向"
+            value={p.x}
+            min={0}
+            max={maxX}
+            unit="%"
+            onCommit={(x) => onPatch({ x })}
+          />
+          <NumberControl
+            label="纵向"
+            value={p.y}
+            min={0}
+            max={maxY}
+            unit="%"
+            onCommit={(y) => onPatch({ y })}
+          />
+          <NumberControl
+            label="透明度"
+            value={(p.opacity ?? 1) * 100}
+            min={0}
+            max={100}
+            unit="%"
+            onCommit={(opacity) => onPatch({ opacity: opacity / 100 })}
+          />
+        </div>
+        <div className="toolbar-popover-section">
+          <span className="toolbar-popover-subtitle">页面对齐</span>
+          <div className="toolbar-layer-grid">
+            <button className="quiet" onClick={() => onPatch({ x: 0 })}>左对齐</button>
+            <button className="quiet" onClick={() => onPatch({ x: centerX })}>水平居中</button>
+            <button className="quiet" onClick={() => onPatch({ x: maxX })}>右对齐</button>
+            <button className="quiet" onClick={() => onPatch({ y: 0 })}>顶部对齐</button>
+            <button className="quiet" onClick={() => onPatch({ y: centerY })}>垂直居中</button>
+            <button className="quiet" onClick={() => onPatch({ y: maxY })}>底部对齐</button>
+          </div>
+        </div>
       </ToolbarPopover>
 
       <ToolbarPopover label="图层" icon={<Layers3 />} align="center" className="compact-layer-popover">

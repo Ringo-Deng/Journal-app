@@ -9,7 +9,11 @@ const popoverPath=new URL('../components/toolbar-popover.tsx',import.meta.url);
 test('single element toolbar groups secondary controls into popovers', async()=>{
   const [controls,collage]=await Promise.all([readFile(controlsPath,'utf8'),readFile(collagePath,'utf8')]);
   assert.match(controls,/ToolbarPopover label="尺寸"/);
+  assert.match(controls,/ToolbarPopover label="位置"/);
   assert.match(controls,/ToolbarPopover label="图层"/);
+  assert.match(controls,/label="透明度"/);
+  assert.match(controls,/水平居中/);
+  assert.match(controls,/垂直居中/);
   assert.match(collage,/ToolbarPopover label="文字样式"/);
   assert.match(collage,/ToolbarPopover label="照片细节"/);
   assert.match(collage,/ToolbarPopover label="质感"/);
