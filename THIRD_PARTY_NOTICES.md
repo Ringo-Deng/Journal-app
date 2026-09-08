@@ -66,7 +66,7 @@ SOFTWARE.
 
 ## StPageFlip / `page-flip`
 
-The current isolated page-turn comparison experiment under `components/book3d/` uses the published `page-flip` package from:
+The isolated page-turn comparison experiment under `components/book3d/` and the main journal reading mode use the published `page-flip` package from:
 
 - Project: `Nodlik/StPageFlip`
 - Source: https://github.com/Nodlik/StPageFlip
