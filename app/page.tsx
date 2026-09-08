@@ -1,4 +1,5 @@
 'use client';
+import StationeryCover from '@/components/stationery-cover';
 import CollageTools from '@/components/collage-tools';
 import CollageStudio from '@/components/collage-studio';
 import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
@@ -1658,7 +1659,7 @@ export default function Home() {
                       aria-label={`打开笔记本 ${b.title}`}
                       onClick={() => chooseBook(b)}
                     >
-                      {!b.coverAsset && <span className="cover-title-stamp">{b.title}<i>SHIGUANG JOURNAL</i></span>}
+                      {!b.coverAsset && (info.material.id === "linen" ? <StationeryCover title={b.title} color={info.colorway.color}/> : <span className="cover-title-stamp">{b.title}<i>SHIGUANG JOURNAL</i></span>)}
                       {b.coverAsset ? (
                         <img src={resolveMaterial(b.coverAsset)} alt="" />
                       ) : null}
@@ -1724,7 +1725,7 @@ export default function Home() {
                         className={`book-cover rigid-cover ${opening ? 'cover-opening' : ''} ${closing ? 'cover-closing' : ''}`}
                         onClick={openBook}>
                         <span className={`rigid-face rigid-front texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}>
-                          {!book.coverAsset && <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>}
+                          {!book.coverAsset && (cover.material.id === "linen" ? <StationeryCover title={book.title} color={cover.colorway.color}/> : <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>)}
                           {book.coverAsset && <img className="cover-art" src={resolveMaterial(book.coverAsset)} alt="封面装饰"/>}
                         </span>
                         <span className={`rigid-face rigid-back texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}><span className="cover-inside-edge"/><span className="cover-binding"/></span>

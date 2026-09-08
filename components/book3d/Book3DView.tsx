@@ -485,7 +485,7 @@ function BookModel({
   );
   const surface = {
     ...COVER_MATERIALS[material],
-    ...(content ? { color: content.color, edge: content.color } : {}),
+    ...(content ? { color: content.color, edge: content.spineColor ?? content.color } : {}),
   };
   const coverTextures = useMemo(() => {
     const textures = createCoverTextures(material, content?.color);
@@ -648,7 +648,7 @@ function BookModel({
           pose={spinePose}
           material={material}
           bump={coverTextures.bump}
-          color={surface.color}
+          color={content?.spineColor ?? surface.color}
           title={content?.title}
           edition={content ? "" : "VOL. 01"}
         />

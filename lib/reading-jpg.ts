@@ -2,10 +2,11 @@ import type { Book, Asset } from "./journal";
 
 // Increment only when the paper renderer changes. One saved JPG per current sheet/cover.
 const RENDER_VERSION = 2;
+const COVER_RENDER_VERSION = 3;
 export function readingJpgInput(book: Book, assets: Asset[], index: number | null) {
   const { spreads, flyleaf, ...appearance } = book;
   return JSON.stringify({
-    version: RENDER_VERSION,
+    version: index === null ? COVER_RENDER_VERSION : RENDER_VERSION,
     appearance,
     index,
     spread: index === null ? null : [...(flyleaf ? [flyleaf] : []), ...spreads][index],

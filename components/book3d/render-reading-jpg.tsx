@@ -1,3 +1,4 @@
+import StationeryCover from "../stationery-cover";
 import type { CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -63,6 +64,8 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
           >
             {art ? (
               <img src={art} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : cover.material.id === "linen" ? (
+              <StationeryCover title={book.title} color={cover.colorway.color} />
             ) : (
               <span className="cover-title-stamp">
                 {book.title || "拾光集"}

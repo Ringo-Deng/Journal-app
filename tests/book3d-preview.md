@@ -145,3 +145,11 @@ npm run build
 - ReadingBook3D explicitly selects the bound profile, reusing the approved flat view, cover turn-ins, rounded board, exterior spine, fabric surface maps and page twist. Experiment controls remain confined to the test page.
 - Spine texture now receives the real book title and cover colour, fits longer titles vertically, selects contrasting ink and omits the demo volume label for real books. Existing page JPGs, cover rendering and saved material selection are retained. No persistence or data schema changes.
 - 38 related tests, focused TypeScript/lint and production build passed. Internal review confirmed the reader opts in without enabling test-only controls. Live appreciation rendering remains unverified because the browser policy check has been unavailable in this task.
+
+
+## v0.1.104 — Warm plaid stationery cover
+
+- Replaced the built-in linen front artwork with one shared original SVG illustration: warm yellow plaid, brown stitched binding, cream oval name label, snap tab, cream page edge and short ochre bookmark. Linen palette options are softened yellow, pink and blue. Existing cover IDs remain valid.
+- Library cards, the closed editor cover and generated appreciation cover JPG share StationeryCover. Uploaded cover assets retain precedence. Real linen book spines and board edges use matching brown; saved content and turn mechanics are unchanged.
+- Cover JPG signature advances to 3; inner-page signature remains 2, preserving existing inner-page cache reuse.
+- Inspected a PNG rendering of the actual SVG artwork locally. 43 related tests, focused TypeScript/lint and production build passed. Actual browser/app rendering remains unverified under the known browser policy-check limitation.

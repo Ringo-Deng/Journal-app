@@ -182,9 +182,9 @@ export const coverMaterials: CoverMaterial[] = [
     id: 'linen',
     name: '格纹布艺',
     colorways: [
-      { id: 'linen-oat', name: '蜂蜜燕麦格', color: '#c7a96f' },
-      { id: 'linen-forest', name: '灰粉格', color: '#c8a5a7' },
-      { id: 'linen-blue', name: '雾霾蓝格', color: '#879aa5' },
+      { id: 'linen-oat', name: '奶黄格纹', color: '#f4ce75' },
+      { id: 'linen-forest', name: '柔粉格纹', color: '#e8b9ba' },
+      { id: 'linen-blue', name: '雾蓝格纹', color: '#91a9b5' },
     ],
   },
   {
