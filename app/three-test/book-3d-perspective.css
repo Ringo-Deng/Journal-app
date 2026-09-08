@@ -1,0 +1,144 @@
+.three-test-cover-depth .pf-book-root {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  perspective: 1900px;
+  perspective-origin: 50% 42%;
+  transform-style: preserve-3d;
+}
+
+/*
+ * Hybrid experiment: keep StPageFlip responsible for the paper motion, while the
+ * whole book gets the spatial cues from the earlier Three.js prototype.
+ */
+.three-test-cover-depth .pf-book-root::before {
+  content: '';
+  position: absolute;
+  left: 7.5%;
+  right: 7.5%;
+  top: 9%;
+  bottom: 7%;
+  z-index: -2;
+  pointer-events: none;
+  border-radius: 10px 12px 14px 10px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,.34) 0 1px,
+      rgba(156,137,115,.11) 1px 2px,
+      transparent 2px 4px
+    ),
+    linear-gradient(90deg, #dfd5c4 0%, #f3ecdf 7%, #ece3d4 48%, #d9cdbb 100%);
+  box-shadow:
+    0 15px 24px rgba(58,45,33,.14),
+    0 3px 5px rgba(58,45,33,.12),
+    inset 0 1px rgba(255,255,255,.72),
+    inset 0 -2px rgba(96,76,57,.1);
+  transform: translate3d(0, 14px, -30px) rotateX(2deg);
+  transform-origin: center;
+}
+
+.three-test-cover-depth .pf-book-root::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 9%;
+  bottom: 2%;
+  height: 18%;
+  z-index: -3;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(62,48,35,.24), rgba(62,48,35,.08) 46%, transparent 72%);
+  filter: blur(10px);
+  transform: translate3d(12px, 18px, -54px) rotateX(72deg) scaleX(.98);
+  transform-origin: center;
+}
+
+.three-test-cover-depth .pf-book-root .stf__parent {
+  overflow: visible !important;
+  transform-style: preserve-3d !important;
+  transform-origin: 50% 58% !important;
+  transform: translate3d(0, -7px, 24px) rotateX(8deg) rotateY(-1.6deg) rotateZ(-.35deg) !important;
+  transition: transform 220ms ease, filter 220ms ease;
+  filter:
+    drop-shadow(0 23px 18px rgba(61,47,34,.16))
+    drop-shadow(0 5px 5px rgba(61,47,34,.11));
+}
+
+.three-test-cover-depth .pf-book-root .stf__parent:hover {
+  transform: translate3d(0, -10px, 30px) rotateX(9.5deg) rotateY(-.7deg) rotateZ(-.15deg) !important;
+  filter:
+    drop-shadow(0 27px 22px rgba(61,47,34,.17))
+    drop-shadow(0 6px 6px rgba(61,47,34,.12));
+}
+
+.three-test-cover-depth .pf-book-root .stf__wrapper,
+.three-test-cover-depth .pf-book-root .stf__block,
+.three-test-cover-depth .pf-book-root .stf__item {
+  overflow: visible !important;
+  transform-style: preserve-3d !important;
+}
+
+.three-test-cover-depth .pf-book-root .stf__block {
+  perspective: 2450px !important;
+}
+
+/* A restrained gutter volume so the book reads as one object instead of two cards. */
+.three-test-cover-depth .pf-book-root .stf__block::after {
+  content: '';
+  position: absolute;
+  top: 3.6%;
+  bottom: 3.6%;
+  left: calc(50% - 5px);
+  width: 10px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(52,39,29,.36),
+      rgba(124,99,78,.25) 26%,
+      rgba(255,255,255,.16) 48%,
+      rgba(78,58,43,.28) 76%,
+      rgba(46,34,25,.34)
+    );
+  box-shadow:
+    0 0 8px rgba(59,43,31,.16),
+    inset 1px 0 rgba(255,255,255,.12),
+    inset -1px 0 rgba(50,36,26,.16);
+  transform: translateZ(-12px);
+  opacity: .62;
+}
+
+/* Make the hard shell sit slightly above the paper block when viewed obliquely. */
+.three-test-cover-depth .pf-cover-shell {
+  transform: translateZ(2px);
+}
+
+.three-test-cover-depth .pf-cover-edge--bottom {
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.16),
+    inset 0 -1px rgba(0,0,0,.2),
+    0 2px 3px rgba(54,40,29,.12) !important;
+}
+
+@media (max-width: 900px) {
+  .three-test-cover-depth .pf-book-root .stf__parent {
+    transform: translate3d(0, -3px, 14px) rotateX(5deg) rotateY(-.8deg) !important;
+  }
+
+  .three-test-cover-depth .pf-book-root .stf__parent:hover {
+    transform: translate3d(0, -3px, 14px) rotateX(5deg) rotateY(-.8deg) !important;
+  }
+
+  .three-test-cover-depth .pf-book-root::before {
+    transform: translate3d(0, 10px, -22px) rotateX(1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .three-test-cover-depth .pf-book-root .stf__parent {
+    transition: none;
+  }
+}
