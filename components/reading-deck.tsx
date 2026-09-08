@@ -1,16 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BookOpen, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, LayoutGrid } from 'lucide-react';
 import { SpreadPreview } from './page-turn';
 import ReadingPageFlip, { type ReadingPageFlipHandle } from './reading-pageflip';
 import { bookFormat, coverInfo, type Asset, type Book } from '@/lib/journal';
-
-type PositionState = {
-  atStart: boolean;
-  atEnd: boolean;
-  opened: boolean;
-};
 
 export default function ReadingDeck({
   book,
@@ -25,13 +19,7 @@ export default function ReadingDeck({
 }) {
   const [grid, setGrid] = useState(false);
   const [opened, setOpened] = useState(false);
-  const [engineReady, setEngineReady] = useState(false);
   const [engineFailed, setEngineFailed] = useState(false);
-  const [position, setPosition] = useState<PositionState>({
-    atStart: true,
-    atEnd: false,
-    opened: false,
-  });
   const pageFlip = useRef<ReadingPageFlipHandle>(null);
 
   const offset = book.flyleaf ? 1 : 0;
@@ -49,9 +37,7 @@ export default function ReadingDeck({
   useEffect(() => {
     setGrid(false);
     setOpened(false);
-    setEngineReady(false);
     setEngineFailed(false);
-    setPosition({ atStart: true, atEnd: false, opened: false });
   }, [book.id]);
 
   const fallbackMove = useCallback(
@@ -159,7 +145,6 @@ export default function ReadingDeck({
               onClick={() => {
                 onSelect(index);
                 setOpened(true);
-                setPosition({ atStart: false, atEnd: false, opened: true });
                 setGrid(false);
               }}
             >
@@ -185,7 +170,6 @@ export default function ReadingDeck({
               aria-label="打开手帐封面"
               onClick={() => {
                 setOpened(true);
-                setPosition({ atStart: false, atEnd: false, opened: true });
                 onSelect(0);
               }}
             >
@@ -217,48 +201,13 @@ export default function ReadingDeck({
           readingIndex={current}
           startOpen={opened}
           onReadingIndex={onSelect}
-          onReadyChange={setEngineReady}
+          onReadyChange={() => {}}
           onOpened={() => setOpened(true)}
           onPosition={(state) => {
-            setPosition(state);
             if (state.opened) setOpened(true);
           }}
           onError={() => setEngineFailed(true)}
         />
-      )}
-
-      {!grid && (
-        <footer className="deck-controls">
-          <button
-            aria-label="上一页"
-            disabled={
-              engineFailed
-                ? !opened || current === 0
-                : !engineReady || position.atStart
-            }
-            onClick={previous}
-          >
-            <ChevronLeft />
-          </button>
-          <span aria-live="polite">
-            {!opened
-              ? '点击封面打开'
-              : engineFailed
-                ? `${current + 1} / ${count} · 简化模式`
-                : `${current + 1} / ${count}`}
-          </span>
-          <button
-            aria-label="下一页"
-            disabled={
-              engineFailed
-                ? !opened || current === count - 1
-                : !engineReady || position.atEnd
-            }
-            onClick={next}
-          >
-            <ChevronRight />
-          </button>
-        </footer>
       )}
 
       <style>{`

@@ -12,24 +12,32 @@ test('back-cover fixes load after the general reading cover rules', async () => 
   assert.ok(backAt > generalAt);
 });
 
-test('back cover mirrors the front-cover hinge and free edge', async () => {
+test('detached far-right back-board helper is not rendered', async () => {
   const styles = await read('app/reading-back-cover-fixes.css');
-  assert.match(styles, /reading-flip-back-lining \.cover-binding/);
-  assert.match(styles, /reading-flip-cover-back \.reading-flip-cover-inside \.cover-binding/);
-  assert.match(styles, /left: 0 !important;/);
-  assert.match(styles, /right: auto !important;/);
-  assert.match(styles, /reading-flip-back-lining \.cover-inside-edge/);
-  assert.match(styles, /left: auto !important;/);
-  assert.match(styles, /right: 0 !important;/);
+  assert.match(styles, /\.stf__block::before/);
+  assert.match(styles, /content: none !important;/);
+  assert.match(styles, /display: none !important;/);
 });
 
-test('back cover keeps one base color through fallback, lining and edge', async () => {
+test('final back lining is one flat cover-colored surface', async () => {
   const styles = await read('app/reading-back-cover-fixes.css');
-  assert.match(styles, /--reading-cover-inside: var\(--cover-base\)/);
-  assert.match(styles, /\.stf__block::before/);
+  assert.match(styles, /reading-flip-lining\.reading-flip-back-lining/);
   assert.match(styles, /background-color: var\(--cover-base\) !important;/);
   assert.match(styles, /background-image: none !important;/);
-  assert.match(styles, /opacity: 1 !important;/);
+  assert.match(styles, /box-shadow: none !important;/);
+  assert.match(styles, /reading-flip-back-lining \.cover-binding/);
+  assert.match(styles, /reading-flip-back-lining \.cover-inside-edge/);
+  assert.match(styles, /display: none !important;/);
+});
+
+test('visible bottom pagination controls are removed while keyboard turning remains', async () => {
+  const source = await read('components/reading-deck.tsx');
+  assert.doesNotMatch(source, /<footer className="deck-controls">/);
+  assert.doesNotMatch(source, /ChevronLeft|ChevronRight/);
+  assert.match(source, /ArrowLeft/);
+  assert.match(source, /ArrowRight/);
+  assert.match(source, /pageFlip\.current\?\.prev\(\)/);
+  assert.match(source, /pageFlip\.current\?\.next\(\)/);
 });
 
 test('the final physical order still keeps verso, back lining and hard back cover', async () => {

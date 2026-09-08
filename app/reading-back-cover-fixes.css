@@ -1,6 +1,6 @@
 /* Final color lock for the physical back cover in StPageFlip.
    Keep this after reading-cover-fixes.css: the engine can temporarily expose
-   the hard-page fallback and the narrow resting-board edge while turning. */
+   the hard-page fallback while turning. */
 
 /* Back lining and exterior use the exact same selected base color. Texture and
    lighting may add surface detail, but they must not introduce another tint. */
@@ -11,13 +11,12 @@
   --reading-cover-edge-light: color-mix(in srgb, var(--cover-base) 96%, white);
 }
 
-/* The 3px resting back-board edge used to be translucent and carried its own
-   texture layer, so it visibly drifted from the actual hard back cover. */
+/* Do not draw a detached helper edge on the far right of the whole StPageFlip
+   block. It looked like an unexplained vertical gold line once the book moved
+   away from that edge. */
 .reading-pageflip-book .stf__block::before {
-  background-color: var(--cover-base) !important;
-  background-image: none !important;
-  background-blend-mode: normal !important;
-  opacity: 1 !important;
+  content: none !important;
+  display: none !important;
 }
 
 /* When StPageFlip hides one of the physical faces at an intermediate angle,
@@ -34,40 +33,31 @@
   filter: none !important;
 }
 
-/* A real back board mirrors the front board: its hinge is on the left and its
-   free fore-edge is on the right. Reusing the front-cover directions made the
-   back lining look like a second front cover during the final turn. */
+/* The final back lining is intentionally plain. The previous hinge gradient,
+   inner shadow and edge strip made the closed back cover read as two different
+   panels. Keep the physical page in the sequence, but render it as one flat
+   cover-colored surface. */
+.reading-pageflip-book .reading-flip-lining.reading-flip-back-lining {
+  background-color: var(--cover-base) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 .reading-pageflip-book .reading-flip-back-lining .cover-binding,
-.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-binding {
-  left: 0 !important;
-  right: auto !important;
-  background:
-    linear-gradient(
-      270deg,
-      transparent,
-      color-mix(in srgb, var(--reading-cover-edge-dark) 42%, transparent) 48%,
-      color-mix(in srgb, var(--reading-cover-edge-dark) 20%, transparent) 72%,
-      transparent
-    ) !important;
+.reading-pageflip-book .reading-flip-back-lining .cover-inside-edge {
+  display: none !important;
 }
 
-.reading-pageflip-book .reading-flip-back-lining .cover-inside-edge,
-.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-inside-edge {
-  left: auto !important;
-  right: 0 !important;
-  border-radius: 0 4px 4px 0 !important;
-  box-shadow: -1px 0 3px color-mix(in srgb, var(--reading-cover-edge-dark) 24%, transparent) !important;
-}
-
-/* Keep the last lining physically attached to the spine without the old heavy
-   right-side band. The shadow is now on the left hinge and is deliberately
-   shallow so the back cover closes onto the paper block instead of floating. */
-.reading-pageflip-book .reading-flip-back-lining {
-  box-shadow:
-    inset 10px 0 16px -15px color-mix(in srgb, var(--reading-cover-edge-dark) 54%, transparent),
-    inset -1px 0 color-mix(in srgb, var(--cover-base) 92%, white) !important;
-}
-
+/* Keep the actual hard back board equally quiet when it is at rest. Its 3D
+   thickness still comes from the real cover edge faces, not a broad fake shade. */
 .reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
-  filter: drop-shadow(1px 6px 7px rgb(38 31 24 / 8%));
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-face {
+  box-shadow: none !important;
 }
