@@ -7,7 +7,6 @@ export function stationeryCoverSvg(title: string, color: string) {
     );
   const base = /^#[0-9a-f]{6}$/i.test(color) ? color : "#f4ce75";
   const creamPlaid = base.toLowerCase() === "#f4ce75";
-  const spine = creamPlaid ? "#4b3a2c" : "#51402e";
   const label = safe(title || "拾光集");
   const size = Math.min(29, 230 / Math.max(1, [...title].length));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
@@ -17,13 +16,15 @@ export function stationeryCoverSvg(title: string, color: string) {
     <linearGradient id="snap" x2=".8" y2="1"><stop stop-color="#fffff4"/><stop offset="1" stop-color="#d9d9c7"/></linearGradient>
     <clipPath id="cloth"><rect x="64" y="10" width="510" height="822" rx="43"/></clipPath>
   </defs>
-  <rect x="14" y="12" width="562" height="878" rx="48" fill="${spine}"/>
-  <rect x="23" y="19" width="552" height="860" rx="42" fill="${creamPlaid ? "#574331" : "#654c34"}"/>
+  ${creamPlaid ? `<rect x="14" y="12" width="562" height="878" rx="48" fill="url(#plaid)"/>
+  <rect x="14" y="12" width="562" height="878" rx="48" fill="url(#weave)"/>
+  <rect x="14.75" y="12.75" width="560.5" height="876.5" rx="47.25" fill="none" stroke="#fff8df" stroke-width="1.5" opacity=".4"/>` : `<rect x="14" y="12" width="562" height="878" rx="48" fill="#51402e"/>
+  <rect x="23" y="19" width="552" height="860" rx="42" fill="#654c34"/>
+  <g clip-path="url(#cloth)"><rect x="64" y="10" width="510" height="822" fill="url(#plaid)"/><rect x="64" y="10" width="510" height="822" fill="url(#weave)"/></g>`}
   <rect x="30" y="811" width="530" height="60" rx="28" fill="#fffbed"/>
   <path d="M49 826H547M47 837H541M52 848H531M65 858H514" stroke="#dbd5c5" stroke-width="2"/>
   <path d="M93 838H144V899L118 889L93 899Z" fill="#e9ad5a"/>
-  <g clip-path="url(#cloth)"><rect x="64" y="10" width="510" height="822" fill="url(#plaid)"/><rect x="64" y="10" width="510" height="822" fill="url(#weave)"/></g>
-  <path d="M${creamPlaid ? 54 : 69} 16V829" stroke="#b89959" stroke-width="3" stroke-dasharray="14 9" opacity=".8"/>
+  <path d="M${creamPlaid ? 54 : 69} 16V829" stroke="${creamPlaid ? "#9a793b" : "#b89959"}" stroke-width="3" stroke-dasharray="14 9" opacity="${creamPlaid ? ".52" : ".8"}"/>
   <ellipse cx="329" cy="232" rx="152" ry="86" fill="#8c763b" opacity=".13"/>
   <ellipse cx="325" cy="224" rx="151" ry="84" fill="#fff6dc"/>
   <ellipse cx="325" cy="224" rx="142" ry="75" fill="none" stroke="#71838a" stroke-width="2.5"/>
