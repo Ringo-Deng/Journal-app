@@ -67,7 +67,7 @@ export default function ReadingLeaf({
                 } as CSSProperties
               }
             >
-              <SpreadPreview book={book} spread={from} assets={assets} flyleaf={fromFlyleaf} pageIndex={fromIndex} />
+              <SpreadPreview book={book} spread={from} assets={assets} flyleaf={fromFlyleaf} movingFlyleaf={fromFlyleaf} pageIndex={fromIndex} />
               <div
                 className="leaf-light"
                 style={{
@@ -81,7 +81,7 @@ export default function ReadingLeaf({
                 { '--texture-left': `${-segment.back / segments.length * 50}cqw` } as CSSProperties
               }
             >
-              <SpreadPreview book={book} spread={to} assets={assets} flyleaf={toFlyleaf} pageIndex={toIndex} />
+              <SpreadPreview book={book} spread={to} assets={assets} flyleaf={toFlyleaf} movingFlyleaf={toFlyleaf} pageIndex={toIndex} />
               <div
                 className="leaf-light"
                 style={{
