@@ -17,6 +17,7 @@ export default function ThreeTestPage() {
           --pf-edge-light: #bd8f69;
           --pf-material-texture-filter: none;
           --pf-cover-content-wash: transparent;
+          --pf-inside-ink: rgba(255, 248, 236, .68);
           --pf-face-shadow:
             inset 0 0 0 1px rgba(255,255,255,.055),
             inset 0 0 0 2px rgba(0,0,0,.075),
@@ -52,6 +53,48 @@ export default function ThreeTestPage() {
           background-position: -29px 17px !important;
         }
 
+        /*
+         * The inside of the cover is not a white paper page. StPageFlip needs a
+         * logical left page after opening, so that page is rendered as the pasted
+         * cover lining and uses the same material family as the shell. The real
+         * paper begins on the right-hand page after it.
+         */
+        .three-test-cover-depth .pf-cover-face--inside,
+        .three-test-cover-depth .pf-cover-lining-page {
+          background-color: var(--pf-cover-inside) !important;
+          background-image:
+            linear-gradient(98deg, rgba(0,0,0,.11), transparent 12%, transparent 84%, rgba(255,255,255,.045)),
+            var(--pf-material-texture) !important;
+          background-size:
+            100% 100%,
+            var(--pf-material-texture-size, 260px 260px) !important;
+          background-position:
+            center,
+            -23px 17px !important;
+          background-repeat: no-repeat, repeat !important;
+          background-blend-mode: multiply, soft-light !important;
+          color: var(--pf-inside-ink) !important;
+          box-shadow:
+            inset 11px 0 18px -14px rgba(30,22,17,.55),
+            inset -1px 0 rgba(255,255,255,.08),
+            inset 0 0 0 1px rgba(45,34,26,.12) !important;
+        }
+
+        .three-test-cover-depth .pf-cover-lining-page .pf-cover-lining--page {
+          border: 0 !important;
+          opacity: .62 !important;
+          text-shadow: 0 1px 0 rgba(255,255,255,.06) !important;
+        }
+
+        .three-test-cover-depth .pf-cover-lining-page::after {
+          content: '';
+          position: absolute;
+          inset: 4.5%;
+          border: 1px solid rgba(255,255,255,.055);
+          border-radius: 3px;
+          pointer-events: none;
+        }
+
         .three-test-cover-depth .pf-cover-content {
           background: var(--pf-cover-content-wash) !important;
         }
@@ -74,6 +117,7 @@ export default function ThreeTestPage() {
           --pf-material-base: #95613f !important;
           --pf-cover-inside: #77503a !important;
           --pf-cover-edge: #4c3123 !important;
+          --pf-inside-ink: rgba(245, 226, 204, .66);
           --pf-edge-dark: #3f281d;
           --pf-edge-mid: #765038;
           --pf-edge-light: #b57f59;
@@ -107,6 +151,7 @@ export default function ThreeTestPage() {
           --pf-material-base: #d2c5b2 !important;
           --pf-cover-inside: #c2b49f !important;
           --pf-cover-edge: #94836f !important;
+          --pf-inside-ink: rgba(76, 66, 57, .72);
           --pf-edge-dark: #827361;
           --pf-edge-mid: #b7a894;
           --pf-edge-light: #ddd2c1;
@@ -140,6 +185,7 @@ export default function ThreeTestPage() {
           --pf-material-base: #756058 !important;
           --pf-cover-inside: #635049 !important;
           --pf-cover-edge: #47352f !important;
+          --pf-inside-ink: rgba(238, 225, 218, .66);
           --pf-edge-dark: #3e2f2a;
           --pf-edge-mid: #685048;
           --pf-edge-light: #9d7d72;
@@ -173,6 +219,7 @@ export default function ThreeTestPage() {
           --pf-material-base: #b38f66 !important;
           --pf-cover-inside: #a27f5b !important;
           --pf-cover-edge: #76563a !important;
+          --pf-inside-ink: rgba(67, 48, 35, .75);
           --pf-edge-dark: #694c33;
           --pf-edge-mid: #9f7b55;
           --pf-edge-light: #cfab7d;
@@ -203,6 +250,7 @@ export default function ThreeTestPage() {
           --pf-material-base: #a59482 !important;
           --pf-cover-inside: #968575 !important;
           --pf-cover-edge: #6e5c4c !important;
+          --pf-inside-ink: rgba(62, 54, 48, .72);
           --pf-edge-dark: #655344;
           --pf-edge-mid: #8d7661;
           --pf-edge-light: #bba58b;
