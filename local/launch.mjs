@@ -116,7 +116,7 @@ try {
   } else if (production.available) {
     const port = await freePort();
     url = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, ['local/server.mjs'], {
+    child = spawn(process.execPath, ['local/server-bootstrap.mjs'], {
       cwd: root,
       stdio: 'inherit',
       env: { ...process.env, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: String(port), JOURNAL_CONFIG_DIR: cfg },
