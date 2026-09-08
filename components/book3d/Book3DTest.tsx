@@ -29,6 +29,7 @@ const PAGE_HEIGHT = 5.04;
 const PAGE_DEPTH = 0.018;
 const PAGE_SEGMENTS = 30;
 const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
+const HINGE_RIGID_BONES = 4;
 
 type Phase = 'closed' | 'opening' | 'open' | 'flipping' | 'flipped';
 
@@ -50,11 +51,13 @@ function SkinnedFlexiblePage({
   progressRef: { current: number };
   onFlip: () => void;
 }) {
-  const pageGroup = useRef<Group>(null);
   const pageMesh = useRef<SkinnedMesh>(null);
 
   const rig = useMemo(() => {
     const geometry = new BoxGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_DEPTH, PAGE_SEGMENTS, 2);
+
+    // Put the sheet's inner edge exactly on x=0. This point is the physical hinge.
+    // No parent/group rotation is used for the turn; the skeleton root owns it.
     geometry.translate(PAGE_WIDTH / 2, 0, 0);
 
     const positions = geometry.attributes.position;
@@ -112,43 +115,58 @@ function SkinnedFlexiblePage({
   );
 
   useFrame((_, delta) => {
-    const group = pageGroup.current;
     const mesh = pageMesh.current;
-    if (!group || !mesh) return;
+    if (!mesh) return;
 
     const progress = MathUtils.smoothstep(progressRef.current, 0, 1);
     const turnPulse = Math.sin(Math.PI * progress);
-    group.rotation.y = -Math.PI * progress;
-
     const bones = mesh.skeleton.bones;
-    for (let i = 0; i < bones.length; i += 1) {
+    const hinge = bones[0];
+
+    // The root bone sits at x=0 and never translates. It is the single source
+    // of truth for the page's 0→180° turn, so the inner edge cannot orbit away
+    // from the spine because of a second parent/group transform.
+    hinge.position.set(0, 0, 0);
+    hinge.rotation.y = -Math.PI * progress;
+    hinge.rotation.x = 0;
+    hinge.rotation.z = 0;
+
+    for (let i = 1; i < bones.length; i += 1) {
       const bone = bones[i];
-      if (i === 0) {
-        bone.rotation.y = 0;
-        bone.rotation.x = 0;
+
+      // Keep a short strip beside the spine rigid. The exact x=0 edge is already
+      // fixed by the hinge bone; this rigid strip prevents the near-spine paper
+      // from curling away and visually looking detached.
+      if (i <= HINGE_RIGID_BONES || progress <= 0.001 || progress >= 0.999) {
+        bone.rotation.y = MathUtils.damp(bone.rotation.y, 0, 16, delta);
+        bone.rotation.x = MathUtils.damp(bone.rotation.x, 0, 16, delta);
+        bone.rotation.z = 0;
         continue;
       }
 
-      const normalized = i / Math.max(1, bones.length - 1);
-      const insideCurve = i < 8 ? Math.sin(i * 0.2 + 0.25) : 0;
-      const outsideCurve = i >= 8 ? Math.cos(i * 0.3 + 0.09) : 0;
+      const normalized =
+        (i - HINGE_RIGID_BONES) /
+        Math.max(1, bones.length - 1 - HINGE_RIGID_BONES);
+      const insideCurve = normalized < 0.2 ? Math.sin(normalized * Math.PI * 2.4 + 0.25) : 0;
+      const outsideCurve = normalized >= 0.2 ? Math.cos(normalized * Math.PI * 2.1 + 0.09) : 0;
       const turningCurve = Math.sin(normalized * Math.PI) * turnPulse;
-      const flexibility = MathUtils.lerp(0.34, 1, MathUtils.smoothstep(normalized, 0.05, 1));
+      const flexibility = MathUtils.lerp(0.28, 1, MathUtils.smoothstep(normalized, 0.04, 1));
       const bendY =
-        (-0.026 * insideCurve + 0.011 * outsideCurve - 0.046 * turningCurve) *
+        (-0.022 * insideCurve + 0.009 * outsideCurve - 0.04 * turningCurve) *
         turnPulse *
         flexibility;
-      const foldIntensity = i > 8 ? Math.sin(normalized * Math.PI - 0.5) * turnPulse : 0;
-      const foldX = 0.028 * foldIntensity * flexibility;
+      const foldIntensity =
+        normalized > 0.18 ? Math.sin(normalized * Math.PI - 0.45) * turnPulse : 0;
+      const foldX = 0.024 * foldIntensity * flexibility;
 
       bone.rotation.y = MathUtils.damp(bone.rotation.y, bendY, 12, delta);
       bone.rotation.x = MathUtils.damp(bone.rotation.x, foldX, 12, delta);
+      bone.rotation.z = 0;
     }
   });
 
   return (
     <group
-      ref={pageGroup}
       position={[0, 0, 0.19]}
       onClick={(event) => {
         event.stopPropagation();
@@ -280,9 +298,9 @@ function BookScene({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
 const phaseCopy: Record<Phase, string> = {
   closed: '点击封面打开手帐',
   opening: '封面正在打开…',
-  open: '点击右页，测试真正的 3D 柔性翻页',
-  flipping: 'Three.js 纸页正在弯曲翻动…',
-  flipped: '翻页完成 · 同一张 3D 纸仍固定在书脊',
+  open: '点击右页，测试书脊铰链锁定的 3D 翻页',
+  flipping: '纸张内侧固定在书脊 · 外侧正在柔性弯曲…',
+  flipped: '翻页完成 · 同一张纸仍由书脊铰链固定',
 };
 
 export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string }) {
@@ -327,7 +345,7 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
                   fontSize: 12,
                 }}
               >
-                Three.js 真 3D 实验页 · SkinnedMesh 骨骼纸页
+                Three.js 真 3D 实验页 · 书脊铰链锁定
               </div>
               <div
                 style={{
@@ -344,7 +362,7 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
               </div>
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              真正的 3D 书本模型 + 柔性翻页
+              3D 书本模型 + 固定书脊柔性翻页
             </h1>
             <p style={{ margin: '8px 0 0', opacity: 0.7, fontSize: 14 }}>
               {phaseCopy[phase]}
