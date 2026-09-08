@@ -182,9 +182,9 @@ export const coverMaterials: CoverMaterial[] = [
     id: 'linen',
     name: '格纹布艺',
     colorways: [
-      { id: 'linen-oat', name: '蜂蜜黄格', color: '#e5bc58' },
-      { id: 'linen-forest', name: '草莓粉格', color: '#e3b2b7' },
-      { id: 'linen-blue', name: '雾霾蓝格', color: '#8fa4b2' },
+      { id: 'linen-oat', name: '蜂蜜燕麦格', color: '#c7a96f' },
+      { id: 'linen-forest', name: '灰粉格', color: '#c8a5a7' },
+      { id: 'linen-blue', name: '雾霾蓝格', color: '#879aa5' },
     ],
   },
   {
@@ -258,388 +258,93 @@ export const defaultHeader = (): HeaderConfig => ({
 export const headerDateFormats = [
   { id: 'dot', name: '2026.09.06' },
   { id: 'dash', name: '2026-09-06' },
-  { id: 'slash', name: '2026 / 09 / 06' },
-  { id: 'cn', name: '9月6日' },
-  { id: 'en', name: 'Sep 6, 2026' },
-  { id: 'custom', name: '自定义格式' },
-];
-const weekdayCN = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-export function formatHeaderDate(
-  dateStr: string | undefined,
-  formatId: string,
-  customFormat?: string,
-): string {
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
-  const d = new Date(dateStr + 'T12:00:00');
-  if (Number.isNaN(d.getTime())) return '';
-  const yyyy = String(d.getFullYear());
-  const MM = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  if (formatId === 'en')
-    return d.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  const pattern =
-    formatId === 'custom'
-      ? customFormat || 'yyyy.MM.dd'
-      : {
-          dot: 'yyyy.MM.dd',
-          dash: 'yyyy-MM-dd',
-          slash: 'yyyy / MM / dd',
-          cn: 'M月d日',
-        }[formatId] || 'yyyy.MM.dd';
-  return pattern
-    .replaceAll('yyyy', yyyy)
-    .replaceAll('MM', MM)
-    .replaceAll('dd', dd)
-    .replaceAll('M', String(d.getMonth() + 1))
-    .replaceAll('d', String(d.getDate()));
+  { id: 'slash', name: '2026/09/06' },
+  { id: 'cn', name: '2026年9月6日' },
+  { id: 'md', name: '09.06' },
+  { id: 'mdslash', name: '09/06' },
+  { id: 'monthday', name: '9月6日' },
+] as const;
+export function formatHeaderDate(date?: string, format='dot'){
+  if(!date)return '';
+  const d=new Date(date+'T00:00:00');if(Number.isNaN(d.getTime()))return date;
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  if(format==='dash')return `${y}-${m}-${day}`;if(format==='slash')return `${y}/${m}/${day}`;if(format==='cn')return `${y}年${d.getMonth()+1}月${d.getDate()}日`;if(format==='md')return `${m}.${day}`;if(format==='mdslash')return `${m}/${day}`;if(format==='monthday')return `${d.getMonth()+1}月${d.getDate()}日`;return `${y}.${m}.${day}`;
 }
-export function renderHeader(
-  header: HeaderConfig,
-  context: { date?: string; page?: number },
-): string {
-  const d =
-    context.date && /^\d{4}-\d{2}-\d{2}$/.test(context.date)
-      ? new Date(context.date + 'T12:00:00')
-      : null;
-  return header.text.replaceAll('{日期}', '{date}').replaceAll('{星期}', '{weekday}').replaceAll('{页码}', '{page}')
-    .replaceAll('{date}', formatHeaderDate(context.date, header.dateFormat, header.customFormat))
-    .replaceAll('{weekday}', d && !Number.isNaN(d.getTime()) ? weekdayCN[d.getDay()] : '')
-    .replaceAll('{page}', context.page !== undefined ? String(context.page) : '');
+export const WEEKDAYS=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+export function pageHeaderText(header:HeaderConfig|undefined,date?:string,pageNumber?:number){
+  const h=header||defaultHeader();const d=date?new Date(date+'T00:00:00'):null;const formatted=formatHeaderDate(date,h.dateFormat);
+  return (h.text||'{日期}').replaceAll('{日期}',formatted).replaceAll('{date}',formatted).replaceAll('{星期}',d&&!Number.isNaN(d.getTime())?WEEKDAYS[d.getDay()]:'').replaceAll('{weekday}',d&&!Number.isNaN(d.getTime())?WEEKDAYS[d.getDay()]:'').replaceAll('{页码}',pageNumber?String(pageNumber):'').replaceAll('{page}',pageNumber?String(pageNumber):'');
 }
-export function sanitizeHeader(header: HeaderConfig): HeaderConfig {
-  const aligns = ['left', 'center', 'right'];
+
+const defaultPaperFeel = (): PaperFeel => ({ texture: 34, spine: 62, edge: 30 });
+const clampPercent = (value: unknown, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : fallback;
+};
+export function paperSettings(book?: Book, spread?: Spread, side?: 'left' | 'right') {
+  const page = side ? spread?.pages?.[side] : undefined;
+  const legacyFeel = spread?.paperFeel;
+  const feel = page?.paperFeel || legacyFeel || book?.paperFeel || defaultPaperFeel();
   return {
-    enabled: !!header.enabled,
-    text: String(header.text || '').slice(0, 120),
-    dateFormat: String(header.dateFormat || 'dot'),
-    customFormat: header.customFormat?.slice(0, 40),
-    fontSize: Math.max(10, Math.min(24, Number(header.fontSize) || 14)),
-    color: header.color && /^#[0-9a-f]{6}$/i.test(header.color) ? header.color : undefined,
-    align: aligns.includes(header.align) ? header.align : 'right',
-    height: Math.max(4, Math.min(16, Number(header.height) || 7)),
-    margin: Math.max(0, Math.min(16, Number(header.margin) || 6)),
-  };
-}
-/* 页眉解析：单页设置优先，缺省继承整本；老笔记本默认关闭。 */
-export function headerOf(book?: Book, spread?: Spread): HeaderConfig {
-  return (
-    spread?.header ||
-    book?.header || { ...defaultHeader(), enabled: false }
-  );
-}
-/* 页眉应用于整本：清除所有单页覆盖；应用于单页：只影响该页。 */
-export function applyHeader(
-  book: Book,
-  header: HeaderConfig,
-  spreadId?: string,
-): Book {
-  const clean = sanitizeHeader(header);
-  if (spreadId)
-    return {
-      ...book,
-      spreads: book.spreads.map((s) =>
-        s.id === spreadId ? { ...clearPageSettings(s,['header']), header: clean } : s,
-      ),
-    };
-  return {
-    ...book,
-    header: clean,
-    spreads: book.spreads.map((s) => ({ ...clearPageSettings(s,['header']), header: undefined })),
+    style: page?.paperStyle || spread?.paperStyle || book?.paperStyle || 'blank',
+    color: page?.paperColor || spread?.paperColor || book?.paperColor || '#f3ecd9',
+    background: page?.paperBg === null ? null : page?.paperBg || spread?.paperBg || book?.paperBg || null,
+    header: page?.header || spread?.header || book?.header || defaultHeader(),
+    date: page?.date || spread?.date,
+    feel: {
+      texture: clampPercent(feel.texture, 34),
+      spine: clampPercent(feel.spine, 62),
+      edge: clampPercent(feel.edge, 30),
+    },
   };
 }
 
-/* 自定义内页背景：可保存为模板，整本默认或单页应用。 */
-export function paperBgOf(book?: Book, spread?: Spread): PaperBg | undefined {
-  if (spread?.paperBg === null) return undefined;
-  return spread?.paperBg || book?.paperBg;
-}
-export function applyPaperBg(
-  book: Book,
-  bg: PaperBg | null,
-  spreadId?: string,
-): Book {
-  if (spreadId)
-    return {
-      ...book,
-      spreads: book.spreads.map((s) =>
-        s.id === spreadId ? { ...clearPageSettings(s,['paperBg']), paperBg: bg } : s,
-      ),
-    };
-  return {
-    ...book,
-    paperBg: bg || undefined,
-    spreads: book.spreads.map((s) => ({ ...clearPageSettings(s,['paperBg']), paperBg: undefined })),
-  };
-}
-
-export function newBook(
-  month: string,
-  cover = 'linen-oat',
-  title = '拾光集',
-  format: BookFormat = 'standard',
-  opts?: {
-    paperStyle?: PaperStyle;
-    paperColor?: string;
-    header?: HeaderConfig;
+export const sampleDays: Day[] = [
+  {
+    id: 'd1',
+    date: '2025-08-03',
+    raw: '清晨去花市，买了一把洋甘菊和薄荷。下午在咖啡馆读完一章书，雨落在玻璃窗上。',
+    title: '花市与雨',
+    text: '花摊挤在旧街拐角，洋甘菊像很小的太阳。\n薄荷叶被老板装进牛皮纸袋，回家时整个包里都是清凉的味道。\n午后的雨来得突然，我坐在靠窗的位置，看雨水把街灯晕成一团金色。',
+    photos: [],
   },
-): Book {
-  return {
-    id: uid(),
-    month,
-    title,
-    cover,
-    format,
-    paperStyle: opts?.paperStyle,
-    paperColor: opts?.paperColor,
-    header: opts?.header ? sanitizeHeader(opts.header) : defaultHeader(),
-    flyleaf: { id: uid(), theme: 'herbarium', days: [], elements: [] },
-    spreads: [blankSpread()],
-  };
-}
-export const ensureFlyleaf = (book: Book): Book =>
-  book.flyleaf
-    ? book
-    : { ...book, flyleaf: { id: uid(), theme: 'herbarium', days: [], elements: [] } };
-export function localResult(
-  days: Pick<Day, 'raw'>[],
-  theme = 'herbarium',
-): AIResult {
-  return {
-    theme,
-    days: days.map((d) => ({ title: '今日小记', text: d.raw, assetIds: [] })),
-  };
-}
-function assetPiece(
-  a: Asset,
-  x: number,
-  y: number,
-  w: number,
-  rotation: number,
-  dayId?: string,
-): Piece {
-  return {
-    id: uid(),
-    kind: 'asset',
-    role: 'decor',
-    assetId: a.id,
-    src: a.src,
-    x,
-    y,
-    w,
-    rotation,
-    locked: false,
-    dayId,
-  };
-}
-export function dayPieces(
-  day: Day,
-  index: number,
-  assets: Asset[],
-  picks: string[] = [],
-  variant = 0,
-  layout = 'collage',
-  topOffset = 0,
-): Piece[] {
-  const offset = (index % 2) * 50,
-    photoCount = Math.min(day.photos.length, 6);
-  const bodyY = (photoCount ? 48 : layout === 'letter' ? 25 : 28) + topOffset;
-  const bodySize = day.text.length > 480 ? 12 : day.text.length > 240 ? 15 : 18;
-  const elements: Piece[] = [
-    {
-      id: uid(),
-      kind: 'text',
-      role: 'title',
-      dayId: day.id,
-      text: day.title,
-      x: offset + 6,
-      y: 15 + topOffset,
-      w: 37,
-      rotation: 0,
-      locked: false,
-      fontSize: 28,
-    },
-    {
-      id: uid(),
-      kind: 'text',
-      role: 'body',
-      dayId: day.id,
-      text: day.text,
-      x: offset + (layout === 'airy' ? 9 : 6),
-      y: bodyY,
-      w: layout === 'airy' ? 31 : 35,
-      rotation: 0,
-      locked: false,
-      fontSize: bodySize,
-    },
-  ];
-  for (let i = 0; i < photoCount; i++) {
-    const large = photoCount === 1;
-    elements.push({
-      id: uid(),
-      kind: 'photo',
-      dayId: day.id,
-      src: day.photos[i],
-      photoOriginal: day.photos[i],
-      x: offset + 6 + (large ? 0 : (i % 3) * 12),
-      y: 26 + topOffset + Math.floor(i / 3) * 11,
-      w: large ? 28 : 11,
-      rotation: (i % 2 ? -1 : 1) * (2 + (variant % 3)),
-      locked: false,
-      frame: 'polaroid',
-      crop: 50,
-    });
-  }
-  const pool = assets.filter((a) => picks.includes(a.id));
-  const source = pool;
-  if (source.length && layout !== 'letter') {
-    elements.push(
-      assetPiece(
-        source[(index * 7 + variant * 3) % source.length],
-        offset + (photoCount ? 34 : 23),
-        (photoCount ? 27 : 52) + topOffset,
-        photoCount ? 12 : 19,
-        index ? -7 : 7,
-        day.id,
-      ),
-    );
-  }
-  return elements;
-}
-export function appendDay(book:Book,day:Day,result:AIResult,assets:Asset[],spreadIndex=book.spreads.length-1,side?:number,topOffset=0):Book{
- if(!/^\d{4}-\d{2}-\d{2}$/.test(day.date)||Number.isNaN(Date.parse(day.date)))throw Error('记录日期无效。');
- if(day.date.slice(0,7)!==book.month)throw Error('记录日期与手帐月份不一致。');
- const spreads=structuredClone(book.spreads);if(!spreads.length)spreads.push(blankSpread());const spread=spreads[Math.max(0,Math.min(spreadIndex,spreads.length-1))];
- if(!spread.days.length){spread.theme=result.theme;spread.layout=result.layout||'collage';spread.date=day.date}
- const content=result.days[0],complete={...day,title:content.title,text:content.text};
- const index=side??spread.days.length%2;const existing=spread.days.length;spread.days.push(complete);
- const pieces=result.elements ? reserveHeaderSpace(result.elements,topOffset).map(p=>({...p,id:uid(),dayId:complete.id,locked:false})) : dayPieces(complete,index,assets,content.assetIds,0,spread.layout,topOffset);
- const shift=result.elements?0:Math.min(35,Math.floor(existing/2)*22);spread.elements.push(...pieces.map(p=>({...p,y:Math.min(85,p.y+shift)})));
- return {...book,spreads};
-}
-export const pieceKey = (p: Piece) =>
-  p.kind === 'text'
-    ? `${p.dayId}:${p.paragraphIndex !== undefined ? p.id : p.role || p.id}`
-    : p.kind === 'photo'
-      ? `${p.dayId}:${p.photoOriginal || p.src}`
-      : p.assetId || p.id;
-export function regenerateSpread(
-  spread: Spread,
-  result: AIResult,
-  assets: Asset[],
-  variant = 1,
-): Spread {
-  const locked = spread.elements.filter((e) => e.locked);
-  const days = spread.days.map((d, i) => ({
-    ...d,
-    title: result.elements || locked.some((e) => e.dayId === d.id && e.role === 'title')
-      ? d.title
-      : result.days[i].title,
-    text: result.elements || locked.some((e) => e.dayId === d.id && e.role === 'body')
-      ? d.text
-      : result.days[i].text,
-  }));
-  const newPieces = result.elements ? result.elements.map(p => {
-      const source = spread.elements.find(e => e.id === p.sourceId);
-      return {...source, ...p, colorRuns:source?.text===p.text?source?.colorRuns:p.colorRuns, id: source?.id || p.sourceId || uid(), dayId: source?.dayId || p.dayId || days[p.dayIndex ?? -1]?.id, locked: false};
-    }) : days.flatMap((d, i) =>
-      dayPieces(d, i, assets, result.days[i].assetIds, variant, result.layout),
-    );
-  const signature = pieceKey;
-  return {
-    ...spread,
-    theme: result.theme,
-    layout: result.layout || 'collage',
-    days: result.contentEdited ? days.map(d=>{const paragraphs=newPieces.filter(p=>p.role==='body'&&p.dayId===d.id);return paragraphs.length?{...d,text:paragraphs.map(p=>p.text).join('\n\n')}:d}) : days,
-    elements: [
-      ...newPieces
-        .filter((p) => !spread.removed?.includes(signature(p)))
-        .filter((p) => !locked.some((l) => l.id === p.id || signature(l) === signature(p)))
-        .filter(
-          (p) =>
-            !locked.some((l) => {
-              if (result.elements || p.kind === 'text') return false;
-              return (
-                Math.abs(p.x - l.x) < Math.min(p.w, l.w) * 0.5 &&
-                Math.abs(p.y - l.y) < 12
-              );
-            }),
-        ),
-      ...locked,
-    ],
-  };
-}
+  {
+    id: 'd2',
+    date: '2025-08-12',
+    raw: '和朋友沿河散步，傍晚风很凉。路过旧书店带回一本植物图鉴，夹着陌生人的车票。',
+    title: '河边旧书店',
+    text: '傍晚的风沿着河面吹过来，带着一点潮湿。\n旧书店的木门很窄，书架一路堆到天花板。那张旧车票夹在植物图鉴里，背面用铅笔写着一个早已过去的日期。',
+    photos: [],
+  },
+];
 
-export function paperSettings(book: Book | undefined, spread?: Spread) {
-  return {
-    style: spread?.paperStyle || book?.paperStyle || 'blank',
-    color: spread?.paperColor || book?.paperColor || (book?.format?.startsWith('tn-')||book?.cover==='travel-note'?'#f4eddc':'#ffffff'),
-  };
-}
-export function applyPaper(
-  book: Book,
-  style: PaperStyle,
-  color: string,
-  spreadId?: string,
-): Book {
-  if (
-    !['blank', 'lines', 'grid', 'dots'].includes(style) ||
-    !/^#[0-9a-f]{6}$/i.test(color)
-  )
-    throw Error('内页设置无效');
-  return spreadId
-    ? {
-        ...book,
-        spreads: book.spreads.map((s) =>
-          s.id === spreadId
-            ? { ...clearPageSettings(s,['paperStyle','paperColor']), paperStyle: style, paperColor: color }
-            : s,
-        ),
-      }
-    : {
-        ...book,
-        paperStyle: style,
-        paperColor: color,
-        spreads: book.spreads.map((s) => ({
-          ...clearPageSettings(s,['paperStyle','paperColor']),
-          paperStyle: undefined,
-          paperColor: undefined,
-        })),
-      };
-}
+export const defaultSpread = (): Spread => ({
+  id: uid(),
+  theme: 'herbarium',
+  paperFeel: defaultPaperFeel(),
+  paperStyle: 'blank',
+  paperColor: '#f3ecd9',
+  paperBg: null,
+  header: defaultHeader(),
+  date: today(),
+  days: [],
+  elements: [],
+  removed: [],
+});
 
-export function blankSpread():Spread{return{id:uid(),theme:"herbarium",date:today(),days:[],elements:[]}}
-export function addBlankSpread(book:Book):Book{return{...book,spreads:[...book.spreads,blankSpread()]}}
-
-export function pageSpread(spread: Spread | undefined, side: 'left' | 'right'): Spread | undefined {
-  return spread ? {...spread,...spread.pages?.[side]} : undefined;
-}
-export function patchPage(book: Book, spreadId: string, side: 'left' | 'right', patch: PageSettings): Book {
-  return {...book,spreads:book.spreads.map(s=>s.id===spreadId?{...s,pages:{...s.pages,[side]:{...s.pages?.[side],...patch}}}:s)};
-}
-function clearPageSettings(spread: Spread, fields: (keyof PageSettings)[]): Spread {
-  if(!spread.pages)return spread;
-  const pages={...spread.pages};
-  for(const side of ['left','right'] as const){
-    if(!pages[side])continue;
-    const settings={...pages[side]};
-    for(const key of fields)delete settings[key];
-    pages[side]=settings;
-  }
-  return {...spread,pages};
-}
-export function pageInk(book: Book, spread: Spread | undefined, side: 'left' | 'right'): string {
-  const c=paperSettings(book,pageSpread(spread,side)).color;
-  return parseInt(c.slice(1,3),16)*.299+parseInt(c.slice(3,5),16)*.587+parseInt(c.slice(5,7),16)*.114<125?'#f5f5ed':'#343b34';
-}
-
-/** Fit a new design below the header; existing locked elements keep their geometry. */
-export function reserveHeaderSpace(elements: DesignPiece[], top: number, lockedIds: string[] = []): DesignPiece[] {
-  const inset=Math.max(0,Math.min(20,top));
-  if(!inset)return elements;
-  const factor=(100-inset)/100;
-  return elements.map(p=>p.sourceId && lockedIds.includes(p.sourceId)?p:{...p,y:inset+p.y*factor,...(p.h!==undefined?{h:p.h*factor}:{}),...(p.fontSize!==undefined?{fontSize:p.fontSize*factor}:{})});
-}
+export const defaultBook = (): Book => ({
+  id: uid(),
+  month: today().slice(0, 7),
+  title: '拾光集',
+  cover: 'linen-oat',
+  format: 'standard',
+  paperFeel: defaultPaperFeel(),
+  paperStyle: 'blank',
+  paperColor: '#f3ecd9',
+  paperBg: undefined,
+  paperTemplates: [],
+  collageTemplates: [],
+  header: defaultHeader(),
+  flyleaf: defaultSpread(),
+  spreads: [defaultSpread()],
+});
