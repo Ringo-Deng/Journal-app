@@ -3,33 +3,28 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bone,
-  BoxGeometry,
-  Float32BufferAttribute,
+  DoubleSide,
   Group,
   MathUtils,
+  Mesh,
   MeshStandardMaterial,
-  Skeleton,
-  SkinnedMesh,
-  Uint16BufferAttribute,
-  Vector3,
+  PlaneGeometry,
 } from 'three';
 
 /**
- * The segmented SkinnedMesh/Bone page-rig approach is adapted from
- * Adyaman Singh's `krishna-s-teachings` project (MIT License, 2025).
- * See THIRD_PARTY_NOTICES.md for the retained license notice.
- *
- * This route is a real Three.js experiment: cover, page block, spine, light,
- * shadows and the turning sheet all exist as 3D geometry in the scene.
+ * The turning-sheet motion uses direct vertex deformation rather than a bone rig.
+ * The page is built from x=0 (the spine) to x=PAGE_WIDTH. Every frame is computed
+ * from the original distance to x=0. Therefore every vertex on the spine has
+ * distance 0 and remains exactly on the hinge for the entire animation.
  */
 
 const PAGE_WIDTH = 3.72;
 const PAGE_HEIGHT = 5.04;
-const PAGE_DEPTH = 0.018;
-const PAGE_SEGMENTS = 30;
-const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
-const HINGE_RIGID_BONES = 4;
+const PAGE_SEGMENTS = 56;
+const PAGE_Z = 0.19;
+const CURL_LEAD = 0.22;
+const CURL_DEPTH = 0.58;
+const HINGE_ZONE = 0.12;
 
 type Phase = 'closed' | 'opening' | 'open' | 'flipping' | 'flipped';
 
@@ -42,7 +37,7 @@ function StaticPage({ side, z = 0.145 }: { side: 'left' | 'right'; z?: number })
   );
 }
 
-function SkinnedFlexiblePage({
+function CylindricalTurningPage({
   enabled,
   progressRef,
   onFlip,
@@ -51,130 +46,100 @@ function SkinnedFlexiblePage({
   progressRef: { current: number };
   onFlip: () => void;
 }) {
-  const pageMesh = useRef<SkinnedMesh>(null);
+  const pageMesh = useRef<Mesh>(null);
 
-  const rig = useMemo(() => {
-    const geometry = new BoxGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_DEPTH, PAGE_SEGMENTS, 2);
-
-    // Put the sheet's inner edge exactly on x=0. This point is the physical hinge.
-    // No parent/group rotation is used for the turn; the skeleton root owns it.
+  const page = useMemo(() => {
+    const geometry = new PlaneGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_SEGMENTS, 2);
     geometry.translate(PAGE_WIDTH / 2, 0, 0);
 
     const positions = geometry.attributes.position;
-    const vertex = new Vector3();
-    const skinIndexes: number[] = [];
-    const skinWeights: number[] = [];
+    const originalX = new Float32Array(positions.count);
+    const originalY = new Float32Array(positions.count);
+    const normalizedX = new Float32Array(positions.count);
 
     for (let i = 0; i < positions.count; i += 1) {
-      vertex.fromBufferAttribute(positions, i);
-      const scaled = MathUtils.clamp(vertex.x / SEGMENT_WIDTH, 0, PAGE_SEGMENTS);
-      const skinIndex = Math.min(PAGE_SEGMENTS - 1, Math.floor(scaled));
-      const skinWeight = MathUtils.clamp(scaled - skinIndex, 0, 1);
-
-      skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
-      skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
+      const x = positions.getX(i);
+      originalX[i] = x;
+      originalY[i] = positions.getY(i);
+      normalizedX[i] = MathUtils.clamp(x / PAGE_WIDTH, 0, 1);
     }
 
-    geometry.setAttribute('skinIndex', new Uint16BufferAttribute(skinIndexes, 4));
-    geometry.setAttribute('skinWeight', new Float32BufferAttribute(skinWeights, 4));
+    const material = new MeshStandardMaterial({
+      color: '#fffdf6',
+      roughness: 0.94,
+      metalness: 0,
+      side: DoubleSide,
+    });
 
-    const bones: Bone[] = [];
-    for (let i = 0; i <= PAGE_SEGMENTS; i += 1) {
-      const bone = new Bone();
-      bone.position.x = i === 0 ? 0 : SEGMENT_WIDTH;
-      bones.push(bone);
-      if (i > 0) bones[i - 1].add(bone);
-    }
-
-    const skeleton = new Skeleton(bones);
-    const materials = [
-      new MeshStandardMaterial({ color: '#e7decf', roughness: 0.98 }),
-      new MeshStandardMaterial({ color: '#d7cbb8', roughness: 0.98 }),
-      new MeshStandardMaterial({ color: '#eee5d7', roughness: 0.98 }),
-      new MeshStandardMaterial({ color: '#eee5d7', roughness: 0.98 }),
-      new MeshStandardMaterial({ color: '#fffdf6', roughness: 0.93 }),
-      new MeshStandardMaterial({ color: '#f7f0e4', roughness: 0.95 }),
-    ];
-
-    const mesh = new SkinnedMesh(geometry, materials);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    mesh.add(skeleton.bones[0]);
-    mesh.bind(skeleton);
-
-    return { mesh, geometry, materials };
+    return { geometry, material, originalX, originalY, normalizedX };
   }, []);
 
   useEffect(
     () => () => {
-      rig.geometry.dispose();
-      rig.materials.forEach((material) => material.dispose());
+      page.geometry.dispose();
+      page.material.dispose();
     },
-    [rig],
+    [page],
   );
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     const mesh = pageMesh.current;
     if (!mesh) return;
 
-    const progress = MathUtils.smoothstep(progressRef.current, 0, 1);
-    const turnPulse = Math.sin(Math.PI * progress);
-    const bones = mesh.skeleton.bones;
-    const hinge = bones[0];
+    const raw = MathUtils.clamp(progressRef.current, 0, 1);
+    const progress = raw * raw * (3 - 2 * raw);
+    const positions = page.geometry.attributes.position;
+    const settle = MathUtils.smoothstep(progress, 0.82, 1);
+    const turnPulse = Math.sin(progress * Math.PI);
 
-    // The root bone sits at x=0 and never translates. It is the single source
-    // of truth for the page's 0→180° turn, so the inner edge cannot orbit away
-    // from the spine because of a second parent/group transform.
-    hinge.position.set(0, 0, 0);
-    hinge.rotation.y = -Math.PI * progress;
-    hinge.rotation.x = 0;
-    hinge.rotation.z = 0;
+    for (let i = 0; i < positions.count; i += 1) {
+      const t = page.normalizedX[i];
+      const distanceFromSpine = page.originalX[i];
 
-    for (let i = 1; i < bones.length; i += 1) {
-      const bone = bones[i];
-
-      // Keep a short strip beside the spine rigid. The exact x=0 edge is already
-      // fixed by the hinge bone; this rigid strip prevents the near-spine paper
-      // from curling away and visually looking detached.
-      if (i <= HINGE_RIGID_BONES || progress <= 0.001 || progress >= 0.999) {
-        bone.rotation.y = MathUtils.damp(bone.rotation.y, 0, 16, delta);
-        bone.rotation.x = MathUtils.damp(bone.rotation.x, 0, 16, delta);
-        bone.rotation.z = 0;
+      // x=0 is an invariant. Never apply curl/translation to the actual hinge line.
+      if (distanceFromSpine <= 0.000001) {
+        positions.setXYZ(i, 0, page.originalY[i], 0);
         continue;
       }
 
-      const normalized =
-        (i - HINGE_RIGID_BONES) /
-        Math.max(1, bones.length - 1 - HINGE_RIGID_BONES);
-      const insideCurve = normalized < 0.2 ? Math.sin(normalized * Math.PI * 2.4 + 0.25) : 0;
-      const outsideCurve = normalized >= 0.2 ? Math.cos(normalized * Math.PI * 2.1 + 0.09) : 0;
-      const turningCurve = Math.sin(normalized * Math.PI) * turnPulse;
-      const flexibility = MathUtils.lerp(0.28, 1, MathUtils.smoothstep(normalized, 0.04, 1));
-      const bendY =
-        (-0.022 * insideCurve + 0.009 * outsideCurve - 0.04 * turningCurve) *
-        turnPulse *
-        flexibility;
-      const foldIntensity =
-        normalized > 0.18 ? Math.sin(normalized * Math.PI - 0.45) * turnPulse : 0;
-      const foldX = 0.024 * foldIntensity * flexibility;
+      // Keep a narrow zone beside the hinge quiet during the middle of the turn.
+      // This prevents the first visible columns from peeling away from the gutter.
+      const hingeRelease = MathUtils.smoothstep(t, 0, HINGE_ZONE);
+      const adjusted = progress * (1 + CURL_LEAD) - CURL_LEAD * 0.5;
+      const curlProgress = MathUtils.clamp(adjusted + (t - 0.5) * CURL_LEAD, 0, 1);
+      const localProgress = MathUtils.lerp(progress * hingeRelease, curlProgress, hingeRelease);
+      const finalProgress = MathUtils.lerp(localProgress, progress, settle);
+      const angle = finalProgress * Math.PI;
 
-      bone.rotation.y = MathUtils.damp(bone.rotation.y, bendY, 12, delta);
-      bone.rotation.x = MathUtils.damp(bone.rotation.x, foldX, 12, delta);
-      bone.rotation.z = 0;
+      const x = distanceFromSpine * Math.cos(angle);
+      const z = distanceFromSpine * Math.sin(angle) * CURL_DEPTH;
+      const verticalBias =
+        Math.sin(t * Math.PI) *
+        (page.originalY[i] / PAGE_HEIGHT) *
+        0.07 *
+        turnPulse *
+        hingeRelease;
+
+      positions.setXYZ(i, x, page.originalY[i] + verticalBias, z);
     }
+
+    positions.needsUpdate = true;
+    page.geometry.computeVertexNormals();
   });
 
   return (
-    <group
-      position={[0, 0, 0.19]}
+    <mesh
+      ref={pageMesh}
+      geometry={page.geometry}
+      material={page.material}
+      position={[0, 0, PAGE_Z]}
+      castShadow
+      receiveShadow
       onClick={(event) => {
         event.stopPropagation();
         if (enabled) onFlip();
       }}
-    >
-      <primitive object={rig.mesh} ref={pageMesh} />
-    </group>
+    />
   );
 }
 
@@ -199,8 +164,11 @@ function BookModel({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
     }
 
     if (phase === 'flipping') {
-      pageProgress.current = Math.min(1, pageProgress.current + delta / 1.05);
-      if (pageProgress.current >= 1) changePhase('flipped');
+      pageProgress.current = Math.min(1, pageProgress.current + delta / 1.08);
+      if (pageProgress.current >= 1) {
+        pageProgress.current = 1;
+        changePhase('flipped');
+      }
     }
 
     const easedCover = MathUtils.smoothstep(coverProgress.current, 0, 1);
@@ -240,7 +208,7 @@ function BookModel({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
       {phase !== 'closed' && <StaticPage side="left" z={0.135} />}
       <StaticPage side="right" z={0.145} />
 
-      <SkinnedFlexiblePage
+      <CylindricalTurningPage
         enabled={phase === 'open'}
         progressRef={pageProgress}
         onFlip={flipPage}
@@ -268,6 +236,12 @@ function BookModel({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
       <mesh position={[0, 0, 0.04]} castShadow receiveShadow>
         <cylinderGeometry args={[0.14, 0.14, PAGE_HEIGHT + 0.08, 28]} />
         <meshStandardMaterial color="#6f5142" roughness={0.84} />
+      </mesh>
+
+      {/* Visible gutter cap: this sits directly under the mathematically fixed x=0 page edge. */}
+      <mesh position={[0, 0, 0.18]} receiveShadow>
+        <boxGeometry args={[0.055, PAGE_HEIGHT - 0.08, 0.035]} />
+        <meshStandardMaterial color="#ddd2bf" roughness={0.96} />
       </mesh>
     </group>
   );
@@ -298,9 +272,9 @@ function BookScene({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void })
 const phaseCopy: Record<Phase, string> = {
   closed: '点击封面打开手帐',
   opening: '封面正在打开…',
-  open: '点击右页，测试书脊铰链锁定的 3D 翻页',
-  flipping: '纸张内侧固定在书脊 · 外侧正在柔性弯曲…',
-  flipped: '翻页完成 · 同一张纸仍由书脊铰链固定',
+  open: '点击右页，测试固定书脊的连续卷页',
+  flipping: '书脊边缘保持不动 · 外侧纸张正在卷曲…',
+  flipped: '翻页完成 · 同一张纸已经落在左侧',
 };
 
 export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string }) {
@@ -345,7 +319,7 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
                   fontSize: 12,
                 }}
               >
-                Three.js 真 3D 实验页 · 书脊铰链锁定
+                Three.js 真 3D 实验页 · 顶点级固定书脊
               </div>
               <div
                 style={{
@@ -362,7 +336,7 @@ export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string
               </div>
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              3D 书本模型 + 固定书脊柔性翻页
+              3D 书本模型 + 固定书脊连续卷页
             </h1>
             <p style={{ margin: '8px 0 0', opacity: 0.7, fontSize: 14 }}>
               {phaseCopy[phase]}
