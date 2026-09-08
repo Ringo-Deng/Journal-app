@@ -4,6 +4,9 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { forwardRef, useImperativeHandle, useEffect, useMemo, useRef, useState } from "react";
 import {
   BackSide,
+  Float32BufferAttribute,
+  Mesh,
+  MeshBasicMaterial,
   DoubleSide,
   CanvasTexture,
   Group,
@@ -13,6 +16,8 @@ import {
   Vector3,
 } from "three";
 import {
+  sampleSheet as samplePaper,
+  type PaperStyle,
   finishBookTurn,
   settleDrag,
   advanceDrag,
@@ -191,13 +196,25 @@ function PaperStack({ side, count }: { side: -1 | 1; count: number }) {
   );
 }
 
-function TurningPage({ leaf, progress }: { leaf: number; progress: { current: number } }) {
-  const { BOOK, sampleSheet } = useBookScene();
+function TurningPage({
+  leaf,
+  progress,
+  paperStyle,
+}: {
+  leaf: number;
+  progress: { current: number };
+  paperStyle: PaperStyle;
+}) {
+  const { BOOK } = useBookScene();
   const front = usePaperTexture(leaf * 2);
   const back = usePaperTexture(leaf * 2 + 1, true);
   const geometry = useMemo(() => {
     const result = new PlaneGeometry(BOOK.width, BOOK.height, BOOK.segments, 8);
     result.translate(BOOK.width / 2, 0, 0);
+    result.setAttribute(
+      "color",
+      new Float32BufferAttribute(new Float32Array(result.attributes.position.count * 3).fill(1), 3),
+    );
     return result;
   }, []);
   const lastProgress = useRef(-1);
@@ -205,13 +222,23 @@ function TurningPage({ leaf, progress }: { leaf: number; progress: { current: nu
   useFrame(() => {
     if (lastProgress.current === progress.current) return;
     lastProgress.current = progress.current;
-    const points = sampleSheet(progress.current, leaf);
+    const points = samplePaper(progress.current, leaf, BOOK, paperStyle);
     const positions = geometry.attributes.position;
     for (let i = 0; i < positions.count; i++) {
       const point = points[i % (BOOK.segments + 1)];
       positions.setX(i, point.x);
       positions.setZ(i, point.z);
+      // A restrained tone change follows each strip's orientation, on both faces.
+      const next = points[Math.min(points.length - 1, (i % (BOOK.segments + 1)) + 1)];
+      const prev = points[Math.max(0, (i % (BOOK.segments + 1)) - 1)];
+      const facing = Math.abs(
+        (next.x - prev.x) / Math.max(1e-6, Math.hypot(next.x - prev.x, next.z - prev.z)),
+      );
+      const tone =
+        paperStyle === "soft" ? 1 - 0.16 * Math.sin(Math.PI * progress.current) * (1 - facing) : 1;
+      geometry.attributes.color.setXYZ(i, tone, tone, tone);
     }
+    geometry.attributes.color.needsUpdate = true;
     positions.needsUpdate = true;
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
@@ -219,11 +246,104 @@ function TurningPage({ leaf, progress }: { leaf: number; progress: { current: nu
   return (
     <group>
       <mesh geometry={geometry} castShadow>
-        <meshStandardMaterial map={front} roughness={0.93} shadowSide={DoubleSide} />
+        {paperStyle === "soft" ? (
+          <meshPhysicalMaterial
+            map={front}
+            vertexColors
+            roughness={0.93}
+            sheen={paperStyle === "soft" ? 0.16 : 0}
+            sheenColor="#fff6e5"
+            shadowSide={DoubleSide}
+          />
+        ) : (
+          <meshStandardMaterial map={front} roughness={0.93} shadowSide={DoubleSide} />
+        )}
       </mesh>
       <mesh geometry={geometry}>
-        <meshStandardMaterial map={back} roughness={0.93} side={BackSide} />
+        {paperStyle === "soft" ? (
+          <meshPhysicalMaterial
+            map={back}
+            vertexColors
+            roughness={0.93}
+            sheen={paperStyle === "soft" ? 0.16 : 0}
+            sheenColor="#fff6e5"
+            side={BackSide}
+          />
+        ) : (
+          <meshStandardMaterial map={back} roughness={0.93} side={BackSide} />
+        )}
       </mesh>
+    </group>
+  );
+}
+
+/** Soft page-to-page shade, following Sketchbook's gutter fade rather than a hard black edge. */
+function PageShade({
+  progress,
+  leftCount,
+  rightCount,
+}: {
+  progress: { current: number };
+  leftCount: number;
+  rightCount: number;
+}) {
+  const { BOOK, stackTop } = useBookScene();
+  const left = useRef<Mesh<PlaneGeometry, MeshBasicMaterial>>(null);
+  const right = useRef<Mesh<PlaneGeometry, MeshBasicMaterial>>(null);
+  const map = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    const gradient = ctx.createLinearGradient(0, 0, 128, 0);
+    gradient.addColorStop(0, "rgba(54,37,20,.7)");
+    gradient.addColorStop(0.65, "rgba(54,37,20,.12)");
+    gradient.addColorStop(1, "rgba(54,37,20,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.globalCompositeOperation = "destination-in";
+    const fade = ctx.createLinearGradient(0, 0, 0, 128);
+    fade.addColorStop(0, "transparent");
+    fade.addColorStop(0.07, "black");
+    fade.addColorStop(0.93, "black");
+    fade.addColorStop(1, "transparent");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, 128, 128);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+  }, []);
+  useEffect(() => () => map.dispose(), [map]);
+  useFrame(() => {
+    const p = progress.current,
+      lift = Math.sin(Math.PI * p);
+    if (left.current) left.current.material.opacity = lift * 0.26 * p;
+    if (right.current) right.current.material.opacity = lift * 0.26 * (1 - p);
+  });
+  return (
+    <group>
+      {([-1, 1] as const).map((side) => (
+        <mesh
+          key={side}
+          ref={side === -1 ? left : right}
+          position={[
+            side * BOOK.width * 0.37,
+            0,
+            stackTop(side === -1 ? leftCount : rightCount) + 0.012,
+          ]}
+          rotation={[0, 0, side === -1 ? Math.PI : 0]}
+          raycast={() => {}}
+        >
+          <planeGeometry args={[BOOK.width * 0.74, BOOK.height]} />
+          <meshBasicMaterial
+            map={map}
+            transparent
+            opacity={0}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -272,8 +392,10 @@ function BookModel({
   beginDrag,
   material,
   disabled,
+  paperStyle,
 }: {
   disabled: boolean;
+  paperStyle: PaperStyle;
   state: BookState;
   material: CoverMaterial;
   complete: () => void;
@@ -509,7 +631,17 @@ function BookModel({
           onPointerDown={(event) => startPageDrag(event, -1)}
         />
       )}
-      {turning && <TurningPage key={leaf} leaf={leaf} progress={progress} />}
+      {turning && (
+        <TurningPage
+          key={`${leaf}-${paperStyle}`}
+          leaf={leaf}
+          progress={progress}
+          paperStyle={paperStyle}
+        />
+      )}
+      {turning && paperStyle === "soft" && (
+        <PageShade progress={progress} leftCount={leftCount} rightCount={rightCount} />
+      )}
       <group ref={cover} position={[0, 0, coverHeight("above")]}>
         <mesh
           position={[BOOK.width / 2, 0, 0]}
@@ -627,6 +759,7 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
 }
 
 type ViewProps = {
+  experiment?: boolean;
   toolbar?: HTMLDivElement | null;
   appVersion?: string;
   content?: Book3DContent;
@@ -634,7 +767,7 @@ type ViewProps = {
   onError?: (error?: unknown) => void;
 };
 const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
-  { appVersion = "dev", onPosition, onError, toolbar },
+  { appVersion = "dev", onPosition, onError, toolbar, experiment = false },
   ref,
 ) {
   const { BOOK, content, nextBookTurn } = useBookScene();
@@ -647,6 +780,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         }
       : initialState,
   );
+  const [paperStyle, setPaperStyle] = useState<PaperStyle>(experiment ? "soft" : "original");
   const [ready, setReady] = useState(!content);
   const [preparedLeaf, setPreparedLeaf] = useState<number | null>(content ? null : 0);
   const [resetting, setResetting] = useState(false);
@@ -937,6 +1071,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                 shadow-radius={5}
               />
               <BookModel
+                paperStyle={paperStyle}
                 disabled={preparing}
                 state={state}
                 material={material}
@@ -979,6 +1114,26 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                 {COVER_MATERIALS[kind].label}
               </button>
             ))}
+          </div>
+        )}
+        {experiment && (
+          <div className="book3d-material-controls" role="group" aria-label="翻页效果对比">
+            <span>翻页效果</span>
+            <button
+              disabled={busy}
+              aria-pressed={paperStyle === "soft"}
+              onClick={() => setPaperStyle("soft")}
+            >
+              柔纸曲面
+            </button>
+            <button
+              disabled={busy}
+              aria-pressed={paperStyle === "original"}
+              onClick={() => setPaperStyle("original")}
+            >
+              原版
+            </button>
+            <small>柔纸曲面：连续弯曲 · 柔和高光 · 渐变落影</small>
           </div>
         )}
         {toolbar ? createPortal(controls, toolbar) : controls}

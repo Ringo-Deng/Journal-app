@@ -30,7 +30,14 @@ export function turnTarget(turned: number, direction: -1 | 1, count = BOOK.leave
 }
 
 /** Integrate unit tangents: every strip keeps its length, unlike scaled sin/cos folds. */
-export function sampleSheet(progress: number, leaf: number, geometry: BookGeometry = BOOK) {
+export type PaperStyle = "original" | "soft";
+// Curvature adapted from ThreeUI Sketchbook applyTurn (MIT); see THIRD_PARTY_NOTICES.md.
+export function sampleSheet(
+  progress: number,
+  leaf: number,
+  geometry: BookGeometry = BOOK,
+  style: PaperStyle = "original",
+) {
   const p = Math.max(0, Math.min(1, progress));
   const pulse = Math.sin(Math.PI * p);
   const points: Array<{ x: number; z: number }> = [];
@@ -42,8 +49,10 @@ export function sampleSheet(progress: number, leaf: number, geometry: BookGeomet
   points.push({ x, z });
   for (let i = 1; i <= geometry.segments; i += 1) {
     const t = (i - 0.5) / geometry.segments;
-    // A small S curve lets the fore-edge lead, while the spine stays attached.
-    const angle = Math.PI * p + 0.46 * pulse * Math.sin(2 * Math.PI * t);
+    // Soft mode forms one continuous arc; original keeps its small S curve.
+    const bend =
+      style === "soft" ? 0.95 * pulse * (1 - 2 * t) : 0.46 * pulse * Math.sin(2 * Math.PI * t);
+    const angle = Math.PI * p + bend;
     x += (Math.cos(angle) * geometry.width) / geometry.segments;
     z += (Math.sin(angle) * geometry.width) / geometry.segments;
     points.push({ x, z });

@@ -105,3 +105,11 @@ npm run build
 - Each reading session prepares all saved JPG blobs once before showing the book. Nearby decoded canvases remain bounded, but subsequent turns decode from the in-memory JPG buffer rather than requesting storage/generation again. Disposing the reader releases the buffer.
 - The white preparation overlay is restricted to initial loading. Subsequent nearby decoding keeps the rendered book visible; input briefly waits for preparation when needed. First-time generation of a long book may take longer because all JPGs are prepared up front.
 - Validation: 37 related checks, focused TypeScript/lint and production build. Actual browser layout and animation remain unverified because this session's browser administrator-policy check is unavailable.
+
+
+## v0.1.99 — ThreeUI-inspired soft paper comparison
+
+- Only `/three-test` opts into the new soft mode, with a “柔纸曲面 / 原版” switch disabled during a turn. Main appreciation retains the original profile and standard paper materials. Existing pointer release, cancellation, timing, zoom/pan and cover state are reused.
+- Adapted ThreeUI Sketchbook's continuous strip-angle profile into the existing length-preserving Three.js mesh. Added subtle orientation-based tone, paper sheen and a feathered gutter shadow that rises and fades with the turning leaf. Source and MIT notice are in `THIRD_PARTY_NOTICES.md`; no upstream artwork is bundled.
+- Validation: 33 related tests, focused TypeScript/lint, and production build passed. Soft-profile tests sweep endpoints, segment lengths, hinge heights and curvature across different book dimensions. Full-project TypeScript still reports six errors in the unchanged `components/collage-tools.tsx` (unknown `data`).
+- Browser preview was attempted at the existing development server, http://127.0.0.1:4341/three-test. Browser access was denied because its administrator security policy could not be verified. Actual appearance, drag gestures and mobile layout remain unverified; no alternate browser-control route was used.
