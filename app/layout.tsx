@@ -5,6 +5,7 @@ import RuntimeCompatibility from '@/components/runtime-compatibility';
 import ThreeTestGateway from '@/components/three-test-gateway';
 import './globals.css';
 import './cover-materials.css';
+import './reading-cover-fixes.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',
