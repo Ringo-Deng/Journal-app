@@ -1,5 +1,6 @@
-/* Final cover material pass. Imported after globals.css on purpose so old fallback
-   gradients cannot erase the photo-derived texture layers again. */
+/* Cover rendering v2. The preserve-3d cover/page-block geometry is adapted
+   from scastiel/book-cover-3d (MIT); see THIRD_PARTY_NOTICES.md. */
+
 .texture-kraft,
 .texture-leather,
 .texture-linen,
@@ -9,145 +10,349 @@
   background-repeat: no-repeat !important;
 }
 
+/* Exterior materials: macro photo texture + a finer authored surface map. */
 .texture-leather {
   background-image:
-    radial-gradient(ellipse at 24% 18%, #fff9ef1c 0, transparent 42%),
-    linear-gradient(96deg, #120b0738 0, transparent 10%, transparent 70%, #140b081f 100%),
+    radial-gradient(ellipse at 27% 16%, #fff8ec1a 0, transparent 43%),
+    linear-gradient(96deg, #160d0838 0, transparent 10%, transparent 77%, #130b071f 100%),
+    url('/textures/covers/leather-grain.svg'),
     url('/textures/leather-photo.png') !important;
-  background-size: 100% 100%, 100% 100%, cover !important;
-  background-position: center, center, 46% 50% !important;
-  background-blend-mode: soft-light, multiply, soft-light !important;
-  box-shadow:
-    inset 0 0 0 1px #fff6e70d,
-    inset 12px 0 18px -15px #140b08a8,
-    inset -7px 0 13px -12px #fff1d92b !important;
+  background-size: 100% 100%, 100% 100%, 190px 190px, cover !important;
+  background-position: center, center, 13% 31%, 46% 50% !important;
+  background-blend-mode: soft-light, multiply, multiply, soft-light !important;
 }
 
 .texture-linen {
   background-image:
-    linear-gradient(90deg, #00000017 0, transparent 8%, transparent 92%, #00000012 100%),
+    linear-gradient(92deg, #00000016 0, transparent 8%, transparent 92%, #00000011 100%),
+    url('/textures/covers/fabric-weave.svg'),
     url('/textures/linen-photo.png') !important;
-  background-size: 100% 100%, 118% 118% !important;
-  background-position: center, 50% 46% !important;
-  background-blend-mode: multiply, soft-light !important;
-  box-shadow:
-    inset 0 0 0 1px #ffffff16,
-    inset 9px 0 14px -13px #1f1b1590 !important;
+  background-size: 100% 100%, 168px 168px, 118% 118% !important;
+  background-position: center, 17px 9px, 50% 46% !important;
+  background-blend-mode: multiply, soft-light, soft-light !important;
 }
 
 .texture-canvas {
   background-image:
-    linear-gradient(90deg, #00000024 0, transparent 9%, transparent 90%, #00000018 100%),
+    linear-gradient(92deg, #00000025 0, transparent 10%, transparent 90%, #00000018 100%),
+    url('/textures/covers/fabric-weave.svg'),
     url('/textures/linen-photo.png') !important;
-  background-size: 100% 100%, 165% 165% !important;
-  background-position: center, 54% 48% !important;
-  background-blend-mode: multiply, overlay !important;
-  box-shadow:
-    inset 0 0 0 1px #ffffff0c,
-    inset 10px 0 15px -13px #171915a6 !important;
+  background-size: 100% 100%, 116px 116px, 160% 160% !important;
+  background-position: center, 5px 13px, 54% 48% !important;
+  background-blend-mode: multiply, multiply, overlay !important;
 }
 
 .texture-kraft {
   background-image:
-    linear-gradient(97deg, #3d2c1824 0, transparent 11%, transparent 74%, #24190f16 100%),
+    linear-gradient(97deg, #3e2c1827 0, transparent 11%, transparent 76%, #24180e18 100%),
+    url('/textures/covers/kraft-paper.svg'),
     url('/textures/paper-photo.png') !important;
-  background-size: 100% 100%, 132% 132% !important;
-  background-position: center, 51% 49% !important;
-  background-blend-mode: multiply, soft-light !important;
-  box-shadow:
-    inset 0 0 0 1px #fff7e918,
-    inset 8px 0 12px -11px #4a321f73 !important;
+  background-size: 100% 100%, 230px 230px, 135% 135% !important;
+  background-position: center, 11px 19px, 51% 49% !important;
+  background-blend-mode: multiply, multiply, soft-light !important;
 }
 
 .texture-hardcover {
   background-image:
-    radial-gradient(ellipse at 32% 14%, #ffffff13 0, transparent 48%),
-    linear-gradient(95deg, #00000020 0, transparent 10%, transparent 82%, #00000012 100%),
+    radial-gradient(ellipse at 31% 13%, #ffffff10 0, transparent 49%),
+    linear-gradient(95deg, #0000001d 0, transparent 11%, transparent 84%, #00000012 100%),
+    url('/textures/covers/hardboard-fiber.svg'),
     url('/textures/paper-photo.png') !important;
-  background-size: 100% 100%, 100% 100%, 210% 210% !important;
-  background-position: center, center, 50% 50% !important;
-  background-blend-mode: soft-light, multiply, soft-light !important;
-  box-shadow:
-    inset 0 0 0 1px #ffffff12,
-    inset 8px 0 12px -12px #00000072 !important;
+  background-size: 100% 100%, 100% 100%, 420px 420px, 260% 260% !important;
+  background-position: center, center, 23px 8px, 50% 50% !important;
+  background-blend-mode: soft-light, multiply, soft-light, soft-light !important;
 }
 
-/* The inside cover stays material-like, but flatter and less glossy than the outside. */
+/* Remove the old cream sticker look. Titles now read as printing / blind stamping. */
+.texture-kraft .cover-title-stamp,
+.texture-leather .cover-title-stamp,
+.texture-linen .cover-title-stamp,
+.texture-canvas .cover-title-stamp,
+.texture-hardcover .cover-title-stamp {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  opacity: .9 !important;
+}
+
+.texture-leather .cover-title-stamp {
+  color: #ead9b7 !important;
+  text-shadow: 0 1px 0 #25150d80, 0 -1px 0 #fff2d41a !important;
+}
+.texture-linen .cover-title-stamp,
+.texture-canvas .cover-title-stamp {
+  color: #f0eadc !important;
+  text-shadow: 0 1px 1px #201b1666 !important;
+}
+.texture-kraft .cover-title-stamp {
+  color: #4f3823 !important;
+  text-shadow: 0 1px 0 #fff8e03b !important;
+}
+.texture-hardcover .cover-title-stamp {
+  color: #e7d6aa !important;
+  text-shadow: 0 1px 1px #17130e5e !important;
+}
+
+/* Inside faces use the same family of material at lower contrast and gloss. */
 .cover-inside.texture-leather,
 .deck-cover-back.texture-leather,
 .rigid-back.texture-leather {
   background-image:
-    linear-gradient(90deg, #00000028 0, transparent 12%, transparent 89%, #00000016 100%),
+    linear-gradient(90deg, #0000002b 0, transparent 14%, transparent 89%, #00000018 100%),
+    url('/textures/covers/leather-grain.svg'),
     url('/textures/leather-photo.png') !important;
-  background-size: 100% 100%, 150% 150% !important;
-  background-position: center, 42% 52% !important;
-  background-blend-mode: multiply, soft-light !important;
+  background-size: 100% 100%, 230px 230px, 155% 155% !important;
+  background-position: center, 31px 17px, 42% 52% !important;
+  background-blend-mode: multiply, multiply, soft-light !important;
 }
 
 .cover-inside.texture-linen,
 .deck-cover-back.texture-linen,
 .rigid-back.texture-linen {
   background-image:
-    linear-gradient(90deg, #0000001d 0, transparent 12%, transparent 90%, #00000013 100%),
+    linear-gradient(90deg, #0000001d 0, transparent 13%, transparent 90%, #00000013 100%),
+    url('/textures/covers/fabric-weave.svg'),
     url('/textures/linen-photo.png') !important;
-  background-size: 100% 100%, 128% 128% !important;
-  background-position: center, 48% 52% !important;
-  background-blend-mode: multiply, soft-light !important;
+  background-size: 100% 100%, 190px 190px, 130% 130% !important;
+  background-position: center, 9px 21px, 48% 52% !important;
+  background-blend-mode: multiply, soft-light, soft-light !important;
 }
 
 .cover-inside.texture-canvas,
 .deck-cover-back.texture-canvas,
 .rigid-back.texture-canvas {
   background-image:
-    linear-gradient(90deg, #00000028 0, transparent 12%, transparent 90%, #00000018 100%),
+    linear-gradient(90deg, #00000029 0, transparent 13%, transparent 90%, #00000018 100%),
+    url('/textures/covers/fabric-weave.svg'),
     url('/textures/linen-photo.png') !important;
-  background-size: 100% 100%, 175% 175% !important;
-  background-position: center, 52% 52% !important;
-  background-blend-mode: multiply, overlay !important;
+  background-size: 100% 100%, 128px 128px, 178% 178% !important;
+  background-position: center, 14px 7px, 52% 52% !important;
+  background-blend-mode: multiply, multiply, overlay !important;
 }
 
 .cover-inside.texture-kraft,
 .deck-cover-back.texture-kraft,
 .rigid-back.texture-kraft {
   background-image:
-    linear-gradient(90deg, #3d2c1829 0, transparent 12%, transparent 90%, #2d1e1218 100%),
+    linear-gradient(90deg, #3d2b182a 0, transparent 13%, transparent 90%, #2d1e1219 100%),
+    url('/textures/covers/kraft-paper.svg'),
     url('/textures/paper-photo.png') !important;
-  background-size: 100% 100%, 145% 145% !important;
-  background-position: center, 48% 53% !important;
-  background-blend-mode: multiply, soft-light !important;
+  background-size: 100% 100%, 270px 270px, 150% 150% !important;
+  background-position: center, 27px 14px, 48% 53% !important;
+  background-blend-mode: multiply, multiply, soft-light !important;
 }
 
 .cover-inside.texture-hardcover,
 .deck-cover-back.texture-hardcover,
 .rigid-back.texture-hardcover {
   background-image:
-    linear-gradient(90deg, #00000026 0, transparent 13%, transparent 89%, #00000016 100%),
+    linear-gradient(90deg, #00000025 0, transparent 14%, transparent 89%, #00000015 100%),
+    url('/textures/covers/hardboard-fiber.svg'),
     url('/textures/paper-photo.png') !important;
-  background-size: 100% 100%, 220% 220% !important;
-  background-position: center, 52% 50% !important;
-  background-blend-mode: multiply, soft-light !important;
+  background-size: 100% 100%, 480px 480px, 290% 290% !important;
+  background-position: center, 18px 28px, 52% 50% !important;
+  background-blend-mode: multiply, soft-light, soft-light !important;
 }
 
-/* Material-aware exposed edges. */
-.deck-rigid-cover:has(.texture-leather) .deck-cover-edge,
-.rigid-cover:has(.texture-leather) .cover-edge {
-  background: linear-gradient(90deg, #2a180f, color-mix(in srgb, var(--cover-base) 72%, #2a180f), #160d08) !important;
-}
-.deck-rigid-cover:has(.texture-linen) .deck-cover-edge,
-.deck-rigid-cover:has(.texture-canvas) .deck-cover-edge,
-.rigid-cover:has(.texture-linen) .cover-edge,
-.rigid-cover:has(.texture-canvas) .cover-edge {
-  background: linear-gradient(90deg, #6c6253, color-mix(in srgb, var(--cover-base) 78%, #cfc5b3), #554c40) !important;
-}
-.deck-rigid-cover:has(.texture-kraft) .deck-cover-edge,
-.deck-rigid-cover:has(.texture-hardcover) .deck-cover-edge,
-.rigid-cover:has(.texture-kraft) .cover-edge,
-.rigid-cover:has(.texture-hardcover) .cover-edge {
-  background: linear-gradient(90deg, #8b775c, #c9b99c 45%, #776349) !important;
+/* Physical cover shell.
+   Front/back faces sit on opposite Z planes; side/top/bottom are real faces,
+   so the edge stays visible around 90 degrees instead of becoming a flat line. */
+.rigid-cover,
+.deck-rigid-cover {
+  --cover-depth: 8px;
+  --cover-half-depth: 4px;
+  --cover-edge-dark: #46392d;
+  --cover-edge-light: #756653;
+  transform-style: preserve-3d !important;
 }
 
-/* A turning flyleaf represents only the loose sheet. The cover lining remains
-   on the stationary spread and must never be copied onto the moving leaf. */
+.rigid-front,
+.deck-cover-front {
+  transform: translateZ(var(--cover-half-depth)) !important;
+  box-shadow:
+    inset 10px 0 12px -10px #140d08a8,
+    inset -1px 0 0 #fff7e312,
+    9px 12px 24px -14px #2b241c70 !important;
+}
+
+.rigid-back,
+.deck-cover-back {
+  transform: rotateY(180deg) translateZ(var(--cover-half-depth)) !important;
+  box-shadow:
+    inset -10px 0 14px -12px #140d0870,
+    inset 0 0 0 1px #0000001a !important;
+}
+
+.rigid-edge,
+.deck-cover-edge {
+  position: absolute !important;
+  right: calc(var(--cover-half-depth) * -1) !important;
+  top: 1px !important;
+  width: var(--cover-depth) !important;
+  height: calc(100% - 2px) !important;
+  transform: rotateY(90deg) !important;
+  background:
+    linear-gradient(90deg, var(--cover-edge-dark), var(--cover-edge-light) 48%, var(--cover-edge-dark)) !important;
+  box-shadow: inset 0 0 0 1px #00000022 !important;
+  pointer-events: none;
+}
+
+.rigid-cover::before,
+.rigid-cover::after,
+.deck-rigid-cover::before,
+.deck-rigid-cover::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  left: 2px !important;
+  width: calc(100% - 4px) !important;
+  height: var(--cover-depth) !important;
+  background:
+    linear-gradient(180deg, var(--cover-edge-light), var(--cover-edge-dark)) !important;
+  box-shadow: inset 0 0 0 1px #00000020 !important;
+  pointer-events: none !important;
+  z-index: 0;
+}
+
+.rigid-cover::before,
+.deck-rigid-cover::before {
+  top: calc(var(--cover-half-depth) * -1) !important;
+  transform: rotateX(90deg) !important;
+}
+.rigid-cover::after,
+.deck-rigid-cover::after {
+  bottom: calc(var(--cover-half-depth) * -1) !important;
+  transform: rotateX(90deg) !important;
+}
+
+/* Material-specific cross sections. The board construction is intentionally
+   quieter than the printed surface and does not reuse the exterior texture. */
+.rigid-cover:has(.texture-leather),
+.deck-rigid-cover:has(.texture-leather) {
+  --cover-edge-dark: #24150e;
+  --cover-edge-light: #6d4a33;
+}
+.rigid-cover:has(.texture-linen),
+.deck-rigid-cover:has(.texture-linen) {
+  --cover-edge-dark: #51483e;
+  --cover-edge-light: #aa9f8e;
+}
+.rigid-cover:has(.texture-canvas),
+.deck-rigid-cover:has(.texture-canvas) {
+  --cover-edge-dark: #34382e;
+  --cover-edge-light: #747767;
+}
+.rigid-cover:has(.texture-kraft),
+.deck-rigid-cover:has(.texture-kraft) {
+  --cover-edge-dark: #6d5335;
+  --cover-edge-light: #b89a70;
+}
+.rigid-cover:has(.texture-hardcover),
+.deck-rigid-cover:has(.texture-hardcover) {
+  --cover-edge-dark: #5d5142;
+  --cover-edge-light: #b6aa94;
+}
+
+/* Subtle hinge / wrapped edge instead of the old decorative inset rectangle. */
+.rigid-front::before,
+.deck-cover-front::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 auto 0 0 !important;
+  width: 7% !important;
+  border: 0 !important;
+  border-radius: inherit !important;
+  background:
+    linear-gradient(90deg, #0e09075c 0, #0e090726 35%, transparent 100%) !important;
+  box-shadow: inset -1px 0 #fff8e611 !important;
+  pointer-events: none !important;
+  z-index: 2;
+}
+.rigid-front::after,
+.deck-cover-front::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 1px !important;
+  height: auto !important;
+  border-radius: inherit !important;
+  border: 1px solid #fff8ec12 !important;
+  background: transparent !important;
+  box-shadow: inset -1px -1px #00000019 !important;
+  pointer-events: none !important;
+  z-index: 2;
+}
+
+/* The page block belongs to the book, not to the rotating cover. */
+.deck-page-block {
+  background: #eee8dc !important;
+  transform: translateY(3px) translateZ(-1px) !important;
+  box-shadow:
+    0 2px 0 #d9d0c0,
+    0 4px 0 #f6f1e8,
+    0 6px 0 #c8beac,
+    0 18px 32px -18px #2d261e82 !important;
+  overflow: visible !important;
+}
+.deck-page-block::before {
+  content: "" !important;
+  position: absolute;
+  right: -7px;
+  top: 2%;
+  width: 7px;
+  height: 96%;
+  border-radius: 0 3px 3px 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      #f7f3ea 0 2px,
+      #d7cdbd 2px 2.7px,
+      #eee8dc 2.7px 4.8px
+    );
+  box-shadow: inset 1px 0 #b9ae9c66;
+}
+.deck-page-block::after {
+  content: "" !important;
+  position: absolute;
+  left: 1.5%;
+  bottom: -6px;
+  width: 97%;
+  height: 6px;
+  border-radius: 0 0 3px 3px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #f5f0e7 0 4px,
+      #d9cfbe 4px 4.8px,
+      #eee8dc 4.8px 9px
+    );
+  box-shadow: inset 0 1px #b8ad9a66;
+}
+
+/* The workbench already has a real flyleaf under the closed cover. Give that
+   stationary paper a restrained exposed edge instead of painting page layers
+   into the cover shadow. */
+.rigid-underlay > .turn-snapshot {
+  box-shadow:
+    2px 1px 0 #e8e1d4,
+    4px 2px 0 #c9bfad,
+    6px 8px 18px -10px #30282068 !important;
+}
+
+/* Static library covers keep a small page edge but drop the cartoon sandwich. */
+.library-cover {
+  box-shadow:
+    inset 8px 0 11px -9px #130d08a8,
+    inset -1px 0 #fff9e51a,
+    2px 1px 0 #d8cebd,
+    4px 2px 0 #f2eee5,
+    6px 3px 0 #bfb5a3,
+    9px 14px 20px -11px #3129205e !important;
+}
+
+/* Keep the flyleaf bug fix: a turning flyleaf contains only loose paper. */
 .reading-page-turn .flyleaf-moving .cover-inside {
   display: none !important;
 }
