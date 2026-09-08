@@ -4,25 +4,34 @@ import {readFile} from 'node:fs/promises';
 
 const studioPath=new URL('../components/collage-studio.tsx',import.meta.url);
 
-test('travel collage is replaced by a cross-notebook group clipboard',async()=>{
+test('group clipboard is headless and uses native copy paste shortcuts',async()=>{
   const source=await readFile(studioPath,'utf8');
-  assert.match(source,/DialogTitle>组合剪贴板/);
+  assert.match(source,/return null;/);
   assert.match(source,/shiguang\.groupClipboard/);
-  assert.match(source,/fetch\('\/api\/state'\)/);
-  assert.match(source,/复制组合/);
-  assert.match(source,/组合剪贴板/);
-  assert.match(source,/粘贴到当前跨页/);
-  assert.match(source,/stopImmediatePropagation\(\)/);
-  assert.doesNotMatch(source,/奶油纸 · 旅行手记/);
-  assert.doesNotMatch(source,/纸张颜色<input/);
-  assert.doesNotMatch(source,/检查遮挡与越界/);
+  assert.match(source,/shortcut==='c'/);
+  assert.match(source,/shortcut==='v'/);
+  assert.match(source,/window\.addEventListener\('keydown'/);
+  assert.match(source,/onInsert\(payload\.template\)/);
+  assert.match(source,/\.piece\.selected\[data-piece-id\]/);
+  assert.match(source,/AUTOSAVE_SETTLE_MS=650/);
+  assert.doesNotMatch(source,/DialogTitle/);
+  assert.doesNotMatch(source,/粘贴到当前跨页/);
 });
 
-test('clipboard copy detaches copied pieces from source journal entries',async()=>{
+test('obsolete collage controls are removed from the visible editor',async()=>{
+  const source=await readFile(studioPath,'utf8');
+  assert.match(source,/label==='旅行拼贴'\|\|label==='组合剪贴板'/);
+  assert.match(source,/label==='保存组合'/);
+  assert.match(source,/button\.hidden=true/);
+  assert.match(source,/button\.textContent='复制副本'/);
+});
+
+test('cross notebook copy detaches source journal linkage',async()=>{
   const source=await readFile(studioPath,'utf8');
   assert.match(source,/dayId:undefined/);
   assert.match(source,/originIds:undefined/);
   assert.match(source,/sourceDayIds:undefined/);
   assert.match(source,/paragraphIndex:undefined/);
   assert.match(source,/forParagraph:undefined/);
+  assert.match(source,/ratio:bookFormat\(sourceBook\)\.ratio/);
 });
