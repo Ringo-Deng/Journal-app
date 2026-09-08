@@ -1,18 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360">
   <defs>
-    <pattern id="weave" width="28" height="28" patternUnits="userSpaceOnUse">
-      <path d="M4 0V28 M13 0V28 M23 0V28" stroke="#51483f" stroke-opacity="0.105" stroke-width="0.72"/>
-      <path d="M0 5H28 M0 15H28 M0 24H28" stroke="#fffdf8" stroke-opacity="0.19" stroke-width="0.66"/>
-      <path d="M8.5 0V28 M18.5 0V28" stroke="#75695d" stroke-opacity="0.055" stroke-width="0.52"/>
-      <path d="M0 9.5H28 M0 19.5H28" stroke="#5a5047" stroke-opacity="0.052" stroke-width="0.48"/>
-      <path d="M2 2C7 3 10 1 15 2.3S23 3.2 27 2" fill="none" stroke="#fffdf8" stroke-opacity="0.08" stroke-width="0.42"/>
-      <path d="M1 27C7 25.8 12 27.4 17 26.2S24 25.7 28 26.5" fill="none" stroke="#544a41" stroke-opacity="0.055" stroke-width="0.42"/>
+    <pattern id="threads" width="14" height="14" patternUnits="userSpaceOnUse">
+      <path d="M1.4 0V14 M4.4 0V14 M7.3 0V14 M10.4 0V14 M13 0V14" stroke="#4a433b" stroke-opacity="0.075" stroke-width="0.36"/>
+      <path d="M2.8 0V14 M8.9 0V14" stroke="#fffdf7" stroke-opacity="0.11" stroke-width="0.42"/>
+      <path d="M0 1.8H14 M0 4.7H14 M0 7.8H14 M0 10.8H14 M0 13.2H14" stroke="#514940" stroke-opacity="0.052" stroke-width="0.34"/>
+      <path d="M0 3.2H14 M0 9.4H14" stroke="#fffdf7" stroke-opacity="0.085" stroke-width="0.38"/>
     </pattern>
-    <filter id="fibre" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.11" numOctaves="2" seed="17" result="noise"/>
-      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.27  0 0 0 0 0.24  0 0 0 0.085 0"/>
+    <filter id="warp" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013 0.19" numOctaves="3" seed="29" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.24  0 0 0 0 0.22  0 0 0 0 0.20  0 0 0 0.10 0"/>
+    </filter>
+    <filter id="weft" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.17 0.016" numOctaves="2" seed="43" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.96  0 0 0 0 0.94  0 0 0 0 0.90  0 0 0 0.07 0"/>
     </filter>
   </defs>
-  <rect width="320" height="320" fill="url(#weave)"/>
-  <rect width="320" height="320" filter="url(#fibre)" opacity="0.42"/>
+  <rect width="360" height="360" fill="url(#threads)"/>
+  <rect width="360" height="360" filter="url(#warp)" opacity="0.46"/>
+  <rect width="360" height="360" filter="url(#weft)" opacity="0.32"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M18 41C62 39 87 45 128 42S203 38 246 43s69 2 96 0" stroke="#fffdf8" stroke-opacity="0.045" stroke-width="0.55"/>
+    <path d="M9 166C42 163 76 169 111 166s73-2 108 1 86-3 132-1" stroke="#423b35" stroke-opacity="0.04" stroke-width="0.5"/>
+    <path d="M72 7C69 58 75 93 71 137s2 85-1 126 2 68 0 91" stroke="#fffdf8" stroke-opacity="0.04" stroke-width="0.45"/>
+    <path d="M278 3C275 44 280 87 277 126s3 76 0 119 1 75-2 109" stroke="#443d36" stroke-opacity="0.035" stroke-width="0.45"/>
+  </g>
 </svg>
