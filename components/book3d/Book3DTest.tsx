@@ -2,10 +2,94 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { PageFlip } from 'page-flip';
 
 const PAGE_WIDTH = 380;
 const PAGE_HEIGHT = 520;
+const PAGE_FLIP_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js',
+  'https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js',
+] as const;
+
+type PageFlipEvent = {
+  data: number | string;
+};
+
+type PageFlipInstance = {
+  loadFromHTML(items: NodeListOf<HTMLElement> | HTMLElement[]): void;
+  flipNext(corner?: 'top' | 'bottom'): void;
+  flipPrev(corner?: 'top' | 'bottom'): void;
+  turnToPage(pageNum: number): void;
+  on(event: string, callback: (event: PageFlipEvent) => void): void;
+  destroy(): void;
+};
+
+type PageFlipConstructor = new (
+  element: HTMLElement,
+  settings: Record<string, number | string | boolean>,
+) => PageFlipInstance;
+
+type PageFlipWindow = Window & {
+  St?: {
+    PageFlip?: PageFlipConstructor;
+  };
+};
+
+function getPageFlipConstructor(): PageFlipConstructor | null {
+  return (window as PageFlipWindow).St?.PageFlip ?? null;
+}
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[data-page-flip-src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === 'true') {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.dataset.pageFlipSrc = src;
+    script.addEventListener(
+      'load',
+      () => {
+        script.dataset.loaded = 'true';
+        resolve();
+      },
+      { once: true },
+    );
+    script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
+      once: true,
+    });
+    document.head.appendChild(script);
+  });
+}
+
+async function loadPageFlip(): Promise<PageFlipConstructor> {
+  const existing = getPageFlipConstructor();
+  if (existing) return existing;
+
+  let lastError: unknown = null;
+  for (const src of PAGE_FLIP_SOURCES) {
+    try {
+      await loadScript(src);
+      const constructor = getPageFlipConstructor();
+      if (constructor) return constructor;
+      lastError = new Error(`St.PageFlip missing after loading ${src}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to load StPageFlip');
+}
 
 const pageMarkup = `
   <div class="pf-page pf-cover" data-density="hard">
@@ -151,14 +235,14 @@ const pageCss = `
 
 export default function Book3DTest() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const pageFlipRef = useRef<PageFlip | null>(null);
+  const pageFlipRef = useRef<PageFlipInstance | null>(null);
   const [ready, setReady] = useState(false);
   const [state, setState] = useState('正在加载成熟翻页引擎…');
   const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    let instance: PageFlip | null = null;
+    let instance: PageFlipInstance | null = null;
     const host = hostRef.current;
     if (!host) return;
 
@@ -169,7 +253,7 @@ export default function Book3DTest() {
 
     const init = async () => {
       try {
-        const { PageFlip: PageFlipCtor } = await import('page-flip');
+        const PageFlipCtor = await loadPageFlip();
         if (cancelled) return;
 
         instance = new PageFlipCtor(root, {
@@ -219,7 +303,8 @@ export default function Book3DTest() {
       } catch (error) {
         console.error('Failed to initialise StPageFlip experiment', error);
         if (!cancelled) {
-          setState('翻页引擎未安装：请先执行 npm install，再刷新此页');
+          setReady(false);
+          setState('翻页引擎网络加载失败，但页面本身已恢复；稍后刷新即可重试');
         }
       }
     };
@@ -229,7 +314,11 @@ export default function Book3DTest() {
     return () => {
       cancelled = true;
       pageFlipRef.current = null;
-      instance?.destroy();
+      try {
+        instance?.destroy();
+      } catch {
+        // StPageFlip may already have removed its root during teardown.
+      }
       host.replaceChildren();
     };
   }, []);
@@ -276,10 +365,10 @@ export default function Book3DTest() {
                 marginBottom: 10,
               }}
             >
-              成熟翻页引擎对照实验 · StPageFlip
+              成熟翻页引擎对照实验 · StPageFlip（无 npm 依赖）
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              不再自制 Three.js 翻页
+              先保证页面稳定打开
             </h1>
             <p style={{ margin: '8px 0 0', opacity: 0.72, fontSize: 14 }}>
               {state} · 当前页 {pageIndex + 1}
