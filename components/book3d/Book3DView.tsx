@@ -21,7 +21,6 @@ import {
   finishBookTurn,
   settleDrag,
   advanceDrag,
-  bindingProfile,
   TURN_SECONDS,
   type DragTurn,
   type BookTurn,
@@ -373,42 +372,6 @@ function PageShade({
   );
 }
 
-function BookBinding({
-  leftCount,
-  rightCount,
-  leaf,
-  progress,
-}: {
-  leftCount: number;
-  rightCount: number;
-  leaf: number | null;
-  progress: { current: number };
-}) {
-  const { BOOK, stackTop, sampleSheet } = useBookScene();
-  const geometry = useMemo(() => new PlaneGeometry(0.28, BOOK.height, 32, 1), [BOOK.height]);
-  const last = useRef("");
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useFrame(() => {
-    const left = stackTop(leftCount) + 0.008;
-    const right = stackTop(rightCount) + 0.008;
-    const hinge = leaf === null ? Math.max(left, right) : sampleSheet(progress.current, leaf)[0].z;
-    const key = `${left}/${right}/${hinge}`;
-    if (last.current === key) return;
-    last.current = key;
-    const profile = bindingProfile(left, right, hinge);
-    const positions = geometry.attributes.position;
-    for (let i = 0; i < positions.count; i++) positions.setZ(i, profile[i % 33].z + 0.001);
-    positions.needsUpdate = true;
-    geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-  });
-  return (
-    <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial color="#fffdf6" side={DoubleSide} roughness={0.98} />
-    </mesh>
-  );
-}
-
 /** Narrow folded cloth edges stay attached to each moving cover. */
 function CoverTurnIns({ side, color }: { side: -1 | 1; color: string }) {
   const { BOOK } = useBookScene();
@@ -757,14 +720,7 @@ function BookModel({
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
       </group>
-      {state.opened && !state.backClosed && (!motion || motion.kind === "page") && (
-        <BookBinding
-          leftCount={leftCount}
-          rightCount={rightCount}
-          leaf={turning ? leaf : null}
-          progress={progress}
-        />
-      )}
+
     </group>
   );
 }
