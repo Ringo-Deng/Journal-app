@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">
+  <defs>
+    <filter id="grain" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.052" numOctaves="5" seed="23" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="1.5 0 0 0 -0.2  0 1.35 0 0 -0.18  0 0 1.2 0 -0.12  0 0 0 0.62 0" result="grainNoise"/>
+      <feSpecularLighting in="noise" surfaceScale="2.4" specularConstant="0.48" specularExponent="16" lighting-color="#f6dfbf" result="spec">
+        <feDistantLight azimuth="225" elevation="48"/>
+      </feSpecularLighting>
+      <feBlend in="grainNoise" in2="spec" mode="soft-light"/>
+    </filter>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8f6a50"/>
+      <stop offset="0.52" stop-color="#76533f"/>
+      <stop offset="1" stop-color="#694937"/>
+    </linearGradient>
+    <radialGradient id="wear" cx="32%" cy="20%" r="85%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.09"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2b1c15" stop-opacity="0.12"/>
+    </radialGradient>
+  </defs>
+  <rect width="384" height="384" fill="url(#base)"/>
+  <rect x="-8" y="-8" width="400" height="400" filter="url(#grain)" opacity="0.82"/>
+  <rect width="384" height="384" fill="url(#wear)"/>
+  <g fill="none" stroke="#3f2a20" stroke-opacity="0.18" stroke-width="0.8">
+    <path d="M-20 92 C52 72 118 116 188 93 S320 76 408 106"/>
+    <path d="M-26 248 C40 221 114 264 184 244 S311 230 410 258"/>
+    <path d="M72 -18 C91 48 65 107 83 176 S101 303 79 408"/>
+  </g>
+</svg>
