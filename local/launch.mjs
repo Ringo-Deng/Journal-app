@@ -5,6 +5,12 @@ import { homedir, platform } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
+import {
+  clearLauncherLease,
+  stopLegacyShiguangProcesses,
+  stopPreviousLauncher,
+  writeLauncherLease,
+} from './launcher-instance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -97,11 +103,31 @@ async function waitForHealth(url, child) {
 }
 
 let child;
+let cfg = '';
+let leaseActive = false;
+async function releaseLease() {
+  if (!cfg || !leaseActive) return;
+  await clearLauncherLease(cfg).catch(() => false);
+  leaseActive = false;
+}
 try {
   if (!APP_VERSION) throw Error('无法读取 package.json 中的应用版本。');
   if (!nodeVersionOK()) throw Error(`Node.js 版本过旧（当前 ${process.versions.node}）。拾光手帐 v${APP_VERSION} 需要 Node.js 22.13.0 或更高版本。`);
-  const cfg = configDir();
+  cfg = configDir();
   await ensurePersistentSettings(cfg);
+
+  // Older launchers used a different free port every time, so multiple stale
+  // Shiguang instances could stay alive together. Clean same-project launchers
+  // before choosing ports, then keep a pid lease so later launches are exact.
+  const legacyPids = await stopLegacyShiguangProcesses({ root });
+  const previous = await stopPreviousLauncher({ configDir: cfg });
+  if (legacyPids.length || previous.stopped) {
+    console.log('已关闭上一份拾光手帐实例，正在启动当前版本…');
+    await new Promise(r => setTimeout(r, 300));
+  }
+  await writeLauncherLease(cfg, APP_VERSION);
+  leaseActive = true;
+
   let url;
   const production = await productionBundleState();
   if (devMode) {
@@ -140,11 +166,23 @@ try {
   console.log(`拾光手帐 v${APP_VERSION} 已启动：${url}`);
   console.log(`AI 配置保存在：${cfg}`);
   openBrowser(`${url}/?build=${encodeURIComponent(APP_VERSION)}`);
-  if (exitAfterHealth) { child.kill('SIGTERM'); process.exit(0); }
-  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child?.kill('SIGTERM'));
-  await new Promise((ok, fail) => { child.on('exit', code => code === 0 || code === null ? ok() : fail(Error(`拾光已退出（${code}）`))); child.on('error', fail); });
+  if (exitAfterHealth) {
+    child.kill('SIGTERM');
+    await releaseLease();
+    process.exit(0);
+  }
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+    child?.kill('SIGTERM');
+    void releaseLease();
+  });
+  await new Promise((ok, fail) => {
+    child.on('exit', code => code === 0 || code === null ? ok() : fail(Error(`拾光已退出（${code}）`)));
+    child.on('error', fail);
+  });
+  await releaseLease();
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   child?.kill('SIGTERM');
+  await releaseLease();
   process.exitCode = 1;
 }
