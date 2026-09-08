@@ -1,6 +1,6 @@
 {
   "name": "shiguang-journal",
-  "version": "0.1.60",
+  "version": "0.1.61",
   "private": true,
   "engines": {
     "node": ">=22.21.0"
