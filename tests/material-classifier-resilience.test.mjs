@@ -39,7 +39,9 @@ test('one out-of-taxonomy label no longer kills the whole material batch', () =>
   assert.equal(proposals.length, 2);
   assert.deepEqual(proposals[0].labels.style, []);
   assert.deepEqual(proposals[0].labels.color, ['粉']);
-  assert.equal(proposals[0].review.pending, true);
+  assert.equal(proposals[0].confident, false);
+  assert.equal(proposals[0].group, '装饰贴纸');
+  assert.equal(proposals[0].review, undefined);
   assert.equal(proposals[1].confident, true);
   assert.equal(proposals[1].review, undefined);
 });
@@ -70,5 +72,7 @@ test('missing or extra AI rows are isolated instead of invalidating valid rows',
   const proposals = classificationProposals(normalized, assets, defaultTaxonomy);
   assert.equal(proposals[0].confident, true);
   assert.equal(proposals[1].confident, false);
-  assert.match(proposals[1].review.reason, /未返回/);
+  assert.equal(proposals[1].group, '其他');
+  assert.equal(proposals[1].review, undefined);
+  assert.match(proposals[1].reason, /未返回/);
 });

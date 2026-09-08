@@ -1038,16 +1038,16 @@ export default function Home() {
     else if(d.mode==='move')patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100},false);
     else patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100,w:box.w/d.canvasW*100,h:box.h/d.canvasH*100,stretch:true},false);
   }
-  function insertLibraryAssets(list:Asset[],side:number) {
+  function insertLibraryAssets(list:Asset[]) {
     if(!book||!list.length)return false;
-    if(page===-1)side=1;
+    const side=page===-1?1:0;
     const current=spread;
     if((current?.elements.length||0)+list.length>300){toast('这一页素材过多，请先翻到新页。');return false;}
     const columns=Math.min(4,Math.ceil(Math.sqrt(list.length))),rows=Math.ceil(list.length/columns);
     const pieces:Piece[]=list.map((a,i)=>({id:uid(),kind:'asset',assetId:a.id,src:a.src,x:side*50+5+(i%columns)*(40/columns),y:10+Math.floor(i/columns)*(72/rows),w:list.length===1?18:Math.min(13,36/columns),rotation:0,locked:false}));
     if(page>=0&&!book.spreads.length)change(all=>all.map(b=>b.id===book.id?addBlankSpread(b):b),false);
     changeSpread(s=>({...s,elements:[...s.elements,...pieces]}));
-    setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setSelected(pieces.length===1?pieces[0].id:null);toast(`已将${list.length}件素材放入${side===0?'左':'右'}页，可拖动调整。`);return true;
+    setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setSelected(pieces.length===1?pieces[0].id:null);toast(`已将${list.length}件素材放入手帐，可拖动调整。`);return true;
   }
   function savePaper() {
     if (!book) return;

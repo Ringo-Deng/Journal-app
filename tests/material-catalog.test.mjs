@@ -34,15 +34,15 @@ test('add-label dedupes and rejects long names',async()=>{
  assert.equal(second.catalog.taxonomy.labels.color.filter(n=>n==='奶茶色').length,1);
  await assert.rejects(()=>service.handle('/api/materials/catalog','POST',{revision:2,action:'add-label',dimension:'color',name:'这是一个非常非常非常长的标签名'}),e=>e.status===400);
 });
-test('classification produces proposals with review flags and supports selective application',async()=>{
+test('classification proposals are final and apply directly, with uncertain items grouped under 其他',async()=>{
  const {service}=await fixture(async()=>({items:assets.map((a,i)=>({id:a.id,group:i?'装饰贴纸':'',labels:{content:['植物'],style:['复古'],color:['粉']},confident:!!i,reason:i?'看图判断':'无法判断'}))}));
  const job=await service.handle('/api/materials/classify','POST',{ids:assets.map(a=>a.id),useImages:false});
  const finished=await complete(service,job);assert.equal(finished.status,'complete');assert.equal(finished.proposals.length,2);
- assert.equal(finished.proposals[0].review.pending,true);assert.equal(finished.proposals[1].review,undefined);
- assert.equal(service.decorate(assets)[0].group,undefined);
+ assert.equal(finished.proposals[0].group,'其他');assert.equal(finished.proposals[0].review,undefined);assert.equal(finished.proposals[1].review,undefined);
+ assert.equal(service.decorate(assets)[0].group,'其他');
  const result=await service.handle('/api/materials/catalog','POST',{revision:0,action:'apply',jobId:job.id,ids:['built-in']});
- assert.equal(result.assets[0].group,undefined);assert.deepEqual(result.assets[0].labels.content,['植物']);
- assert.equal(result.assets[0].review.pending,true);
+ assert.equal(result.assets[0].group,'其他');assert.deepEqual(result.assets[0].labels.content,['植物']);
+ assert.equal(result.assets[0].review,undefined);
  assert.equal(result.catalog.lastJobId,undefined);
 });
 test('AI suggestions never overwrite manual group or labels',async()=>{
@@ -59,7 +59,7 @@ test('AI cannot invent words or silently omit assets',()=>{
  assert.throws(()=>classificationProposals({items:assets.map(a=>({id:a.id,group:'随便编造',labels:{content:[],style:[],color:[]},confident:true}))},assets,defaultTaxonomy),/无效主分类/);
  assert.throws(()=>classificationProposals({items:assets.map(a=>({id:a.id,group:'纸张',labels:{content:['编造'],style:[],color:[]},confident:true}))},assets,defaultTaxonomy),/词表/);
  const proposals=classificationProposals({items:assets.map(a=>({id:a.id,group:'',labels:{content:['植物'],style:[],color:[]},confident:true}))},assets,defaultTaxonomy);
- assert.equal(proposals[0].review.pending,true);
+ assert.equal(proposals[0].group,'其他');assert.equal(proposals[0].review,undefined);
 });
 
 test('AI keeps one label per dimension, records a warning, while manual multi-label data remains supported',async()=>{
@@ -71,15 +71,15 @@ test('AI keeps one label per dimension, records a warning, while manual multi-la
  const result=await service.handle('/api/materials/catalog','POST',{revision:0,action:'apply',manual:true,patches:[{id:'built-in',group:'装饰贴纸',labels:{content:['植物','人物'],style:['复古','清新'],color:['红','粉']}}]});
  assert.deepEqual(result.assets[0].labels,{content:['植物','人物'],style:['复古','清新'],color:['红','粉']});
 });
-test('style may be empty without review, but missing content or color is pending',()=>{
+test('style may be empty without penalty, and missing content or color no longer needs confirmation',()=>{
  const styleEmpty=classificationProposals({items:assets.map(a=>({id:a.id,group:'纸张',labels:{content:['几何符号'],style:[],color:['黑白灰']},confident:true,reason:'形态和颜色明确'}))},assets,defaultTaxonomy);
  assert.equal(styleEmpty[0].confident,true);assert.equal(styleEmpty[0].review,undefined);
  const missingContent=classificationProposals({items:assets.map(a=>({id:a.id,group:'纸张',labels:{content:[],style:[],color:['黑白灰']},confident:true,reason:''}))},assets,defaultTaxonomy);
- assert.equal(missingContent[0].confident,false);assert.equal(missingContent[0].review.pending,true);assert.match(missingContent[0].review.reason,/内容/);
+ assert.equal(missingContent[0].confident,false);assert.equal(missingContent[0].group,'纸张');assert.equal(missingContent[0].review,undefined);
  const missingColor=classificationProposals({items:assets.map(a=>({id:a.id,group:'纸张',labels:{content:['几何符号'],style:[],color:[]},confident:true,reason:''}))},assets,defaultTaxonomy);
- assert.equal(missingColor[0].confident,false);assert.equal(missingColor[0].review.pending,true);assert.match(missingColor[0].review.reason,/颜色/);
+ assert.equal(missingColor[0].confident,false);assert.equal(missingColor[0].review,undefined);
 });
-test('classification prompt requires independent dimensions, strict single labels and multicolor fallback',async()=>{
+test('classification prompt requires independent dimensions, strict single labels and a final group for every item',async()=>{
  let checked=false;
  const {service}=await fixture(async messages=>{
   const system=messages[0].content;
@@ -87,10 +87,12 @@ test('classification prompt requires independent dimensions, strict single label
   assert.match(system,/每个维度最多输出一个标签/);
   assert.match(system,/内容维度严格单标/);
   assert.match(system,/没有任何颜色达到约80%且明显多色混杂，标「多彩」/);
-  assert.match(system,/仅风格留空不应使 confident=false/);
+  assert.match(system,/无法判断时主分类一律输出「其他」/);
+  assert.match(system,/无需人工确认/);
+  assert.doesNotMatch(system,/confident/);
   checked=true;
   const payload=JSON.parse(messages.at(-1).content);
-  return {items:payload.items.map(a=>({id:a.id,group:'装饰贴纸',labels:{content:['植物'],style:[],color:['多彩']},confident:true,reason:'规则测试'}))};
+  return {items:payload.items.map(a=>({id:a.id,group:'装饰贴纸',labels:{content:['植物'],style:[],color:['多彩']},reason:'规则测试'}))};
  });
  const job=await service.handle('/api/materials/classify','POST',{ids:['built-in'],useImages:false});
  const finished=await complete(service,job);
@@ -101,7 +103,7 @@ test('cancelling an active classification does not commit any metadata',async()=
  const job=await service.handle('/api/materials/classify','POST',{ids:assets.map(a=>a.id),useImages:false});
  await new Promise(r=>setTimeout(r,20));
  await service.handle('/api/materials/classify/'+job.id+'/cancel','POST',{});
- assert.equal((await complete(service,job)).status,'cancelled');assert.equal(service.decorate(assets)[0].group,undefined);
+ assert.equal((await complete(service,job)).status,'cancelled');assert.equal(service.decorate(assets)[0].group,'其他');
 });
 test('startup migration maps old taxonomy and drops stale override ids',async()=>{
  const files=new Map([['material-catalog.json',{revision:5,taxonomy:{styles:['复古拼贴'],functions:['主题贴纸'],customCategories:[]},overrides:{'built-in':{styles:['复古拼贴'],functions:['主题贴纸'],subjectTags:['玫瑰']},imported:{functions:['胶带']},gone:{functions:['胶带']}}}],['material-classification-jobs.json',[]]]);
@@ -110,8 +112,7 @@ test('startup migration maps old taxonomy and drops stale override ids',async()=
  assert.deepEqual(catalog.taxonomy,defaultTaxonomy);
  const decorated=service.decorate(assets);
  assert.equal(decorated[0].group,'装饰贴纸');
- assert.equal(decorated[0].review.pending,true);
- assert.equal(decorated[0].review.reason,'由旧分类迁移，形态待确认');
+ assert.equal(decorated[0].review,undefined);
  assert.deepEqual(decorated[0].labels.style,['复古']);
  assert.ok(decorated[0].tags.includes('玫瑰'));
  assert.equal(decorated[1].group,'胶带');
