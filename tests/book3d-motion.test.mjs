@@ -80,3 +80,90 @@ test("zoomed turns remain reachable inside a narrow viewport", async () => {
     }
   }
 });
+
+test("the full physical book opens, reaches the back cover, closes and reopens in reverse", async () => {
+  const { nextBookTurn, finishBookTurn } = await import("../lib/book3d-motion.ts");
+  const initial = { opened: false, turned: 0, backClosed: false };
+  let position = initial;
+  const forward = [];
+  for (let i = 0; i < BOOK.leaves + 2; i++) {
+    const motion = nextBookTurn(position, 1);
+    assert.ok(motion);
+    forward.push(motion.kind);
+    position = finishBookTurn(position, motion);
+  }
+  assert.deepEqual(forward, ["cover", ...Array(BOOK.leaves).fill("page"), "back-cover"]);
+  assert.equal(position.backClosed, true);
+  assert.equal(nextBookTurn(position, 1), null);
+  assert.equal(nextBookTurn(position, -1).kind, "back-cover");
+  for (let i = 0; i < BOOK.leaves + 2; i++)
+    position = finishBookTurn(position, nextBookTurn(position, -1));
+  assert.deepEqual(position, initial);
+  assert.equal(nextBookTurn(position, -1), null);
+});
+
+test("a held drag never settles itself, including full travel and more than ten seconds held", async () => {
+  const { advanceDrag, TURN_SECONDS } = await import("../lib/book3d-motion.ts");
+  const control = { progress: 0.7, target: null, settleFrom: 0, elapsed: 0 };
+  for (let i = 0; i < 900; i++)
+    assert.equal(advanceDrag(control, 1 / 60, TURN_SECONDS.page), false);
+  near(control.progress, 0.7);
+  control.progress = 1;
+  assert.equal(advanceDrag(control, 5, TURN_SECONDS.page), false);
+  near(control.progress, 1);
+  // Pointer motion may still pull the sheet back while held at the far edge.
+  control.progress = 0.6;
+  assert.equal(advanceDrag(control, 5, TURN_SECONDS.page), false);
+  near(control.progress, 0.6);
+});
+
+test("release uses the original duration with a smooth landing, without exponential snapping", async () => {
+  const { advanceDrag, settleDrag, TURN_SECONDS } = await import("../lib/book3d-motion.ts");
+  near(TURN_SECONDS.page, 1.08);
+  near(TURN_SECONDS.cover, 1.05);
+  for (const [start, target] of [
+    [0, 1],
+    [0.7, 1],
+    [0.2, 0],
+  ]) {
+    const control = { progress: start, target: null, settleFrom: 0, elapsed: 0 };
+    settleDrag(control, target);
+    assert.equal(advanceDrag(control, 0.54, TURN_SECONDS.page), false);
+    near(control.progress, (start + target) / 2);
+    // A redundant release cannot reset the running settlement.
+    settleDrag(control, target);
+    assert.equal(advanceDrag(control, 0.54, TURN_SECONDS.page), true);
+    near(control.progress, target);
+  }
+});
+
+test("cancelling front cover, paper and back cover preserves the previous physical position", async () => {
+  const { nextBookTurn, finishBookTurn } = await import("../lib/book3d-motion.ts");
+  for (const position of [
+    { opened: false, turned: 0, backClosed: false },
+    { opened: true, turned: 3, backClosed: false },
+    { opened: true, turned: BOOK.leaves, backClosed: false },
+    { opened: true, turned: BOOK.leaves, backClosed: true },
+  ]) {
+    const motion = nextBookTurn(position, position.backClosed ? -1 : 1);
+    motion.drag = { progress: 0.4, target: 0, settleFrom: 0.4, elapsed: 0 };
+    assert.deepEqual(finishBookTurn(position, motion), position);
+  }
+});
+
+test("white binding joins both resting sheets and the actual moving hinge across all leaves", async () => {
+  const { bindingProfile } = await import("../lib/book3d-motion.ts");
+  for (let leaf = 0; leaf < BOOK.leaves; leaf++) {
+    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+      const hinge = sampleSheet(progress, leaf)[0].z;
+      const left = stackTop(leaf) + 0.008;
+      const right = stackTop(BOOK.leaves - leaf - 1) + 0.008;
+      const profile = bindingProfile(left, right, hinge);
+      near(profile[0].z, left);
+      near(profile.at(-1).z, right);
+      near(profile[16].x, 0);
+      near(profile[16].z, hinge);
+      assert.ok(profile.every((point) => Number.isFinite(point.z)));
+    }
+  }
+});
