@@ -58,7 +58,9 @@ function grain(x: number, y: number, kind: CoverMaterial) {
 
 export function createCoverTextures(kind: CoverMaterial, color?: string) {
   const settings = { ...COVER_MATERIALS[kind], ...(color ? { color } : {}) };
-  const cleanYellowPlaid = kind === "fabric" && settings.color.toLowerCase() === "#f4ce75";
+  // The clean stationery edition may deliberately use the smooth renderer path;
+  // identify its artwork by palette rather than the generic material label.
+  const cleanYellowPlaid = settings.color.toLowerCase() === "#f4ce75";
   const canvas = document.createElement("canvas");
   canvas.width = 768;
   canvas.height = cleanYellowPlaid ? 1152 : 1024;
