@@ -3,6 +3,7 @@ import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} fr
 import ReadingLeaf from './reading-leaf';
 import NotebookPaper from './notebook-paper';
 import { pageInk } from '@/lib/journal';
+import { isPieceHidden } from '@/lib/layer-meta';
 import JournalDrawing from '@/components/journal-drawing';
 /* oxlint-disable next/no-img-element -- Render the existing local page images on both sides of a turning sheet. */
 import { memo, type CSSProperties } from 'react';
@@ -75,7 +76,7 @@ function SpreadPreviewImpl({
         </>
       )}
       <div className="paper-grain" />
-      {spread.elements.map((p) => (
+      {spread.elements.filter((p)=>!isPieceHidden(p)).map((p) => (
         <div
           key={p.id}
           className={`piece piece-${p.kind} ${p.doodleMotif ? 'hand-doodle' : ''} ${p.role || ''} ${p.frame || ''} ${p.stretch ? 'piece-stretched' : ''} ${pieceClasses(p)}`}
