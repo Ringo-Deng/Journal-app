@@ -22,6 +22,8 @@ import type { CSSProperties } from 'react';
 import { paperSettings, applyPaper, type PaperStyle } from '@/lib/journal';
 import MaterialStudio from '@/components/material-studio';
 import MaterialLibrary from '@/components/material-library';
+import LayerRowActions from '@/components/layer-row-actions';
+import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
 /* oxlint-disable jsx-a11y/no-static-element-interactions -- Draggable canvas objects expose keyboard selection and coordinate controls. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -41,6 +43,7 @@ import {
   Unlock,
   Trash2,
   RotateCcw,
+  Redo2,
   Download,
   Check,
   Loader2,
@@ -314,6 +317,7 @@ export default function Home() {
     writing = useRef(false),
     dirty = useRef(false),
     history = useRef<Book[][]>([]),
+    future = useRef<Book[][]>([]),
     booksRef = useRef(books),
     drag = useRef<{
       id:string; x:number; y:number; mode:string; box:Box;
@@ -443,11 +447,16 @@ export default function Home() {
   const remember = () => {
     history.current.push(structuredClone(booksRef.current));
     if (history.current.length > 30) history.current.shift();
+    future.current = [];
   };
   const change = (fn: (all: Book[]) => Book[], withHistory = true) => {
     if (withHistory) remember();
     dirty.current = true;
-    setBooks((all) => fn(all));
+    setBooks((all) => {
+      const next=fn(all);
+      booksRef.current=next;
+      return next;
+    });
   };
   const changeSpread = (fn: (s: Spread) => Spread, withHistory = true) =>
     change(
@@ -574,13 +583,34 @@ export default function Home() {
     const next=[...new Set([...current,p.id])];
     setEditingGroup(p.groupId||editingGroup);setMultiIds(next);setSelected(selected&&next.includes(selected)?selected:p.id);
   }
+  function setLayerVisibility(members:Piece[],hidden:boolean){
+    const ids=new Set(members.map(p=>p.id));
+    changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta(p,{hidden}):p)}));
+    if(hidden&&activePieces.some(p=>ids.has(p.id)))setSelected(null);
+  }
+  function setLayerLocked(members:Piece[],locked:boolean){
+    const ids=new Set(members.map(p=>p.id));
+    changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,locked}:p)}));
+  }
+  function renameLayer(members:Piece[],group=false){
+    if(!members.length)return;
+    const current=group?pieceGroupName(members[0]):pieceLayerName(members[0]);
+    const entered=window.prompt(group?'组合名称':'图层名称',current||'');
+    if(entered===null)return;
+    const name=entered.trim().slice(0,40)||undefined,ids=new Set(members.map(p=>p.id));
+    changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta(p,group?{groupName:name}:{layerName:name}):p)}));
+  }
+  function moveLayer(members:Piece[],action:'top'|'bottom'|'up'|'down'){
+    const ids=members.map(p=>p.id);
+    changeSpread(s=>({...s,elements:reorderLayerBlock(s.elements,ids,action)}));
+  }
   function patchSelection(patch:Partial<Piece>){const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,...patch}:p)}));}
   function groupSelection(){
     const id=uid(),ids=new Set(activePieces.map(p=>p.id));
     changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,groupId:id}:p)}));setMultiIds([]);setEditingGroup(null);toast('已编组；拖动时一起移动，双击可编辑组内元素。');
   }
   function ungroupSelection(){
-    const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,groupId:undefined,attachedTo:undefined}:p)}));setMultiIds([]);setEditingGroup(null);toast('已解组。');
+    const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta({...p,groupId:undefined,attachedTo:undefined},{groupName:undefined}):p)}));setMultiIds([]);setEditingGroup(null);toast('已解组。');
   }
   function enterGroup(p:Piece){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setSelected(p.id);setEditingGroup(p.groupId||null);if(p.kind==='text'){setInlineId(p.id);setInlineText(p.text||'');}}
   function addPhotoAttachment(kind:'caption'|'tape'){
@@ -615,11 +645,11 @@ export default function Home() {
     if(!book||!spread)return;
     await document.fonts.ready;
     await Promise.all(Array.from(canvas.current?.querySelectorAll('img')||[]).map(img=>img.decode().catch(()=>{})));
-    const measured=spread.elements.map(p=>{const el=selectedNode(p.id),ch=canvas.current?.clientHeight||700;const height=el?Math.max(el.offsetHeight,el.scrollHeight):0;return {...p,h:height?height/ch*100:p.h};});
+    const measured=spread.elements.filter(p=>!isPieceHidden(p)).map(p=>{const el=selectedNode(p.id),ch=canvas.current?.clientHeight||700;const height=el?Math.max(el.offsetHeight,el.scrollHeight):0;return {...p,h:height?height/ch*100:p.h};});
     const header=Math.max(3,...(['left','right'] as const).map(side=>{const h=headerOf(book,pageSpread(spread,side));return h.enabled?h.height+2:3;}));
     const report=tidy?tidyLayout(measured,bookFormat(book).ratio,header):{elements:measured,issues:layoutIssues(measured,bookFormat(book).ratio,header)};
     setLayoutReport(report.issues);setCollageOpen(false);
-    if(tidy){const byId=new Map<string,Piece>(report.elements.map((p:Piece)=>[p.id,p] as const));const updated={...spread,elements:spread.elements.map(p=>{const q=byId.get(p.id)!;return {...p,x:q.x,y:q.y};})};setDesignPreview({book,spread:updated,before:JSON.stringify(spread),concept:report.issues.length?'保留内容与组合。仍有遮挡或空间不足，请查看提示。':'已整理位置，保留所有内容和组合。'});}
+    if(tidy){const byId=new Map<string,Piece>(report.elements.map((p:Piece)=>[p.id,p] as const));const updated={...spread,elements:spread.elements.map(p=>{const q=byId.get(p.id);return q?{...p,x:q.x,y:q.y}:p;})};setDesignPreview({book,spread:updated,before:JSON.stringify(spread),concept:report.issues.length?'保留内容与组合。仍有遮挡或空间不足，请查看提示。':'已整理位置，保留所有内容和组合。'});}
     else toast(report.issues.length?`发现 ${report.issues.length} 处需要检查，点击提示可定位。`:'未发现文字遮挡、书脊穿越或纸面越界。');
   }
   useEffect(()=>{
@@ -651,11 +681,26 @@ export default function Home() {
   const undo = () => {
     const previous = history.current.pop();
     if (previous) {
+      future.current.push(structuredClone(booksRef.current));
+      if(future.current.length>30)future.current.shift();
       dirty.current = true;
+      booksRef.current=previous;
       setBooks(previous);
       setSelected(null);
       toast('已撤销上一步');
     } else toast('还没有可以撤销的修改');
+  };
+  const redo = () => {
+    const next=future.current.pop();
+    if(next){
+      history.current.push(structuredClone(booksRef.current));
+      if(history.current.length>30)history.current.shift();
+      dirty.current=true;
+      booksRef.current=next;
+      setBooks(next);
+      setSelected(null);
+      toast('已重做上一步');
+    }else toast('还没有可以重做的修改');
   };
   const removePiece = () => {
     if (selected && !selectionLocked) {
@@ -878,16 +923,20 @@ export default function Home() {
               ratio:bookFormat(book).ratio,
               headerSpace,
               instruction: inst ?? instruction,
-              elements: regen ? spread!.elements.map(p=>({...p,locked:!!p.groupId || preserveLocks && p.locked})) : [],
+              elements: regen ? spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId || preserveLocks && p.locked})) : [],
             }),
           )
         : localResult(days, currentTheme);
       if (regen && JSON.stringify(booksRef.current.find(b=>b.id===book.id)?.spreads[page]) !== JSON.stringify(spread)) throw Error('设计期间页面发生了修改，请重新设计以包含最新内容。');
       if (regen) {
-        if(result.elements)result.elements=reserveHeaderSpace(result.elements,headerSpace,preserveLocks?spread!.elements.filter(p=>p.locked).map(p=>p.id):[]);
-        const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:!!p.groupId||preserveLocks&&p.locked}))};
+        if(result.elements)result.elements=reserveHeaderSpace(result.elements,headerSpace,spread!.elements.filter(p=>isPieceHidden(p)||(preserveLocks&&p.locked)).map(p=>p.id));
+        const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId||preserveLocks&&p.locked}))};
         const designed=regenerateSpread(protectedSpread,result,assets);
-        designed.elements=designed.elements.map(p=>p.groupId?{...p,locked:spread!.elements.find(q=>q.id===p.id)?.locked||false}:p);
+        designed.elements=designed.elements.map(p=>{
+          const original=spread!.elements.find(q=>q.id===p.id);
+          const restored=p.groupId?{...p,locked:original?.locked||false}:p;
+          return original?withLayerMeta(restored,{hidden:isPieceHidden(original)||undefined,layerName:pieceLayerName(original),groupName:pieceGroupName(original)}):restored;
+        });
         setDesignPreview({book,spread:designed,before:JSON.stringify(spread),concept:result.designConcept});
       } else {
         const updated = appendDay(book, day, result, assets, Math.max(0, page), entrySide==='left'?0:1, headerSpace);
@@ -1397,7 +1446,10 @@ export default function Home() {
         busy
       )
         return;
-      if (!reading && (e.metaKey || e.ctrlKey) && e.key === 'z') {
+      if (!reading && (e.metaKey || e.ctrlKey) && ((e.shiftKey&&e.key.toLowerCase()==='z')||e.key.toLowerCase()==='y')) {
+        e.preventDefault();
+        redo();
+      } else if (!reading && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
       } else if (
@@ -1536,11 +1588,11 @@ export default function Home() {
               disabled={!spread||busy||!opened}
               onClick={()=>setPanel(panel==='elements'?null:'elements')}
             >
-              <List/><span>页面素材</span>
+              <Layers/><span>图层</span>
             </button>
             <button className="quiet" disabled={!spread||busy||!opened} onClick={()=>{finishEditing();setCollageOpen(true);}}><Feather/><span>旅行拼贴</span></button>
             <span className="tool-divider"/>
-            <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button>
+            <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
         {!reading&&!libraryOpen&&view!=='library'&&opened&&spread&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true">
@@ -1722,7 +1774,7 @@ export default function Home() {
                         </>
                       )}
                       <div className="paper-grain" />
-                      {decorative.map((p) => (
+                      {decorative.filter(p=>!isPieceHidden(p)).map((p) => (
                         <div
                           key={p.id}
                           data-piece-id={p.id}
@@ -1787,7 +1839,7 @@ export default function Home() {
                           )}
                         </div>
                       ))}
-                      {piece&&!reading&&!selectionLocked&&!cropping&&inlineId!==piece.id&&<div
+                      {piece&&!isPieceHidden(piece)&&!reading&&!selectionLocked&&!cropping&&inlineId!==piece.id&&<div
                         className={`selection-box ${multiSelection?'multi-move-box':''}`}
                         aria-label={multiSelection?'多选素材移动区域':'素材调整边框'}
                         title={multiSelection?'按住框内任意空白处拖动全部所选素材':undefined}
@@ -1916,14 +1968,14 @@ export default function Home() {
                         {panel === 'write'
                           ? 'AI STUDIO'
                           : panel === 'elements'
-                            ? 'PAGE ITEMS'
+                            ? 'LAYERS'
                           : 'MAKE IT YOURS'}
                       </span>
                       <h2>
                         {panel === 'write'
                           ? 'AI 创作'
                           : panel === 'elements'
-                            ? '页面素材'
+                            ? '图层'
                           : '调整这一小片'}
                       </h2>
                     </div>
@@ -1988,17 +2040,20 @@ export default function Home() {
                     <div className="panel-scroll page-elements-panel">
                       <div className="page-elements-summary">
                         <span>{isFlyleaf?'扉页':'当前跨页'}</span>
-                        <strong>{pageElementRows.length} 个</strong>
+                        <strong>{pageElementRows.length} 层</strong>
                       </div>
                       {pageElementRows.length ? (
                         <>
-                          <div className="page-elements-list" role="list" aria-label="当前跨页全部素材">
-                            {pageElementRows.map(({key,members,representative:p,groupNumber},index)=>{
+                          <div className="page-elements-list" role="list" aria-label="当前跨页图层">
+                            {[...pageElementRows].reverse().map(({key,members,representative:p,groupNumber},index)=>{
                               const selectedIds=new Set(activePieces.map(q=>q.id));
                               const selectedCount=members.filter(member=>selectedIds.has(member.id)).length;
                               const isSelected=selectedCount===members.length;
                               const isPartial=selectedCount>0&&!isSelected;
-                              const isLocked=members.some(member=>member.locked);
+                              const isLocked=members.every(member=>member.locked);
+                              const hasLocked=members.some(member=>member.locked);
+                              const isHidden=members.every(member=>isPieceHidden(member));
+                              const hasHidden=members.some(member=>isPieceHidden(member));
                               const rowLabel=(item:Piece,itemIndex:number)=>{
                                 const itemAsset=item.kind==='asset'?assets.find(a=>a.id===item.assetId):undefined;
                                 const compactText=item.text?.replace(/\s+/g,' ').trim();
@@ -2012,63 +2067,72 @@ export default function Home() {
                               };
                               const thumb=(item:Piece)=>item.kind==='text'?<Type/>:item.kind==='doodle'?<Feather/>:<img loading="lazy" src={item.kind==='asset'?resolveMaterial(item.src,item.assetId):item.src} alt=""/>;
                               if(members.length>1){
-                                const groupLabel=`组合${groupNumber}`;
+                                const groupLabel=pieceGroupName(p)||`组合${groupNumber}`;
                                 return (
                                   <div className="page-element-group" key={key} role="group" aria-label={groupLabel}>
-                                    <button
-                                      type="button"
-                                      className={`page-element-row page-element-row-button page-element-group-row ${isSelected?'is-selected':''} ${isPartial?'is-partial':''} ${isLocked?'is-locked':''}`}
-                                      aria-pressed={isSelected}
-                                      aria-label={`${isSelected?'取消选择':'选择'} ${groupLabel}`}
-                                      onClick={()=>toggleSidebarSelection(members)}
-                                    >
-                                      <span className={`page-element-check ${isSelected?'is-checked':''} ${isPartial?'is-partial':''}`} aria-hidden="true">{isSelected&&<Check/>}</span>
-                                      <span className="page-element-main">
-                                        <span className="page-element-thumb page-element-group-thumb" aria-hidden="true"><Layers/></span>
-                                        <span className="page-element-copy"><strong>{groupLabel}</strong><small>{members.length} 个素材{isLocked?' · 含锁定素材':''}</small></span>
-                                      </span>
-                                    </button>
+                                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                                      <button
+                                        type="button"
+                                        style={{flex:1,minWidth:0,opacity:isHidden ? .55 : 1}}
+                                        className={`page-element-row page-element-row-button page-element-group-row ${isSelected?'is-selected':''} ${isPartial?'is-partial':''} ${isLocked?'is-locked':''}`}
+                                        aria-pressed={isSelected}
+                                        aria-label={`${isSelected?'取消选择':'选择'} ${groupLabel}`}
+                                        onClick={()=>toggleSidebarSelection(members)}
+                                      >
+                                        <span className={`page-element-check ${isSelected?'is-checked':''} ${isPartial?'is-partial':''}`} aria-hidden="true">{isSelected&&<Check/>}</span>
+                                        <span className="page-element-main">
+                                          <span className="page-element-thumb page-element-group-thumb" aria-hidden="true"><Layers/></span>
+                                          <span className="page-element-copy"><strong>{groupLabel}</strong><small>{members.length} 个素材{hasHidden?' · 含隐藏':''}{hasLocked?' · 含锁定':''}</small></span>
+                                        </span>
+                                      </button>
+                                      <LayerRowActions hidden={isHidden} locked={isLocked} onVisibility={()=>setLayerVisibility(members,!isHidden)} onLock={()=>setLayerLocked(members,!isLocked)} onRename={()=>renameLayer(members,true)} onUp={()=>moveLayer(members,'up')} onDown={()=>moveLayer(members,'down')}/>
+                                    </div>
                                     <div className="page-element-children">
                                       {members.map((member,memberIndex)=>{
-                                        const memberSelected=selectedIds.has(member.id);
+                                        const memberSelected=selectedIds.has(member.id),memberHidden=isPieceHidden(member),memberName=pieceLayerName(member)||rowLabel(member,memberIndex);
                                         return (
-                                          <button
-                                            key={member.id}
-                                            type="button"
-                                            className={`page-element-row page-element-row-button page-element-child-row ${memberSelected?'is-selected':''} ${member.locked?'is-locked':''}`}
-                                            aria-pressed={memberSelected}
-                                            aria-label={`${memberSelected?'取消选择':'选择'} ${groupLabel}中的${rowLabel(member,memberIndex)}`}
-                                            onClick={()=>toggleSidebarMember(member)}
-                                          >
-                                            <span className={`page-element-check ${memberSelected?'is-checked':''}`} aria-hidden="true">{memberSelected&&<Check/>}</span>
-                                            <span className="page-element-main">
-                                              <span className="page-element-thumb" aria-hidden="true">{thumb(member)}</span>
-                                              <span className="page-element-copy"><strong>{rowLabel(member,memberIndex)}</strong><small>{member.kind==='text'?'文字':member.kind==='photo'?'照片':member.kind==='doodle'?'装饰':'素材'}{member.locked?' · 已锁定':''}</small></span>
-                                            </span>
-                                          </button>
+                                          <div key={member.id} style={{display:'flex',alignItems:'center',gap:4}}>
+                                            <button
+                                              type="button"
+                                              style={{flex:1,minWidth:0,opacity:memberHidden ? .55 : 1}}
+                                              className={`page-element-row page-element-row-button page-element-child-row ${memberSelected?'is-selected':''} ${member.locked?'is-locked':''}`}
+                                              aria-pressed={memberSelected}
+                                              aria-label={`${memberSelected?'取消选择':'选择'} ${groupLabel}中的${memberName}`}
+                                              onClick={()=>toggleSidebarMember(member)}
+                                            >
+                                              <span className={`page-element-check ${memberSelected?'is-checked':''}`} aria-hidden="true">{memberSelected&&<Check/>}</span>
+                                              <span className="page-element-main">
+                                                <span className="page-element-thumb" aria-hidden="true">{thumb(member)}</span>
+                                                <span className="page-element-copy"><strong>{memberName}</strong><small>{member.kind==='text'?'文字':member.kind==='photo'?'照片':member.kind==='doodle'?'装饰':'素材'}{memberHidden?' · 已隐藏':''}{member.locked?' · 已锁定':''}</small></span>
+                                              </span>
+                                            </button>
+                                            <LayerRowActions hidden={memberHidden} locked={member.locked} onVisibility={()=>setLayerVisibility([member],!memberHidden)} onLock={()=>setLayerLocked([member],!member.locked)} onRename={()=>renameLayer([member])}/>
+                                          </div>
                                         );
                                       })}
                                     </div>
                                   </div>
                                 );
                               }
-                              const label=rowLabel(p,index);
+                              const label=pieceLayerName(p)||rowLabel(p,index);
                               return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  role="listitem"
-                                  aria-pressed={isSelected}
-                                  aria-label={`${isSelected?'取消选择':'选择'} ${label}`}
-                                  className={`page-element-row page-element-row-button ${isSelected?'is-selected':''} ${isLocked?'is-locked':''}`}
-                                  onClick={()=>toggleSidebarSelection(members)}
-                                >
-                                  <span className={`page-element-check ${isSelected?'is-checked':''}`} aria-hidden="true">{isSelected&&<Check/>}</span>
-                                  <span className="page-element-main">
-                                    <span className="page-element-thumb" aria-hidden="true">{thumb(p)}</span>
-                                    <span className="page-element-copy"><strong>{label}</strong><small>{p.kind==='text'?'文字':p.kind==='photo'?'照片':p.kind==='doodle'?'装饰':'素材'}{isLocked?' · 已锁定':''}</small></span>
-                                  </span>
-                                </button>
+                                <div key={key} role="listitem" style={{display:'flex',alignItems:'center',gap:4}}>
+                                  <button
+                                    type="button"
+                                    style={{flex:1,minWidth:0,opacity:isHidden ? .55 : 1}}
+                                    aria-pressed={isSelected}
+                                    aria-label={`${isSelected?'取消选择':'选择'} ${label}`}
+                                    className={`page-element-row page-element-row-button ${isSelected?'is-selected':''} ${isLocked?'is-locked':''}`}
+                                    onClick={()=>toggleSidebarSelection(members)}
+                                  >
+                                    <span className={`page-element-check ${isSelected?'is-checked':''}`} aria-hidden="true">{isSelected&&<Check/>}</span>
+                                    <span className="page-element-main">
+                                      <span className="page-element-thumb" aria-hidden="true">{thumb(p)}</span>
+                                      <span className="page-element-copy"><strong>{label}</strong><small>{p.kind==='text'?'文字':p.kind==='photo'?'照片':p.kind==='doodle'?'装饰':'素材'}{isHidden?' · 已隐藏':''}{isLocked?' · 已锁定':''}</small></span>
+                                    </span>
+                                  </button>
+                                  <LayerRowActions hidden={isHidden} locked={isLocked} onVisibility={()=>setLayerVisibility(members,!isHidden)} onLock={()=>setLayerLocked(members,!isLocked)} onRename={()=>renameLayer(members)} onUp={()=>moveLayer(members,'up')} onDown={()=>moveLayer(members,'down')}/>
+                                </div>
                               );
                             })}
                           </div>
@@ -2080,7 +2144,7 @@ export default function Home() {
                       ) : (
                         <div className="page-elements-empty">
                           <Layers/>
-                          <strong>这一页还没有素材</strong>
+                          <strong>这一页还没有图层</strong>
                           <span>添加文字、照片或素材后，会显示在这里。</span>
                         </div>
                       )}
