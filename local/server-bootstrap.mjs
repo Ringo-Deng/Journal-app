@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
 import { installDeepSeekVisionRouter } from './deepseek-vision-router.mjs';
+import { installMaterialClassifierFallback } from './deepseek-material-classifier.mjs';
 import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
 import { installRuntimeHealth } from './runtime-health.mjs';
@@ -21,6 +22,10 @@ installDeepSeekCurlFallback();
 // Image-bearing requests are routed automatically to DeepSeek's vision model;
 // ordinary text requests keep using the user's selected Flash/Pro model.
 installDeepSeekVisionRouter();
+// Material classification must stay usable even when vision is temporarily
+// unavailable or returns malformed JSON. Fall back to conservative metadata
+// classification rather than failing an entire batch.
+installMaterialClassifierFallback();
 installRuntimeHealth({ version: appVersion });
 
 const nativeTools = await prepareNativeImageTools({ root });
