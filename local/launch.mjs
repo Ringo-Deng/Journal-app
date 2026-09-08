@@ -22,6 +22,7 @@ const REQUIRED_NODE = [22, 13, 0];
 const noOpen = process.env.SHIGUANG_NO_OPEN === '1';
 const exitAfterHealth = process.env.SHIGUANG_EXIT_AFTER_HEALTH === '1';
 const devMode = process.env.SHIGUANG_DEV === '1';
+const requestedPath = String(process.env.SHIGUANG_OPEN_PATH || '/').trim() || '/';
 
 function nodeVersionOK(version = process.versions.node) {
   const parts = String(version).split('.').map((v) => Number(v) || 0);
@@ -89,6 +90,11 @@ function openBrowser(url) {
       : ['xdg-open', [url]];
   const child = spawn(spec[0], spec[1], { detached: true, stdio: 'ignore' });
   child.unref();
+}
+function browserUrl(baseUrl) {
+  const path = requestedPath.startsWith('/') ? requestedPath : `/${requestedPath}`;
+  const joiner = path.includes('?') ? '&' : '?';
+  return `${baseUrl}${path}${joiner}build=${encodeURIComponent(APP_VERSION)}`;
 }
 async function waitForHealth(url, child) {
   for (let i = 0; i < 120; i++) {
@@ -163,9 +169,11 @@ try {
     });
   }
   await waitForHealth(url, child);
+  const openUrl = browserUrl(url);
   console.log(`拾光手帐 v${APP_VERSION} 已启动：${url}`);
+  console.log(`打开页面：${openUrl}`);
   console.log(`AI 配置保存在：${cfg}`);
-  openBrowser(`${url}/?build=${encodeURIComponent(APP_VERSION)}`);
+  openBrowser(openUrl);
   if (exitAfterHealth) {
     child.kill('SIGTERM');
     await releaseLease();
