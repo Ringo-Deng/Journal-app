@@ -13,11 +13,14 @@ export function stationeryCoverSvg(title: string, color: string) {
   if (creamPlaid) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
   <defs>
-    <clipPath id="cover"><rect width="600" height="900" rx="28"/></clipPath>
-    <pattern id="plaid" width="72" height="72" patternUnits="userSpaceOnUse">
-      <rect width="72" height="72" fill="${base}"/>
-      <path d="M6 0V72M0 6H72" stroke="#fff8dc" stroke-width="12"/>
-      <path d="M13 0V72M0 13H72" stroke="#fffdf0" stroke-width="2" opacity=".42"/>
+    <clipPath id="cover"><rect width="600" height="900" rx="18"/></clipPath>
+    <pattern id="plaid" width="112" height="112" patternUnits="userSpaceOnUse">
+      <rect width="112" height="112" fill="#f8e99b"/>
+      <path d="M28 0V112M0 28H112" stroke="#edd36c" stroke-width="56" opacity=".26"/>
+      <path d="M0 0H112M0 56H112M0 112H112M0 0V112M56 0V112M112 0V112" stroke="#fffbe4" stroke-width="16" opacity=".85"/>
+    </pattern>
+    <pattern id="spine-weave" width="4" height="4" patternUnits="userSpaceOnUse">
+      <path d="M0 1H4M1 0V4" stroke="#e5ccac" stroke-width=".5" opacity=".16"/>
     </pattern>
     <linearGradient id="spine" x1="0" x2="1">
       <stop stop-color="#5d3b2c"/>
@@ -27,9 +30,11 @@ export function stationeryCoverSvg(title: string, color: string) {
   </defs>
   <g clip-path="url(#cover)">
     <rect width="600" height="900" fill="url(#plaid)"/>
-    <rect width="74" height="900" fill="url(#spine)"/>
-    <rect x="70" width="3" height="900" fill="#422a20" opacity=".34"/>
-    <rect x="74" width="2" height="900" fill="#fff6db" opacity=".28"/>
+    <rect width="64" height="900" fill="url(#spine)"/>
+    <rect width="64" height="900" fill="url(#spine-weave)"/>
+    <rect x="10" width="2" height="900" fill="#b89770" opacity=".35"/>
+    <rect x="61" width="3" height="900" fill="#422a20" opacity=".34"/>
+    <rect x="64" width="2" height="900" fill="#fff6db" opacity=".28"/>
   </g>
   </svg>`;
   }

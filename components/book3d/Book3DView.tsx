@@ -649,7 +649,7 @@ function BookModel({
           material={material}
           bump={coverTextures.bump}
           color={content?.spineColor ?? surface.color}
-          title={content?.title}
+          title={material === "fabric" && content?.color.toLowerCase() === "#f4ce75" ? "" : content?.title}
           edition={content ? "" : "VOL. 01"}
         />
       )}

@@ -61,7 +61,7 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   const cleanYellowPlaid = kind === "fabric" && settings.color.toLowerCase() === "#f4ce75";
   const canvas = document.createElement("canvas");
   canvas.width = 768;
-  canvas.height = 1024;
+  canvas.height = cleanYellowPlaid ? 1152 : 1024;
   const ctx = canvas.getContext("2d")!;
   const bumpCanvas = document.createElement("canvas");
   bumpCanvas.width = canvas.width;
@@ -69,18 +69,18 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   const bumpCtx = bumpCanvas.getContext("2d")!;
 
   if (cleanYellowPlaid) {
-    // This stationery cover is deliberately pristine: flat colour, even checks,
-    // no noise, mottling, maker mark, embossing, or simulated wear.
-    const step = 72;
-    const stripe = 12;
-    ctx.fillStyle = settings.color;
+    // Same check proportions and warm palette as the stationery SVG front.
+    const scale = canvas.width / 600;
+    const step = 56 * scale;
+    const stripe = 16 * scale;
+    ctx.fillStyle = "#f8e99b";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff8dc";
-    for (let x = 0; x < canvas.width; x += step) ctx.fillRect(x, 0, stripe, canvas.height);
-    for (let y = 0; y < canvas.height; y += step) ctx.fillRect(0, y, canvas.width, stripe);
-    ctx.fillStyle = "rgba(255,255,255,.22)";
-    for (let x = stripe; x < canvas.width; x += step) ctx.fillRect(x, 0, 2, canvas.height);
-    for (let y = stripe; y < canvas.height; y += step) ctx.fillRect(0, y, canvas.width, 2);
+    ctx.fillStyle = "rgba(237,211,108,.26)";
+    for (let x = 0; x < canvas.width; x += step * 2) ctx.fillRect(x, 0, step, canvas.height);
+    for (let y = 0; y < canvas.height; y += step * 2) ctx.fillRect(0, y, canvas.width, step);
+    ctx.fillStyle = "rgba(255,251,228,.85)";
+    for (let x = 0; x < canvas.width; x += step) ctx.fillRect(x - stripe / 2, 0, stripe, canvas.height);
+    for (let y = 0; y < canvas.height; y += step) ctx.fillRect(0, y - stripe / 2, canvas.width, stripe);
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, bumpCanvas.width, bumpCanvas.height);
   } else {
