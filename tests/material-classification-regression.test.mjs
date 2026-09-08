@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {createMaterialCatalog,defaultTaxonomy} from '../local/material-catalog.mjs';
 
 const asset={id:'fresh',name:'新导入素材',category:'我的素材',tags:['用户导入'],src:'/uploads/fresh.png'};
@@ -35,6 +36,11 @@ test('single-material classification applies all job proposals when ids are omit
  assert.equal(finished.status,'complete');
  const result=await service.handle('/api/materials/catalog','POST',{revision:0,action:'apply',jobId:job.id});
  assert.equal(result.assets[0].group,'装饰贴纸');
+});
+
+test('material library explicitly submits recognized ids when applying a job',async()=>{
+ const source=await readFile(new URL('../components/material-library.tsx',import.meta.url),'utf8');
+ assert.match(source,/jobId:j\.id,ids:j\.proposals\.map\(p=>p\.id\),revision:snap\.revision/);
 });
 
 test('missing AI result keeps a new material unclassified',async()=>{
