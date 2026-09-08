@@ -95,6 +95,25 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
   try{const next=await request<Job>('/classify',{ids,useImages:vision,instruction:''});setJob(next);}
   catch(e){setError((e as Error).message);}finally{setSaving(false);}
  }
+ async function reopenAsset(a:Asset){
+  setSaving(true);setError('');
+  try{
+   let src=a.src;
+   if(!src.startsWith('/uploads/')){
+    const image=await fetch(src,{cache:'no-store'});
+    if(!image.ok)throw Error('当前素材图片读取失败。');
+    const blob=await image.blob();
+    if(!['image/png','image/jpeg','image/webp'].includes(blob.type))throw Error('当前素材格式暂不支持继续编辑。');
+    const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):reject(Error('素材图片读取失败。'));reader.onerror=()=>reject(Error('素材图片读取失败。'));reader.readAsDataURL(blob);});
+    const upload=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data})});
+    const uploaded=await upload.json() as {src?:string;error?:string};
+    if(!upload.ok||!uploaded.src)throw Error(uploaded.error||'素材副本保存失败。');
+    src=uploaded.src;
+   }
+   await request('/source',{src,name:a.name});
+   onImport();
+  }catch(e){setError((e as Error).message);}finally{setSaving(false);}
+ }
  async function applySuggestions(){
   if(!job)return;
   const patches=[...accepted].map(id=>{const p=job.proposals.find(p=>p.id===id);const adj=adjusted[id];if(!p||!adj)return null;return{id,group:adj.group,labels:adj.labels,review:adj.group?(p.review||{pending:false}):{pending:true,reason:p.reason||p.review?.reason||'待确认'}};}).filter(Boolean);
@@ -140,11 +159,11 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
      {pickedList.length>0&&<button className="quiet" onClick={clearPicked}>清除标签</button>}
      <span className="library-status-actions"><button className="quiet" onClick={()=>setSelected(old=>new Set([...old,...visible.map(a=>a.id)]))}>全选当前结果</button>{selected.size>0&&<button className="quiet" onClick={()=>setSelected(new Set())}>清空选择</button>}</span>
     </div>
-    <div className="library-grid">{visible.map(a=>{const labels=labelsOf(a);const chips=[a.group||'待确认',...labels.content,...labels.style,...labels.color];return <div key={a.id} className={`library-card ${selected.has(a.id)?'selected':''} ${draggingId===a.id?'dragging':''}`}>
+    <div className="library-grid">{visible.map(a=>{const labels=labelsOf(a);const chips=[a.group||'待确认',...labels.content,...labels.style,...labels.color];const userAsset=!!(a.sourceImage||a.sourceUrl?.startsWith('/uploads/'));return <div key={a.id} className={`library-card ${selected.has(a.id)?'selected':''} ${draggingId===a.id?'dragging':''}`}>
       <button className="library-card-main" draggable={!!catalog&&!busy} aria-pressed={selected.has(a.id)} aria-label={`选择素材：${a.name}`} onDragStart={e=>{e.dataTransfer.setData('text/material-id',a.id);e.dataTransfer.effectAllowed='move';setDraggingId(a.id)}} onDragEnd={()=>{setDraggingId(null);setDragOverGroup(null)}} onClick={()=>toggle(a.id)}><div className="library-thumb"><img src={a.src} alt={a.name} loading="lazy"/><span className="library-check">{selected.has(a.id)&&<Check/>}</span></div><strong>{a.name}</strong></button>
       <div className="library-chips"><span className={a.group?'':'chip-pending'}>{a.group||'待确认'}</span>{chips.slice(1,4).map((v,i)=><span key={i}>{v}</span>)}{chips.length>4&&<span className="muted">+{chips.length-4}</span>}</div>
       <label className="library-card-group"><span>分类</span><select aria-label={`设置${a.name}的分类`} value={a.group||''} disabled={busy||!catalog} onChange={e=>void setAssetGroup(a.id,e.target.value)}><option value="">待确认</option>{groups.map(g=><option key={g} value={g}>{g}</option>)}</select></label>
-      <div className="library-card-actions"><button className="library-edit" aria-label={`编辑${a.name}的标签`} onClick={()=>openEditor(a)}><Pencil/>编辑标签</button>{(a.sourceImage||a.sourceUrl?.startsWith('/uploads/'))&&<><button className="library-edit" aria-label={`再次识别${a.name}`} disabled={busy} onClick={()=>void classify([a.id])}><RefreshCw/>再次识别</button><button className="library-edit" aria-label={`再次编辑${a.name}`} disabled={busy} onClick={()=>void request('/reopen',{id:a.id}).then(()=>onImport()).catch(e=>setError(e.message))}><Scissors/>再次编辑</button><button className="library-edit danger" aria-label={`删除${a.name}`} disabled={busy} onClick={()=>void removeAsset(a)}><Trash2/>删除</button></>}</div>
+      <div className="library-card-actions"><button className="library-edit" aria-label={`编辑${a.name}的标签`} onClick={()=>openEditor(a)}><Pencil/>编辑标签</button>{userAsset&&<button className="library-edit" aria-label={`再次识别${a.name}`} disabled={busy} onClick={()=>void classify([a.id])}><RefreshCw/>再次识别</button>}<button className="library-edit" aria-label={`再次编辑${a.name}`} disabled={busy} onClick={()=>void reopenAsset(a)}><Scissors/>再次编辑</button>{userAsset&&<button className="library-edit danger" aria-label={`删除${a.name}`} disabled={busy} onClick={()=>void removeAsset(a)}><Trash2/>删除</button>}</div>
      </div>})}</div>
     {!visible.length&&<div className="library-empty">没有匹配的素材。请调整或清除筛选条件，或导入新素材。</div>}
    </div>
