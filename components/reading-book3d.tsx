@@ -84,6 +84,7 @@ export default forwardRef<
       <Book3DView
         key={content.id}
         content={content}
+        initialPaperStyle="bound"
         toolbar={props.toolbar}
         ref={ref}
         onPosition={position}

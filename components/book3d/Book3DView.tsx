@@ -643,7 +643,15 @@ function BookModel({
   return (
     <group ref={root} position={[-BOOK.width / 2, 0, 0]}>
       {paperStyle === "bound" && (
-        <BookSpine book={BOOK} pose={spinePose} material={material} bump={coverTextures.bump} />
+        <BookSpine
+          book={BOOK}
+          pose={spinePose}
+          material={material}
+          bump={coverTextures.bump}
+          color={surface.color}
+          title={content?.title}
+          edition={content ? "" : "VOL. 01"}
+        />
       )}
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
         {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
@@ -827,6 +835,7 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
 
 type ViewProps = {
   experiment?: boolean;
+  initialPaperStyle?: PaperStyle;
   toolbar?: HTMLDivElement | null;
   appVersion?: string;
   content?: Book3DContent;
@@ -834,7 +843,7 @@ type ViewProps = {
   onError?: (error?: unknown) => void;
 };
 const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
-  { appVersion = "dev", onPosition, onError, toolbar, experiment = false },
+  { appVersion = "dev", onPosition, onError, toolbar, experiment = false, initialPaperStyle },
   ref,
 ) {
   const { BOOK, content, nextBookTurn } = useBookScene();
@@ -847,7 +856,9 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         }
       : initialState,
   );
-  const [paperStyle, setPaperStyle] = useState<PaperStyle>(experiment ? "bound" : "original");
+  const [paperStyle, setPaperStyle] = useState<PaperStyle>(
+    initialPaperStyle ?? (experiment ? "bound" : "original"),
+  );
   const [ready, setReady] = useState(!content);
   const [preparedLeaf, setPreparedLeaf] = useState<number | null>(content ? null : 0);
   const [resetting, setResetting] = useState(false);

@@ -18,13 +18,19 @@ export default function BookSpine({
   pose,
   material,
   bump,
+  color,
+  title = "拾光手帐",
+  edition = "VOL. 01",
 }: {
   book: BookGeometry;
   pose: { current: { front: number; back: number } };
   material: CoverMaterial;
   bump: Texture;
+  color?: string;
+  title?: string;
+  edition?: string;
 }) {
-  const surface = COVER_MATERIALS[material];
+  const surface = { ...COVER_MATERIALS[material], ...(color ? { color } : {}) };
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -38,21 +44,25 @@ export default function BookSpine({
         ctx.fillStyle = `rgba(255,255,255,${tone * 0.045})`;
         ctx.fillRect(x, y, 1, material === "fabric" ? 3 : 1);
       }
-    ctx.fillStyle = surface.ink;
+    const rgb = [1, 3, 5].map((offset) => parseInt(surface.color.slice(offset, offset + 2), 16));
+    ctx.fillStyle = rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 145 ? "#48493e" : "#eee0c7";
     ctx.globalAlpha = 0.65;
     ctx.fillRect(24, 90, 208, 3);
     ctx.fillRect(24, 1443, 208, 3);
     ctx.textAlign = "center";
-    ctx.font = '72px "Songti SC", serif';
-    for (const [i, character] of [..."拾光手帐"].entries())
-      ctx.fillText(character, 128, 420 + i * 140);
+    const letters = [...title];
+    const spacing = Math.min(140, 960 / Math.max(1, letters.length));
+    ctx.font = `${Math.min(72, spacing * 0.75)}px "Songti SC", serif`;
+    const start = 768 - ((letters.length - 1) * spacing) / 2;
+    for (const [i, character] of letters.entries())
+      ctx.fillText(character, 128, start + i * spacing);
     ctx.font = "28px Georgia";
-    ctx.fillText("VOL. 01", 128, 1320);
+    if (edition) ctx.fillText(edition, 128, 1320);
     const result = new CanvasTexture(canvas);
     result.colorSpace = SRGBColorSpace;
     result.anisotropy = 8;
     return result;
-  }, [material]);
+  }, [material, color, title, edition]);
   const geometry = useMemo(() => {
     const result = new BufferGeometry();
     const positions = new Float32Array(4 * 33 * 3),

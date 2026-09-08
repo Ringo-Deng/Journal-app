@@ -138,3 +138,10 @@ npm run build
 - Independent closed-book yaw had tilted covers relative to the stationary desk. Both now remain in the same unrotated frame.
 - Added desk clearance for the .06 cover overhang during thin-book cover motion, and capped the exterior spine's downward bulge to prevent thin bindings entering the desk. Cover-edge attachment is retained.
 - Validation: 38 related tests, focused TypeScript/lint and production build passed. New regression sweeps both full cover transitions, all board corners and spine inner/outer profiles over multiple thicknesses against the desk plane. User screenshot guided the fix; actual browser rendering remains unverified due to the browser policy-check limitation already encountered in this task.
+
+
+## v0.1.103 — Adopt approved bound rendering in appreciation mode
+
+- ReadingBook3D explicitly selects the bound profile, reusing the approved flat view, cover turn-ins, rounded board, exterior spine, fabric surface maps and page twist. Experiment controls remain confined to the test page.
+- Spine texture now receives the real book title and cover colour, fits longer titles vertically, selects contrasting ink and omits the demo volume label for real books. Existing page JPGs, cover rendering and saved material selection are retained. No persistence or data schema changes.
+- 38 related tests, focused TypeScript/lint and production build passed. Internal review confirmed the reader opts in without enabling test-only controls. Live appreciation rendering remains unverified because the browser policy check has been unavailable in this task.
