@@ -190,6 +190,54 @@ const pageCss = `
     width: 100%;
     height: 100%;
   }
+
+  /* StPageFlip's browser bundle does not inject its source stylesheet for us.
+     Keep these structural rules in the experiment so inactive/future pages are
+     absolutely positioned instead of leaking below the visible book. */
+  .pf-book-root .stf__parent {
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    transform: translateZ(0);
+    -ms-touch-action: pan-y;
+    touch-action: pan-y;
+    overflow: hidden;
+  }
+  .pf-book-root .sft__wrapper,
+  .pf-book-root .stf__wrapper {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .pf-book-root .stf__parent canvas {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+  }
+  .pf-book-root .stf__block {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    perspective: 2000px;
+    overflow: hidden;
+  }
+  .pf-book-root .stf__item {
+    display: none;
+    position: absolute;
+    transform-style: preserve-3d;
+  }
+  .pf-book-root .stf__outerShadow,
+  .pf-book-root .stf__innerShadow,
+  .pf-book-root .stf__hardShadow,
+  .pf-book-root .stf__hardInnerShadow {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+
   .pf-page {
     position: relative;
     overflow: hidden;
