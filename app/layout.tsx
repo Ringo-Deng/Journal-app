@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import packageJson from '../package.json';
+import RuntimeCompatibility from '@/components/runtime-compatibility';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/api/fonts.css" data-user-fonts="true" />
       </head>
       <body>
+        <RuntimeCompatibility />
         <div
           aria-label={`当前版本 v${packageJson.version}`}
           style={{
