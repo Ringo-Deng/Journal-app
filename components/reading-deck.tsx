@@ -100,6 +100,7 @@ export default function ReadingDeck({
           {
             '--spread-ratio': bookFormat(book).ratio,
             '--book-scale': bookFormat(book).scale,
+            '--cover-base': cover.colorway.color,
           } as CSSProperties
         }
       >
@@ -119,6 +120,7 @@ export default function ReadingDeck({
         {
           '--spread-ratio': bookFormat(book).ratio,
           '--book-scale': bookFormat(book).scale,
+          '--cover-base': cover.colorway.color,
         } as CSSProperties
       }
     >
