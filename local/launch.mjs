@@ -5,19 +5,18 @@ import { homedir, platform } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
+import { assertDependencyManifest } from './dependency-manifest.mjs';
 import {
   clearLauncherLease,
   stopLegacyShiguangProcesses,
   stopPreviousLauncher,
   writeLauncherLease,
 } from './launcher-instance.mjs';
+import { runtimeMatches } from './runtime-health.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const APP_VERSION = String(packageJson.version || '').trim();
-// This is an internal API protocol marker, not the visible application version.
-// Keep it paired with local/server.mjs until the server protocol itself changes.
-const EXPECTED_RUNTIME = 'page-elements-v0.1.20';
 const REQUIRED_NODE = [22, 13, 0];
 const noOpen = process.env.SHIGUANG_NO_OPEN === '1';
 const exitAfterHealth = process.env.SHIGUANG_EXIT_AFTER_HEALTH === '1';
@@ -97,14 +96,21 @@ function browserUrl(baseUrl) {
   return `${baseUrl}${path}${joiner}build=${encodeURIComponent(APP_VERSION)}`;
 }
 async function waitForHealth(url, child) {
+  let staleVersion = '';
   for (let i = 0; i < 120; i++) {
     if (child.exitCode !== null) throw Error('拾光启动进程已退出，请查看上面的报错。');
     try {
       const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1000) });
-      if (res.ok && (await res.json()).runtimeId === EXPECTED_RUNTIME) return;
+      if (res.ok) {
+        const health = await res.json();
+        if (runtimeMatches(health, APP_VERSION)) return;
+        if (health?.appVersion) staleVersion = String(health.appVersion);
+      }
     } catch {}
     await new Promise(r => setTimeout(r, 500));
   }
+  if (staleVersion)
+    throw Error(`本机服务版本不一致（检测到 v${staleVersion}，当前源码 v${APP_VERSION}）。请重新启动拾光手帐。`);
   throw Error('启动超时，请查看上面的提示。');
 }
 
@@ -119,6 +125,7 @@ async function releaseLease() {
 try {
   if (!APP_VERSION) throw Error('无法读取 package.json 中的应用版本。');
   if (!nodeVersionOK()) throw Error(`Node.js 版本过旧（当前 ${process.versions.node}）。拾光手帐 v${APP_VERSION} 需要 Node.js 22.13.0 或更高版本。`);
+  await assertDependencyManifest(root);
   cfg = configDir();
   await ensurePersistentSettings(cfg);
 
