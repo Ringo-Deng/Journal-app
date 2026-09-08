@@ -3,12 +3,17 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installDeepSeekSelfTestProbe } from './deepseek-selftest.mjs';
 import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
+import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
 import { installRuntimeHealth } from './runtime-health.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const appVersion = String(packageJson.version || '').trim();
+const configDir = process.env.JOURNAL_CONFIG_DIR || resolve(root, 'data');
+const managedKey = await syncManagedDeepSeekKey({ configDir });
+if (managedKey.managed && managedKey.changed)
+  console.log('已载入本机持久化 DeepSeek AI 配置。');
 installDeepSeekSelfTestProbe();
 installDeepSeekCurlFallback();
 installRuntimeHealth({ version: appVersion });
