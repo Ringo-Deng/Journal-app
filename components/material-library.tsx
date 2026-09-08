@@ -49,7 +49,7 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
   setSaving(true);setError('');
   try{
    const snap=await request<Catalog>('/catalog');
-   const result=await request<{catalog:Catalog;assets:Asset[]}>('/catalog',{action:'apply',jobId:j.id,revision:snap.revision});
+   const result=await request<{catalog:Catalog;assets:Asset[]}>('/catalog',{action:'apply',jobId:j.id,ids:j.proposals.map(p=>p.id),revision:snap.revision});
    setCatalog(result.catalog);onUpdated(result.assets);
    const failed=j.errors?.length||0;
    setFeedback(j.total===1?`识别完成：${j.proposals[0].group||'其他'}`:failed?`AI 整理完成：${j.proposals.length} 件已更新，${failed} 件保留原分类。`:`AI 整理完成：已更新 ${j.proposals.length} 件素材。`);
