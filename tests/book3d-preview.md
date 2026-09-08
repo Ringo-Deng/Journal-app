@@ -79,3 +79,13 @@ npm run build
 - 去掉纸叠为空时固定在原处的内衬替身，使用附着在封面上的真实内衬面，并将内衬边缘向内缩进。白色连接带在封面收合期间收起，完全合上后不保留外伸部分；实际纸叠侧边仍保留。
 - 26 项相关测试、独立 TypeScript 检查、定向 lint、生产构建通过。新增测试逐步采样封面正反面在整个旋转过程与纸叠的净空，而不只检查静止端点。
 - 本次根据用户截图调整，实际浏览器视觉未验证；不能把模型净空测试等同于已确认所有露白或材质观感问题消失。
+
+
+## v0.1.96 — Main appreciation mode and saved JPG pages
+
+- Main app “欣赏” now uses the same `Book3DView` as `/three-test`, with the wooden desk, drag turns, zoom/pan, thin covers and physical back cover. The 3D bundle loads on demand.
+- Real journal spreads/flyleaf map to recto/verso textures; page count and dimensions follow the selected book. Grid selection restores the corresponding spread. Existing editable journal data and save format are unchanged.
+- Appreciation, grid thumbnails and non-WebGL fallback display JPGs. JPGs are cached as blobs in browser-local IndexedDB (`shiguang-reading-jpg`), keyed by book/page and a content signature. An unchanged cached page loads without importing the snapshot renderer. Missing/changed pages are rendered once with the existing paper renderer and fonts, encoded at 2000px spread width / JPEG quality .94, then the temporary component tree is unmounted. This is a regenerable browser cache, not a separate backup/export file; unavailable browser storage falls back to generating an in-memory JPG.
+- Each 3D book decodes only a small neighborhood of saved JPGs; grid images generate/load near the viewport. Both static and 3D views release temporary object URLs. WebGL creation/context failures fall back to JPG reading.
+- Automated coverage: real spread ordering with/without flyleaf, 1–120 body spreads, traversal through the back cover, both book ratios, bounded thickness, JPG content invalidation, cached JPG reuse without a DOM/paper renderer, and existing motion/reading/version regressions.
+- Validation: focused TypeScript and lint checks, 31 related tests, production build. Browser visual/drag/JPG fidelity and real IndexedDB persistence remain **unverified**: the browser tool's administrator-policy check is unavailable in this session; no bypass was attempted.

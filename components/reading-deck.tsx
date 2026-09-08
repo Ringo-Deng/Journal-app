@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BookOpen, LayoutGrid } from 'lucide-react';
-import { SpreadPreview } from './page-turn';
-import ReadingPageFlip, { type ReadingPageFlipHandle } from './reading-pageflip';
-import { bookFormat, coverInfo, type Asset, type Book } from '@/lib/journal';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { BookOpen, LayoutGrid } from "lucide-react";
+import ReadingJpgImage from "./reading-jpg-image";
+import type { ReadingBook3DHandle } from "./reading-book3d";
+const ReadingBook3D = lazy(() => import("./reading-book3d"));
+import { bookFormat, coverInfo, type Asset, type Book } from "@/lib/journal";
 
 export default function ReadingDeck({
   book,
@@ -20,7 +29,7 @@ export default function ReadingDeck({
   const [grid, setGrid] = useState(false);
   const [opened, setOpened] = useState(false);
   const [engineFailed, setEngineFailed] = useState(false);
-  const pageFlip = useRef<ReadingPageFlipHandle>(null);
+  const pageFlip = useRef<ReadingBook3DHandle>(null);
 
   const offset = book.flyleaf ? 1 : 0;
   const sheets = [
@@ -30,9 +39,6 @@ export default function ReadingDeck({
   const count = sheets.length;
   const current = Math.max(0, Math.min(page, count - 1));
   const cover = coverInfo(book.cover);
-  const coverAsset = book.coverAsset
-    ? assets.find((asset) => asset.originalSrc === book.coverAsset)?.src || book.coverAsset
-    : '';
 
   useEffect(() => {
     setGrid(false);
@@ -62,19 +68,19 @@ export default function ReadingDeck({
     const key = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
         target.isContentEditable ||
         grid
       )
         return;
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (event.key === 'ArrowRight') next();
+      if (event.key === "ArrowRight") next();
       else previous();
     };
-    window.addEventListener('keydown', key, true);
-    return () => window.removeEventListener('keydown', key, true);
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
   }, [grid, next, previous]);
 
   if (!count) {
@@ -84,14 +90,14 @@ export default function ReadingDeck({
         aria-label="手帐连续翻阅"
         style={
           {
-            '--spread-ratio': bookFormat(book).ratio,
-            '--book-scale': bookFormat(book).scale,
-            '--cover-base': cover.colorway.color,
+            "--spread-ratio": bookFormat(book).ratio,
+            "--book-scale": bookFormat(book).scale,
+            "--cover-base": cover.colorway.color,
           } as CSSProperties
         }
       >
         <header className="deck-heading">
-          <h1>{book.title || '拾光集'}</h1>
+          <h1>{book.title || "拾光集"}</h1>
         </header>
         <p className="deck-empty">这本手帐还没有内页，去工作台添加第一篇记录吧。</p>
       </section>
@@ -100,22 +106,18 @@ export default function ReadingDeck({
 
   return (
     <section
-      className={`reading-deck notebook-${book.cover} deck-large ${opened ? 'viewer-reading' : 'viewer-cover'} ${grid ? 'deck-grid-mode' : ''}`}
+      className={`reading-deck notebook-${book.cover} deck-large ${opened ? "viewer-reading" : "viewer-cover"} ${grid ? "deck-grid-mode" : ""}`}
       aria-label="手帐连续翻阅"
       style={
         {
-          '--spread-ratio': bookFormat(book).ratio,
-          '--book-scale': bookFormat(book).scale,
-          '--cover-base': cover.colorway.color,
+          "--spread-ratio": bookFormat(book).ratio,
+          "--book-scale": bookFormat(book).scale,
+          "--cover-base": cover.colorway.color,
         } as CSSProperties
       }
     >
       <fieldset className="deck-view-switch" aria-label="欣赏方式">
-        <button
-          aria-label="连续翻阅"
-          aria-pressed={!grid}
-          onClick={() => setGrid(false)}
-        >
+        <button aria-label="连续翻阅" aria-pressed={!grid} onClick={() => setGrid(false)}>
           <BookOpen />
         </button>
         <button
@@ -129,7 +131,7 @@ export default function ReadingDeck({
       </fieldset>
 
       <header className="deck-heading">
-        <h1>{book.title || '拾光集'}</h1>
+        <h1>{book.title || "拾光集"}</h1>
         <p>
           {book.spreads.length} 个跨页 · {book.spreads.length * 2} 页
         </p>
@@ -141,7 +143,7 @@ export default function ReadingDeck({
             <button
               className="deck-thumbnail"
               key={sheet.spread.id}
-              aria-label={sheet.flyleaf ? '打开扉页' : `打开第 ${index - offset + 1} 个跨页`}
+              aria-label={sheet.flyleaf ? "打开扉页" : `打开第 ${index - offset + 1} 个跨页`}
               onClick={() => {
                 onSelect(index);
                 setOpened(true);
@@ -149,15 +151,14 @@ export default function ReadingDeck({
               }}
             >
               <div className="deck-thumbnail-paper">
-                <SpreadPreview
+                <ReadingJpgImage
                   book={book}
-                  spread={sheet.spread}
                   assets={assets}
-                  flyleaf={sheet.flyleaf}
-                  pageIndex={sheet.flyleaf ? undefined : index - offset}
+                  index={index}
+                  alt={sheet.flyleaf ? "扉页" : `第 ${index - offset + 1} 个跨页`}
                 />
               </div>
-              <span>{sheet.flyleaf ? '扉页' : `第 ${index - offset + 1} 个跨页`}</span>
+              <span>{sheet.flyleaf ? "扉页" : `第 ${index - offset + 1} 个跨页`}</span>
             </button>
           ))}
         </div>
@@ -166,48 +167,37 @@ export default function ReadingDeck({
           {!opened ? (
             <button
               className={`reading-static-cover texture-${cover.material.id}`}
-              style={{ '--cover-base': cover.colorway.color } as CSSProperties}
+              style={{ "--cover-base": cover.colorway.color } as CSSProperties}
               aria-label="打开手帐封面"
               onClick={() => {
                 setOpened(true);
                 onSelect(0);
               }}
             >
-              {!coverAsset && (
-                <span className="cover-title-stamp">
-                  {book.title || '拾光集'}
-                  <i>SHIGUANG JOURNAL</i>
-                </span>
-              )}
-              {coverAsset && <img className="cover-art" src={coverAsset} alt="封面装饰" />}
+              <ReadingJpgImage book={book} assets={assets} index={null} alt="手帐封面" />
             </button>
           ) : (
             <div className="reading-static-spread">
-              <SpreadPreview
-                book={book}
-                spread={sheets[current].spread}
-                assets={assets}
-                flyleaf={sheets[current].flyleaf}
-                pageIndex={sheets[current].flyleaf ? undefined : current - offset}
-              />
+              <ReadingJpgImage book={book} assets={assets} index={current} alt="手帐跨页" />
             </div>
           )}
         </div>
       ) : (
-        <ReadingPageFlip
-          ref={pageFlip}
-          book={book}
-          assets={assets}
-          readingIndex={current}
-          startOpen={opened}
-          onReadingIndex={onSelect}
-          onReadyChange={() => {}}
-          onOpened={() => setOpened(true)}
-          onPosition={(state) => {
-            if (state.opened) setOpened(true);
-          }}
-          onError={() => setEngineFailed(true)}
-        />
+        <Suspense fallback={<p role="status">正在打开手帐…</p>}>
+          <ReadingBook3D
+            key={book.id}
+            ref={pageFlip}
+            book={book}
+            assets={assets}
+            readingIndex={current}
+            startOpen={opened}
+            onReadingIndex={onSelect}
+            onPosition={(state) => {
+              if (state.opened) setOpened(true);
+            }}
+            onError={() => setEngineFailed(true)}
+          />
+        </Suspense>
       )}
 
       <style>{`

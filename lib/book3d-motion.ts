@@ -10,31 +10,42 @@ export const BOOK = {
   coverGap: 0.012,
 } as const;
 
-export function stackTop(leaves: number) {
-  return BOOK.base + leaves * BOOK.sheet;
+export type BookGeometry = { [K in keyof typeof BOOK]: number };
+export function bookGeometry(leaves: number, spreadRatio: number): BookGeometry {
+  const count = Math.max(1, Math.floor(leaves));
+  return {
+    ...BOOK,
+    leaves: count,
+    height: (BOOK.width * 2) / Math.max(0.5, spreadRatio),
+    sheet: Math.min(BOOK.sheet, 0.32 / count),
+  };
 }
 
-export function turnTarget(turned: number, direction: -1 | 1) {
-  return Math.max(0, Math.min(BOOK.leaves, turned + direction));
+export function stackTop(leaves: number, geometry: BookGeometry = BOOK) {
+  return geometry.base + leaves * geometry.sheet;
+}
+
+export function turnTarget(turned: number, direction: -1 | 1, count = BOOK.leaves as number) {
+  return Math.max(0, Math.min(count, turned + direction));
 }
 
 /** Integrate unit tangents: every strip keeps its length, unlike scaled sin/cos folds. */
-export function sampleSheet(progress: number, leaf: number) {
+export function sampleSheet(progress: number, leaf: number, geometry: BookGeometry = BOOK) {
   const p = Math.max(0, Math.min(1, progress));
   const pulse = Math.sin(Math.PI * p);
   const points: Array<{ x: number; z: number }> = [];
-  const start = stackTop(BOOK.leaves - leaf);
-  const end = stackTop(leaf + 1);
+  const start = stackTop(geometry.leaves - leaf, geometry);
+  const end = stackTop(leaf + 1, geometry);
   const hinge = start + (end - start) * p + 0.008;
   let x = 0;
   let z = hinge;
   points.push({ x, z });
-  for (let i = 1; i <= BOOK.segments; i += 1) {
-    const t = (i - 0.5) / BOOK.segments;
+  for (let i = 1; i <= geometry.segments; i += 1) {
+    const t = (i - 0.5) / geometry.segments;
     // A small S curve lets the fore-edge lead, while the spine stays attached.
     const angle = Math.PI * p + 0.46 * pulse * Math.sin(2 * Math.PI * t);
-    x += (Math.cos(angle) * BOOK.width) / BOOK.segments;
-    z += (Math.sin(angle) * BOOK.width) / BOOK.segments;
+    x += (Math.cos(angle) * geometry.width) / geometry.segments;
+    z += (Math.sin(angle) * geometry.width) / geometry.segments;
     points.push({ x, z });
   }
   return points;
@@ -70,13 +81,16 @@ export type BookTurn = {
 };
 export type BookPosition = { opened: boolean; turned: number; backClosed: boolean };
 
-export function nextBookTurn(position: BookPosition, direction: -1 | 1): BookTurn | null {
+export function nextBookTurn(
+  position: BookPosition,
+  direction: -1 | 1,
+  count = BOOK.leaves as number,
+): BookTurn | null {
   if (position.backClosed) return direction === -1 ? { kind: "back-cover", from: 1, to: 0 } : null;
   if (!position.opened) return direction === 1 ? { kind: "cover", from: 0, to: 1 } : null;
   if (position.turned === 0 && direction === -1) return { kind: "cover", from: 1, to: 0 };
-  if (position.turned === BOOK.leaves && direction === 1)
-    return { kind: "back-cover", from: 0, to: 1 };
-  return { kind: "page", from: position.turned, to: turnTarget(position.turned, direction) };
+  if (position.turned === count && direction === 1) return { kind: "back-cover", from: 0, to: 1 };
+  return { kind: "page", from: position.turned, to: turnTarget(position.turned, direction, count) };
 }
 
 export function finishBookTurn(position: BookPosition, motion: BookTurn): BookPosition {
@@ -116,18 +130,18 @@ export function bindingProfile(left: number, right: number, hinge: number) {
   });
 }
 
-export function coverHeight(side: "above" | "below") {
+export function coverHeight(side: "above" | "below", geometry: BookGeometry = BOOK) {
   return side === "above"
-    ? stackTop(BOOK.leaves) + BOOK.coverGap + BOOK.cover / 2
-    : BOOK.base - BOOK.coverGap - BOOK.cover / 2;
+    ? stackTop(geometry.leaves, geometry) + geometry.coverGap + geometry.cover / 2
+    : geometry.base - geometry.coverGap - geometry.cover / 2;
 }
 
 /** Move the hinge only on the empty side; never lower a cover through the full paper block. */
-export function coverPose(progress: number, side: "front" | "back") {
+export function coverPose(progress: number, side: "front" | "back", geometry: BookGeometry = BOOK) {
   const p = Math.max(0, Math.min(1, progress));
   const t = side === "front" ? Math.max(0, (p - 0.5) * 2) : Math.min(1, p * 2);
   const eased = t * t * (3 - 2 * t);
-  const from = coverHeight(side === "front" ? "above" : "below");
-  const to = coverHeight(side === "front" ? "below" : "above");
+  const from = coverHeight(side === "front" ? "above" : "below", geometry);
+  const to = coverHeight(side === "front" ? "below" : "above", geometry);
   return { angle: -Math.PI * p, z: from + (to - from) * eased };
 }

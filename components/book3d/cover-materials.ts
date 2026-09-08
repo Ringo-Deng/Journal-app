@@ -56,8 +56,8 @@ function grain(x: number, y: number, kind: CoverMaterial) {
   return 0.5 + (softNoise(x / 2, y / 2) - 0.5) * 0.2 + (fine - 0.5) * 0.05;
 }
 
-export function createCoverTextures(kind: CoverMaterial) {
-  const settings = COVER_MATERIALS[kind];
+export function createCoverTextures(kind: CoverMaterial, color?: string) {
+  const settings = { ...COVER_MATERIALS[kind], ...(color ? { color } : {}) };
   const canvas = document.createElement("canvas");
   canvas.width = 768;
   canvas.height = 1024;
