@@ -3,9 +3,11 @@ import type { CSSProperties } from 'react';
 import packageJson from '../package.json';
 import RuntimeCompatibility from '@/components/runtime-compatibility';
 import ThreeTestGateway from '@/components/three-test-gateway';
+import MaterialRecovery from '@/components/material-recovery';
 import './globals.css';
 import './cover-materials.css';
 import './reading-cover-fixes.css';
+import './material-library-refresh.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',
@@ -31,6 +33,7 @@ export default function RootLayout({
       >
         <RuntimeCompatibility />
         <ThreeTestGateway appVersion={packageJson.version} />
+        <MaterialRecovery />
         <style>{`
           .build-version {
             font-size: 0 !important;
