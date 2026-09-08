@@ -1,0 +1,35 @@
+/* Final color lock for the physical back cover in StPageFlip.
+   Keep this after reading-cover-fixes.css: the engine can temporarily expose
+   the hard-page fallback and the narrow resting-board edge while turning. */
+
+/* Back lining and exterior use the exact same selected base color. Texture and
+   lighting may add surface detail, but they must not introduce another tint. */
+.reading-pageflip-book {
+  --reading-cover-inside: var(--cover-base);
+  --reading-cover-edge-dark: color-mix(in srgb, var(--cover-base) 90%, black);
+  --reading-cover-edge-mid: var(--cover-base);
+  --reading-cover-edge-light: color-mix(in srgb, var(--cover-base) 96%, white);
+}
+
+/* The 3px resting back-board edge used to be translucent and carried its own
+   texture layer, so it visibly drifted from the actual hard back cover. */
+.reading-pageflip-book .stf__block::before {
+  background-color: var(--cover-base) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+  opacity: 1 !important;
+}
+
+/* When StPageFlip hides one of the physical faces at an intermediate angle,
+   the hard-page fallback must reveal the same base color, never a second tint. */
+.reading-pageflip-book .reading-flip-cover-back,
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
+  background-color: var(--cover-base) !important;
+}
+
+/* Avoid a second synthetic color transform on the cover faces. Material
+   identity remains in the grain/weave maps and their restrained gradients. */
+.reading-pageflip-book .reading-flip-cover-outside,
+.reading-pageflip-book .reading-flip-cover-inside {
+  filter: none !important;
+}

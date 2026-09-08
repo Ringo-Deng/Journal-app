@@ -7,6 +7,7 @@ import MaterialRecovery from '@/components/material-recovery';
 import './globals.css';
 import './cover-materials.css';
 import './reading-cover-fixes.css';
+import './reading-back-cover-fixes.css';
 import './material-library-refresh.css';
 
 export const metadata: Metadata = {
