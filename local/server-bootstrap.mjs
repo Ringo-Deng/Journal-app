@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { installDeepSeekSelfTestProbe } from './deepseek-selftest.mjs';
 import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
 import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
@@ -14,7 +13,9 @@ const configDir = process.env.JOURNAL_CONFIG_DIR || resolve(root, 'data');
 const managedKey = await syncManagedDeepSeekKey({ configDir });
 if (managedKey.managed && managedKey.changed)
   console.log('已载入本机持久化 DeepSeek AI 配置。');
-installDeepSeekSelfTestProbe();
+
+// Keep one authoritative transport layer for all official DeepSeek requests.
+// The curl path has been verified on the target Mac for both /models and chat.
 installDeepSeekCurlFallback();
 installRuntimeHealth({ version: appVersion });
 
