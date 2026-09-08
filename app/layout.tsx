@@ -4,6 +4,7 @@ import packageJson from '../package.json';
 import RuntimeCompatibility from '@/components/runtime-compatibility';
 import ThreeTestGateway from '@/components/three-test-gateway';
 import './globals.css';
+import './cover-materials.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',
