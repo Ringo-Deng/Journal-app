@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
+import { installDeepSeekVisionRouter } from './deepseek-vision-router.mjs';
 import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
 import { installRuntimeHealth } from './runtime-health.mjs';
@@ -17,6 +18,9 @@ if (managedKey.managed && managedKey.changed)
 // Keep one authoritative transport layer for all official DeepSeek requests.
 // The curl path has been verified on the target Mac for both /models and chat.
 installDeepSeekCurlFallback();
+// Image-bearing requests are routed automatically to DeepSeek's vision model;
+// ordinary text requests keep using the user's selected Flash/Pro model.
+installDeepSeekVisionRouter();
 installRuntimeHealth({ version: appVersion });
 
 const nativeTools = await prepareNativeImageTools({ root });
