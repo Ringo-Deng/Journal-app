@@ -19,3 +19,13 @@ test('each material can be categorized directly and dragged to a main category',
   assert.match(source,/onDrop=/);
   assert.match(source,/setAssetGroup\(id,g\)/);
 });
+
+test('every material can reopen from its current image instead of requiring its original source',()=>{
+  assert.match(source,/async function reopenAsset\(a:Asset\)/);
+  assert.match(source,/fetch\(src,\{cache:'no-store'\}\)/);
+  assert.match(source,/fetch\('\/api\/upload'/);
+  assert.match(source,/request\('\/source',\{src,name:a\.name\}\)/);
+  assert.match(source,/aria-label={`再次编辑\$\{a\.name\}`}/);
+  assert.match(source,/onClick=\{\(\)=>void reopenAsset\(a\)\}/);
+  assert.doesNotMatch(source,/request\('\/reopen'/);
+});
