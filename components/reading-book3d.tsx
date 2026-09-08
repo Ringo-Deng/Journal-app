@@ -56,12 +56,19 @@ export default forwardRef<
       id: crypto.randomUUID(),
       title: book.title || "拾光集",
       color: material.colorway.color,
-      spineColor: yellowPlaid
-        ? "#684631"
-        : material.material.id === "linen" && !book.coverAsset
+      // The clean yellow edition keeps the board edge yellow. BookSpine detects
+      // the edition from the cover colour and owns the separate brown binding.
+      spineColor:
+        !yellowPlaid && material.material.id === "linen" && !book.coverAsset
           ? "#51402e"
           : undefined,
-      material: ["linen", "canvas"].includes(material.material.id) ? "fabric" : "leather",
+      // Use the smooth physical-material path for this pristine edition so the
+      // generic cloth normal/roughness maps cannot make the checks look dirty.
+      material: yellowPlaid
+        ? "leather"
+        : ["linen", "canvas"].includes(material.material.id)
+          ? "fabric"
+          : "leather",
       ratio: bookFormat(book).ratio,
       leaves: plan.leaves,
       initialLeaf: plan.leafForReading(latest.current.readingIndex),
