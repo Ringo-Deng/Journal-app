@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <filter id="cloth" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05 0.16" numOctaves="2" seed="11" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="1.1 0 0 0 -0.05  0 1.1 0 0 -0.05  0 0 1.1 0 -0.05  0 0 0 0.28 0" result="softNoise"/>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light"/>
+    </filter>
+    <pattern id="warp" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="#8c8578"/>
+      <path d="M1 0 V8 M5 0 V8" stroke="#d6cec0" stroke-opacity="0.34" stroke-width="1"/>
+      <path d="M0 2 H8 M0 6 H8" stroke="#4f4b44" stroke-opacity="0.28" stroke-width="1"/>
+      <path d="M0 1 H8 M0 5 H8" stroke="#ffffff" stroke-opacity="0.1" stroke-width="0.6"/>
+    </pattern>
+    <linearGradient id="shade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2d2b28" stop-opacity="0.12"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#warp)" filter="url(#cloth)"/>
+  <rect width="256" height="256" fill="url(#shade)"/>
+</svg>
