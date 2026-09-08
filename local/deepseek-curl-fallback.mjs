@@ -3,20 +3,32 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-primary.v3');
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-primary.v4');
+const DEEPSEEK_PATHS = new Set(['/models', '/chat/completions']);
 
-export function isDeepSeekChatRequest(input, init) {
+export function isDeepSeekRequest(input) {
   try {
     const rawUrl =
       typeof input === 'string' || input instanceof URL
         ? String(input)
         : String(input?.url || '');
     const url = new URL(rawUrl);
-    return (
-      url.hostname === 'api.deepseek.com' &&
-      /\/chat\/completions\/?$/.test(url.pathname) &&
-      typeof init?.body === 'string'
-    );
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    return url.hostname === 'api.deepseek.com' && DEEPSEEK_PATHS.has(path);
+  } catch {
+    return false;
+  }
+}
+
+export function isDeepSeekChatRequest(input, init) {
+  if (!isDeepSeekRequest(input)) return false;
+  try {
+    const rawUrl =
+      typeof input === 'string' || input instanceof URL
+        ? String(input)
+        : String(input?.url || '');
+    const path = new URL(rawUrl).pathname.replace(/\/+$/, '');
+    return path === '/chat/completions' && typeof init?.body === 'string';
   } catch {
     return false;
   }
@@ -26,7 +38,8 @@ function safeRequestHeaders(init) {
   const lines = [];
   for (const [name, value] of new Headers(init?.headers || {})) {
     const lower = name.toLowerCase();
-    if (['host', 'content-length', 'connection', 'proxy-authorization'].includes(lower)) continue;
+    if (['host', 'content-length', 'connection', 'proxy-authorization'].includes(lower))
+      continue;
     lines.push(`${name}: ${value}`);
   }
   return lines.join('\n') + '\n';
@@ -54,7 +67,8 @@ function curlEnvironment(direct) {
     'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY',
     'http_proxy', 'https_proxy', 'all_proxy',
     'PROXY', 'proxy',
-  ]) delete env[name];
+  ])
+    delete env[name];
   env.NO_PROXY = '*';
   env.no_proxy = '*';
   return env;
@@ -71,27 +85,35 @@ export async function systemCurlFetch(input, init = {}, options = {}) {
   const headerPath = join(dir, 'request.headers');
   const responsePath = join(dir, 'response.body');
   const responseHeadersPath = join(dir, 'response.headers');
+  const hasBody = typeof init.body === 'string' && init.body.length > 0;
+
   try {
-    await Promise.all([
-      writeFile(bodyPath, String(init.body || ''), { mode: 0o600 }),
+    const writes = [
       writeFile(headerPath, safeRequestHeaders(init), { mode: 0o600 }),
-    ]);
+    ];
+    if (hasBody)
+      writes.push(writeFile(bodyPath, init.body, { mode: 0o600 }));
+    await Promise.all(writes);
+
     const args = [
       '--silent',
       '--show-error',
+      '--connect-timeout',
+      '8',
       '--max-time',
       '25',
     ];
     if (direct) args.push('--noproxy', '*');
     args.push(
       '--request',
-      String(init.method || 'POST'),
+      String(init.method || (hasBody ? 'POST' : 'GET')),
       '--url',
       rawUrl,
       '--header',
       `@${headerPath}`,
-      '--data-binary',
-      `@${bodyPath}`,
+    );
+    if (hasBody) args.push('--data-binary', `@${bodyPath}`);
+    args.push(
       '--dump-header',
       responseHeadersPath,
       '--output',
@@ -99,7 +121,8 @@ export async function systemCurlFetch(input, init = {}, options = {}) {
       '--write-out',
       '%{http_code}',
     );
-    const result = await new Promise((resolve, reject) => {
+
+    const result = await new Promise((resolveRun, rejectRun) => {
       const child = spawn(process.env.SHIGUANG_CURL_BIN || 'curl', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: curlEnvironment(direct),
@@ -108,52 +131,81 @@ export async function systemCurlFetch(input, init = {}, options = {}) {
       const err = [];
       child.stdout.on('data', (chunk) => out.push(chunk));
       child.stderr.on('data', (chunk) => err.push(chunk));
-      const abort = () => child.kill('SIGTERM');
-      init.signal?.addEventListener('abort', abort, { once: true });
-      child.on('error', reject);
+
+      let settled = false;
+      const abort = () => {
+        if (!settled) child.kill('SIGTERM');
+      };
+      if (init.signal?.aborted) abort();
+      else init.signal?.addEventListener('abort', abort, { once: true });
+
+      child.on('error', rejectRun);
       child.on('exit', (code) => {
+        settled = true;
         init.signal?.removeEventListener('abort', abort);
-        if (code === 0) resolve(Buffer.concat(out).toString());
-        else reject(Error(Buffer.concat(err).toString().trim() || `curl exited ${code}`));
+        if (init.signal?.aborted)
+          return rejectRun(init.signal.reason || Error('request aborted'));
+        if (code === 0) return resolveRun(Buffer.concat(out).toString());
+        rejectRun(Error(Buffer.concat(err).toString().trim() || `curl exited ${code}`));
       });
     });
+
     const status = Number.parseInt(String(result).trim().slice(-3), 10);
     if (!Number.isInteger(status) || status < 100 || status > 599)
       throw Error('curl did not return an HTTP status');
+
     const [body, rawHeaders] = await Promise.all([
       readFile(responsePath),
       readFile(responseHeadersPath, 'utf8').catch(() => ''),
     ]);
     const headers = parseHeaders(rawHeaders);
-    headers.set('x-shiguang-auth-transport', direct ? 'system-curl-direct' : 'system-curl');
+    headers.set(
+      'x-shiguang-auth-transport',
+      direct ? 'system-curl-direct' : 'system-curl',
+    );
     return new Response(body, { status, headers });
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-export function installDeepSeekCurlFallback(host = globalThis, curlFetch = systemCurlFetch) {
+export function installDeepSeekCurlFallback(
+  host = globalThis,
+  curlFetch = systemCurlFetch,
+) {
   if (host[PATCH_FLAG] || typeof host.fetch !== 'function') return false;
-  const nativeFetch = host.fetch.bind(host);
-  host.fetch = async (input, init) => {
-    if (!isDeepSeekChatRequest(input, init)) return nativeFetch(input, init);
 
-    // DeepSeek is curl-first. The same key and payload have been verified to
-    // reach api.deepseek.com successfully through system curl on the target Mac,
-    // while the layered Node fetch path can incorrectly produce 401.
-    try {
-      return await curlFetch(input, init, { direct: true });
-    } catch {
-      // Some managed networks block direct outbound HTTPS but allow the system
-      // proxy. Use the same curl transport with normal proxy environment next.
+  const nativeFetch = host.fetch.bind(host);
+  let preferredMode = 'direct';
+
+  host.fetch = async (input, init) => {
+    if (!isDeepSeekRequest(input)) return nativeFetch(input, init);
+
+    const order =
+      preferredMode === 'proxy'
+        ? [
+            { direct: false, name: 'proxy' },
+            { direct: true, name: 'direct' },
+          ]
+        : [
+            { direct: true, name: 'direct' },
+            { direct: false, name: 'proxy' },
+          ];
+
+    for (const mode of order) {
       try {
-        return await curlFetch(input, init, { direct: false });
+        const response = await curlFetch(input, init, { direct: mode.direct });
+        preferredMode = mode.name;
+        return response;
       } catch {
-        // Only if curl itself is unavailable do we fall back to Node fetch.
-        return nativeFetch(input, init);
+        // Only transport/network failures try the alternate curl path.
       }
     }
+
+    // Curl is unavailable or both curl network paths are blocked.
+    return nativeFetch(input, init);
   };
+
   host[PATCH_FLAG] = true;
   return true;
 }
