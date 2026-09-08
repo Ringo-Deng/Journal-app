@@ -17,6 +17,7 @@ import {
   sampleSheet,
   stackTop,
   coverHeight,
+  coverPose,
   nextBookTurn,
   finishBookTurn,
   settleDrag,
@@ -388,16 +389,14 @@ function BookModel({
     let opening = state.opened ? 1 : 0;
     if (motion?.kind === "cover") opening = MathUtils.lerp(motion.from, motion.to, turn);
     if (motion?.kind === "page") progress.current = motion.to > motion.from ? turn : 1 - turn;
-    cover.current.rotation.y = -Math.PI * opening;
-    cover.current.position.z = MathUtils.lerp(coverHeight("above"), coverHeight("below"), opening);
+    const frontPose = coverPose(opening, "front");
+    cover.current.rotation.y = frontPose.angle;
+    cover.current.position.z = frontPose.z;
     let backClosing = state.backClosed ? 1 : 0;
     if (motion?.kind === "back-cover") backClosing = MathUtils.lerp(motion.from, motion.to, turn);
-    backCover.current.rotation.y = -Math.PI * backClosing;
-    backCover.current.position.z = MathUtils.lerp(
-      coverHeight("below"),
-      coverHeight("above"),
-      backClosing,
-    );
+    const backPose = coverPose(backClosing, "back");
+    backCover.current.rotation.y = backPose.angle;
+    backCover.current.position.z = backPose.z;
     root.current.position.x = (-BOOK.width / 2) * (1 - opening) + (BOOK.width / 2) * backClosing;
     root.current.rotation.x = MathUtils.damp(
       root.current.rotation.x,
@@ -440,7 +439,7 @@ function BookModel({
           position={[BOOK.width / 2, 0, BOOK.cover / 2 + 0.001]}
           onPointerDown={(event) => startPageDrag(event, 1)}
         >
-          <planeGeometry args={[BOOK.width, BOOK.height]} />
+          <planeGeometry args={[BOOK.width - 0.08, BOOK.height - 0.08]} />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
         <mesh
@@ -463,7 +462,7 @@ function BookModel({
       </group>
       <PaperStack side={1} count={rightCount} />
       {state.opened && <PaperStack side={-1} count={leftCount} />}
-      {!state.backClosed && motion?.kind !== "back-cover" && (
+      {!state.backClosed && rightCount > 0 && (
         <PageSurface
           page={rightCount ? (BOOK.leaves - rightCount) * 2 : "lining"}
           side={1}
@@ -471,7 +470,7 @@ function BookModel({
           onPointerDown={(event) => startPageDrag(event, 1)}
         />
       )}
-      {state.opened && (
+      {state.opened && !state.backClosed && leftCount > 0 && (
         <PageSurface
           page={leftCount ? leftCount * 2 - 1 : "lining"}
           side={-1}
@@ -506,11 +505,11 @@ function BookModel({
           />
         </mesh>
         <mesh position={[BOOK.width / 2, 0, -(BOOK.cover / 2 + 0.001)]} rotation={[0, Math.PI, 0]}>
-          <planeGeometry args={[BOOK.width, BOOK.height]} />
+          <planeGeometry args={[BOOK.width - 0.08, BOOK.height - 0.08]} />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
       </group>
-      {state.opened && !state.backClosed && (
+      {state.opened && !state.backClosed && (!motion || motion.kind === "page") && (
         <BookBinding
           leftCount={leftCount}
           rightCount={rightCount}

@@ -121,3 +121,13 @@ export function coverHeight(side: "above" | "below") {
     ? stackTop(BOOK.leaves) + BOOK.coverGap + BOOK.cover / 2
     : BOOK.base - BOOK.coverGap - BOOK.cover / 2;
 }
+
+/** Move the hinge only on the empty side; never lower a cover through the full paper block. */
+export function coverPose(progress: number, side: "front" | "back") {
+  const p = Math.max(0, Math.min(1, progress));
+  const t = side === "front" ? Math.max(0, (p - 0.5) * 2) : Math.min(1, p * 2);
+  const eased = t * t * (3 - 2 * t);
+  const from = coverHeight(side === "front" ? "above" : "below");
+  const to = coverHeight(side === "front" ? "below" : "above");
+  return { angle: -Math.PI * p, z: from + (to - from) * eased };
+}

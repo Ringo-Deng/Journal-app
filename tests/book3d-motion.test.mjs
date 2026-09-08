@@ -178,3 +178,29 @@ test("thin covers keep their inner faces outside the paper block at both resting
   near(BOOK.base - openedInside, BOOK.coverGap);
   assert.ok(closedInside > stackTop(BOOK.leaves) + 0.008);
 });
+
+test("closing covers clear the full paper block throughout travel, not only at the endpoints", async () => {
+  const { coverPose, coverHeight } = await import("../lib/book3d-motion.ts");
+  for (const side of ["front", "back"]) {
+    near(coverPose(0, side).z, coverHeight(side === "front" ? "above" : "below"));
+    near(coverPose(1, side).z, coverHeight(side === "front" ? "below" : "above"));
+    for (let step = 0; step <= 100; step++) {
+      const p = step / 100;
+      const pose = coverPose(p, side);
+      for (let column = 0; column <= 40; column++) {
+        const x = (BOOK.width * column) / 40;
+        for (const face of [-1, 1]) {
+          const localZ = face * (BOOK.cover / 2 + 0.001);
+          const worldX = x * Math.cos(pose.angle) + localZ * Math.sin(pose.angle);
+          const worldZ = pose.z - x * Math.sin(pose.angle) + localZ * Math.cos(pose.angle);
+          const overPaper = side === "front" ? worldX > 0.14 : worldX < -0.14;
+          if (overPaper)
+            assert.ok(
+              worldZ >= stackTop(BOOK.leaves) + 0.008 - 1e-9,
+              `${side} ${p}: cover intersects paper`,
+            );
+        }
+      }
+    }
+  }
+});

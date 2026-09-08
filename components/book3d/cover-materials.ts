@@ -4,13 +4,13 @@ export type CoverMaterial = "leather" | "fabric";
 export const COVER_MATERIALS = {
   leather: {
     label: "牛皮",
-    color: "#926346",
-    edge: "#785039",
+    color: "#806049",
+    edge: "#73523e",
     ink: "#e4cfaa",
-    roughness: 0.68,
-    bump: 0.012,
-    sheen: 0.08,
-    clearcoat: 0.12,
+    roughness: 0.82,
+    bump: 0.0015,
+    sheen: 0.025,
+    clearcoat: 0.04,
   },
   fabric: {
     label: "布艺",
@@ -18,30 +18,42 @@ export const COVER_MATERIALS = {
     edge: "#aca18b",
     ink: "#535548",
     roughness: 0.98,
-    bump: 0.018,
+    bump: 0.004,
     sheen: 0.38,
     clearcoat: 0,
   },
 } as const;
 
-/** Small deterministic pores or alternating warp/weft, without external image requests. */
+/** Nonperiodic fine grain. No sine-wave bands or large-scale mottling on leather. */
+function hash(x: number, y: number) {
+  let value = Math.imul(x, 374761393) ^ Math.imul(y, 668265263);
+  value = Math.imul(value ^ (value >>> 13), 1274126177);
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967295;
+}
+function softNoise(x: number, y: number) {
+  const ix = Math.floor(x),
+    iy = Math.floor(y);
+  const fx = x - ix,
+    fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx),
+    sy = fy * fy * (3 - 2 * fy);
+  const top = hash(ix, iy) * (1 - sx) + hash(ix + 1, iy) * sx;
+  const bottom = hash(ix, iy + 1) * (1 - sx) + hash(ix + 1, iy + 1) * sx;
+  return top * (1 - sy) + bottom * sy;
+}
 function grain(x: number, y: number, kind: CoverMaterial) {
-  const noise = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  const fine = noise - Math.floor(noise);
+  const fine = hash(x, y);
   if (kind === "fabric") {
-    const warp = Math.cos((x * Math.PI) / 3);
-    const weft = Math.cos((y * Math.PI) / 3);
+    const warp = Math.cos((x * Math.PI) / 3),
+      weft = Math.cos((y * Math.PI) / 3);
     const crossing = (Math.floor(x / 6) + Math.floor(y / 6)) % 2 === 0;
     return (
-      0.5 + (crossing ? warp * 0.18 + weft * 0.07 : warp * 0.07 + weft * 0.18) + (fine - 0.5) * 0.1
+      0.5 +
+      (crossing ? warp * 0.09 + weft * 0.035 : warp * 0.035 + weft * 0.09) +
+      (fine - 0.5) * 0.06
     );
   }
-  return (
-    0.5 +
-    (fine - 0.5) * 0.35 +
-    Math.sin(x / 9 + Math.sin(y / 13)) * 0.07 +
-    Math.sin(y / 6 + x / 23) * 0.04
-  );
+  return 0.5 + (softNoise(x / 2, y / 2) - 0.5) * 0.2 + (fine - 0.5) * 0.05;
 }
 
 export function createCoverTextures(kind: CoverMaterial) {
@@ -61,7 +73,7 @@ export function createCoverTextures(kind: CoverMaterial) {
     for (let x = 0; x < canvas.width; x++) {
       const value = grain(x, y, kind);
       const i = (y * canvas.width + x) * 4;
-      const tone = (value - 0.5) * (kind === "leather" ? 25 : 18);
+      const tone = (value - 0.5) * (kind === "leather" ? 10 : 12);
       for (let c = 0; c < 3; c++) {
         pixels.data[i + c] = base[c] + tone;
         bumps.data[i + c] = Math.round(value * 255);
@@ -85,7 +97,7 @@ export function createCoverTextures(kind: CoverMaterial) {
 
   // Restrained inset border and embossed/printed lettering; weave remains under the print.
   ctx.strokeStyle = settings.ink;
-  ctx.globalAlpha = kind === "leather" ? 0.45 : 0.26;
+  ctx.globalAlpha = kind === "leather" ? 0.28 : 0.26;
   ctx.lineWidth = 1.5;
   if (kind === "leather") ctx.setLineDash([4, 5]);
   ctx.strokeRect(35, 35, 698, 954);
