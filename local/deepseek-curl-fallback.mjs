@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-fallback.v1');
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.curl-fallback.v2');
 const AUTH_FAILURE = new Set([401, 403]);
 
 export function isDeepSeekChatRequest(input, init) {
@@ -48,7 +48,21 @@ function parseHeaders(raw) {
   return headers;
 }
 
-export async function systemCurlFetch(input, init = {}) {
+function curlEnvironment(direct) {
+  const env = { ...process.env };
+  if (!direct) return env;
+  for (const name of [
+    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY',
+    'http_proxy', 'https_proxy', 'all_proxy',
+    'PROXY', 'proxy',
+  ]) delete env[name];
+  env.NO_PROXY = '*';
+  env.no_proxy = '*';
+  return env;
+}
+
+export async function systemCurlFetch(input, init = {}, options = {}) {
+  const direct = options?.direct === true;
   const rawUrl =
     typeof input === 'string' || input instanceof URL
       ? String(input)
@@ -68,6 +82,9 @@ export async function systemCurlFetch(input, init = {}) {
       '--show-error',
       '--max-time',
       '25',
+    ];
+    if (direct) args.push('--noproxy', '*');
+    args.push(
       '--request',
       String(init.method || 'POST'),
       '--url',
@@ -82,11 +99,11 @@ export async function systemCurlFetch(input, init = {}) {
       responsePath,
       '--write-out',
       '%{http_code}',
-    ];
+    );
     const result = await new Promise((resolve, reject) => {
       const child = spawn(process.env.SHIGUANG_CURL_BIN || 'curl', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: process.env,
+        env: curlEnvironment(direct),
       });
       const out = [];
       const err = [];
@@ -108,10 +125,23 @@ export async function systemCurlFetch(input, init = {}) {
       readFile(responsePath),
       readFile(responseHeadersPath, 'utf8').catch(() => ''),
     ]);
-    return new Response(body, { status, headers: parseHeaders(rawHeaders) });
+    const headers = parseHeaders(rawHeaders);
+    headers.set('x-shiguang-auth-transport', direct ? 'system-curl-direct' : 'system-curl');
+    return new Response(body, { status, headers });
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+function diagnosticResponse(response, message, transport) {
+  return response.clone().text().catch(() => '').then((body) => {
+    const headers = new Headers(response.headers);
+    headers.set('x-shiguang-auth-transport', transport);
+    return new Response(`${body}${body ? '\n' : ''}[Shiguang diagnostic: ${message}]`, {
+      status: response.status,
+      headers,
+    });
+  });
 }
 
 export function installDeepSeekCurlFallback(host = globalThis, curlFetch = systemCurlFetch) {
@@ -121,18 +151,32 @@ export function installDeepSeekCurlFallback(host = globalThis, curlFetch = syste
     const response = await nativeFetch(input, init);
     if (!isDeepSeekChatRequest(input, init) || !AUTH_FAILURE.has(response.status))
       return response;
+
+    // First escape environment proxies entirely. This is the only fallback that
+    // can distinguish a provider 401 from a proxy/gateway that rewrites auth.
     try {
-      const fallback = await curlFetch(input, init);
-      if (!AUTH_FAILURE.has(fallback.status)) return fallback;
-      const body = await fallback.clone().text().catch(() => '');
-      const headers = new Headers(fallback.headers);
-      headers.set('x-shiguang-auth-transport', 'system-curl');
-      return new Response(
-        `${body}${body ? '\n' : ''}[Shiguang diagnostic: system curl also returned ${fallback.status}]`,
-        { status: fallback.status, headers },
+      const direct = await curlFetch(input, init, { direct: true });
+      if (!AUTH_FAILURE.has(direct.status)) return direct;
+      return diagnosticResponse(
+        direct,
+        `direct system curl also returned ${direct.status}`,
+        'system-curl-direct',
       );
     } catch {
-      return response;
+      // Some managed networks require their proxy for all outbound HTTPS. In
+      // that case still try system curl with the normal environment because it
+      // can differ from Node TLS/proxy handling.
+      try {
+        const fallback = await curlFetch(input, init, { direct: false });
+        if (!AUTH_FAILURE.has(fallback.status)) return fallback;
+        return diagnosticResponse(
+          fallback,
+          `direct connection unavailable; proxied system curl returned ${fallback.status}`,
+          'system-curl',
+        );
+      } catch {
+        return response;
+      }
     }
   };
   host[PATCH_FLAG] = true;
