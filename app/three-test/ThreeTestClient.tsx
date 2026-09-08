@@ -77,7 +77,7 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       if (!root) return;
 
       const backCover = root.querySelector<HTMLElement>('.pf-cover--back');
-      if (!backCover || backCover.previousElementSibling?.classList.contains('pf-final-verso')) return;
+      if (!backCover || root.querySelector('.pf-final-verso')) return;
 
       // With showCover=true, odd page indexes sit on the left and even indexes on the right.
       // The back hard cover must therefore be an even-indexed page. Add the missing verso of
