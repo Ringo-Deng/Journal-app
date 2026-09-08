@@ -1,0 +1,186 @@
+.book3d-test {
+  min-height: 100dvh;
+  padding: 32px 40px 20px;
+  background: #f7f4ee;
+  color: #484b40;
+  font-family: "PingFang SC", sans-serif;
+}
+.book3d-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.book3d-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.book3d-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #7a8170;
+  margin: 0 0 14px;
+}
+.book3d-eyebrow span {
+  letter-spacing: 0;
+  margin-left: 12px;
+  color: #999b8e;
+}
+.book3d-header h1 {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+.book3d-subtitle {
+  color: #898b7e;
+  font-size: 12px;
+  margin: 12px 0 0;
+}
+.book3d-header a {
+  color: #707764;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid #b6bdac;
+  padding-bottom: 4px;
+}
+.book3d-stage {
+  position: relative;
+  height: clamp(400px, 65vh, 740px);
+  background: #e9e4db;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid #dfdbd1;
+}
+.book3d-stage-label {
+  position: absolute;
+  top: 23px;
+  left: 26px;
+  z-index: 1;
+  font-size: 11px;
+  color: #898777;
+  letter-spacing: 0.15em;
+  pointer-events: none;
+}
+.book3d-status {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 22px;
+  font-size: 12px;
+  color: #726e60;
+  text-align: center;
+  pointer-events: none;
+}
+.book3d-controls {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 22px 0;
+}
+.book3d-angle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #808372;
+  font-size: 12px;
+}
+.book3d-angle input {
+  width: 96px;
+  accent-color: #768368;
+}
+.book3d-angle span {
+  width: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.book3d-navigation {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.book3d-controls button {
+  border: 1px solid #d8dccd;
+  border-radius: 7px;
+  background: #fcfbf7;
+  color: #59634e;
+  padding: 11px 16px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 42px;
+}
+.book3d-controls button:hover:enabled {
+  background: #e8ecdf;
+  border-color: #aeb99e;
+}
+.book3d-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.book3d-controls button:focus-visible,
+.book3d-header a:focus-visible {
+  outline: 2px solid #73875e;
+  outline-offset: 3px;
+}
+.book3d-counter {
+  font:
+    12px Georgia,
+    serif;
+  color: #8b907e;
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.book3d-controls .book3d-reset {
+  border-color: transparent;
+  background: transparent;
+  color: #969a8c;
+}
+.book3d-note {
+  text-align: center;
+  color: #a6a99b;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .book3d-test {
+    padding: 24px 14px;
+  }
+  .book3d-header {
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .book3d-header a {
+    margin-top: 30px;
+  }
+  .book3d-subtitle {
+    max-width: 250px;
+    line-height: 1.8;
+  }
+  .book3d-stage {
+    height: 54vh;
+    min-height: 350px;
+  }
+  .book3d-controls {
+    gap: 12px;
+    padding-top: 16px;
+  }
+  .book3d-navigation {
+    order: -1;
+    width: 100%;
+    justify-content: center;
+    gap: 18px;
+  }
+  .book3d-angle input {
+    width: 120px;
+  }
+  .book3d-stage-label {
+    left: 18px;
+  }
+}
