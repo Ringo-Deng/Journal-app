@@ -12,7 +12,7 @@ test('cover title is escaped as text and invalid palette cannot inject SVG',()=>
 test('cover cache changes without invalidating saved inner pages or editing the book',()=>{
  const book={id:'a',title:'旅行',cover:'linen-oat',spreads:[]};
  const original=structuredClone(book);
- assert.equal(JSON.parse(readingJpgInput(book,[],null)).version,3);
+ assert.equal(JSON.parse(readingJpgInput(book,[],null)).version,4);
  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,2);
  assert.deepEqual(book,original);
 });
