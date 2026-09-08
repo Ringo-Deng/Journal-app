@@ -32,6 +32,8 @@ type PageFlipWindow = Window & {
   };
 };
 
+type CoverMaterial = 'leather' | 'fabric' | 'kraft';
+
 type DebugSettings = {
   flippingTime: number;
   maxShadowOpacity: number;
@@ -39,6 +41,8 @@ type DebugSettings = {
   pageHeight: number;
   showPageCorners: boolean;
   hardCover: boolean;
+  coverThickness: number;
+  coverMaterial: CoverMaterial;
 };
 
 const DEFAULT_SETTINGS: DebugSettings = {
@@ -48,33 +52,14 @@ const DEFAULT_SETTINGS: DebugSettings = {
   pageHeight: 520,
   showPageCorners: true,
   hardCover: true,
+  coverThickness: 6,
+  coverMaterial: 'leather',
 };
 
-const PRESETS: Array<{ label: string; value: DebugSettings }> = [
-  {
-    label: '轻柔',
-    value: {
-      ...DEFAULT_SETTINGS,
-      flippingTime: 1050,
-      maxShadowOpacity: 0.3,
-    },
-  },
-  {
-    label: '利落',
-    value: {
-      ...DEFAULT_SETTINGS,
-      flippingTime: 680,
-      maxShadowOpacity: 0.36,
-    },
-  },
-  {
-    label: '慢翻',
-    value: {
-      ...DEFAULT_SETTINGS,
-      flippingTime: 1320,
-      maxShadowOpacity: 0.26,
-    },
-  },
+const PRESETS: Array<{ label: string; patch: Partial<DebugSettings> }> = [
+  { label: '轻柔', patch: { flippingTime: 1050, maxShadowOpacity: 0.3 } },
+  { label: '利落', patch: { flippingTime: 680, maxShadowOpacity: 0.36 } },
+  { label: '慢翻', patch: { flippingTime: 1320, maxShadowOpacity: 0.26 } },
 ];
 
 function getPageFlipConstructor(): PageFlipConstructor | null {
@@ -134,24 +119,61 @@ async function loadPageFlip(): Promise<PageFlipConstructor> {
   throw lastError ?? new Error('Unable to load StPageFlip');
 }
 
-function makePageMarkup(hardCover: boolean): string {
-  const hard = hardCover ? ' data-density="hard"' : '';
-  return `
-    <div class="pf-page pf-cover"${hard}>
-      <div class="pf-cover-inner">
-        <div class="pf-kicker">SHIGUANG JOURNAL</div>
-        <div>
-          <div class="pf-cover-title">拾光</div>
-          <div class="pf-cover-subtitle">点击封面打开</div>
+function coverShellMarkup(side: 'front' | 'back', settings: DebugSettings): string {
+  const hard = settings.hardCover ? ' data-density="hard"' : '';
+  const materialClass = `pf-cover--${settings.coverMaterial}`;
+  const thicknessStyle = ` style="--pf-cover-thickness: ${settings.coverThickness}px"`;
+
+  if (side === 'front') {
+    return `
+      <div class="pf-page pf-cover pf-cover--front ${materialClass}"${thicknessStyle}${hard}>
+        <div class="pf-cover-shell">
+          <div class="pf-cover-face pf-cover-face--outside">
+            <div class="pf-cover-content">
+              <div class="pf-kicker">SHIGUANG JOURNAL</div>
+              <div>
+                <div class="pf-cover-title">拾光</div>
+                <div class="pf-cover-subtitle">点击封面打开</div>
+              </div>
+              <div class="pf-footnote">有厚度的封面壳层实验</div>
+            </div>
+          </div>
+          <div class="pf-cover-face pf-cover-face--inside">
+            <div class="pf-cover-lining"><span>INNER COVER</span><span>封面内衬</span></div>
+          </div>
+          <div class="pf-cover-edge pf-cover-edge--outer"></div>
+          <div class="pf-cover-edge pf-cover-edge--top"></div>
+          <div class="pf-cover-edge pf-cover-edge--bottom"></div>
         </div>
-        <div class="pf-footnote">成熟翻页引擎测试本</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="pf-page pf-cover pf-cover--back ${materialClass}"${thicknessStyle}${hard}>
+      <div class="pf-cover-shell">
+        <div class="pf-cover-face pf-cover-face--outside">
+          <div class="pf-back-inner">拾光 · 测试结束</div>
+        </div>
+        <div class="pf-cover-face pf-cover-face--inside">
+          <div class="pf-cover-lining"><span>BACK COVER</span><span>封底内衬</span></div>
+        </div>
+        <div class="pf-cover-edge pf-cover-edge--outer"></div>
+        <div class="pf-cover-edge pf-cover-edge--top"></div>
+        <div class="pf-cover-edge pf-cover-edge--bottom"></div>
       </div>
     </div>
+  `;
+}
+
+function makePageMarkup(settings: DebugSettings): string {
+  return `
+    ${coverShellMarkup('front', settings)}
     <div class="pf-page">
       <div class="pf-page-inner">
         <div class="pf-eyebrow">INNER COVER</div>
         <div class="pf-title">打开以后，先看书是否真的成立</div>
-        <div class="pf-body">这一版不再由我们手写纸张运动。封面、软页折角、阴影、拖拽和落页都交给成熟翻页引擎处理。</div>
+        <div class="pf-body">内页继续交给 StPageFlip 做软纸折叠；封面则单独补上厚度、材质层和封面专用阴影规则。</div>
         <div class="pf-footer"><span>拾光手帐</span><span>01</span></div>
       </div>
     </div>
@@ -159,7 +181,7 @@ function makePageMarkup(hardCover: boolean): string {
       <div class="pf-page-inner">
         <div class="pf-eyebrow">RIGHT PAGE</div>
         <div class="pf-title">现在翻这一张</div>
-        <div class="pf-body">重点观察右侧纸张：它应该从右侧抬起、弯折、越过书脊，并持续作为同一张纸落到左侧，而不是在动画末尾突然消失。</div>
+        <div class="pf-body">重点观察右侧纸张：它应该从右侧抬起、弯折、越过书脊，并持续作为同一张纸落到左侧。</div>
         <div class="pf-footer"><span>拾光手帐</span><span>02</span></div>
       </div>
     </div>
@@ -167,21 +189,19 @@ function makePageMarkup(hardCover: boolean): string {
       <div class="pf-page-inner">
         <div class="pf-eyebrow">LEFT PILE</div>
         <div class="pf-title">翻完后，纸必须留在这里</div>
-        <div class="pf-body">如果这张软页翻完后稳定叠在左侧，说明成熟翻页引擎的运动模型符合我们的底线，再考虑把手帐真实内容接进去。</div>
+        <div class="pf-body">软页翻完后稳定叠在左侧；硬封面则不使用软页那种大片动态投影。</div>
         <div class="pf-footer"><span>拾光手帐</span><span>03</span></div>
       </div>
     </div>
     <div class="pf-page">
       <div class="pf-page-inner">
         <div class="pf-eyebrow">NEXT SPREAD</div>
-        <div class="pf-title">先验证翻页，再谈视觉融合</div>
-        <div class="pf-body">这一页故意保持简单。只有翻页结构可靠以后，才把现有封面、纸张纹理、真实手帐跨页和欣赏模式接回去。</div>
+        <div class="pf-title">封面材质以后可以独立替换</div>
+        <div class="pf-body">牛皮革、布艺和牛皮纸目前用 CSS 纹理占位。后续可直接替换为真实贴图，而不改翻页结构。</div>
         <div class="pf-footer"><span>拾光手帐</span><span>04</span></div>
       </div>
     </div>
-    <div class="pf-page pf-back"${hard}>
-      <div class="pf-back-inner">拾光 · 测试结束</div>
-    </div>
+    ${coverShellMarkup('back', settings)}
   `;
 }
 
@@ -190,10 +210,6 @@ const pageCss = `
     width: 100%;
     height: 100%;
   }
-
-  /* StPageFlip's browser bundle does not inject its source stylesheet for us.
-     Keep these structural rules in the experiment so inactive/future pages are
-     absolutely positioned instead of leaking below the visible book. */
   .pf-book-root .stf__parent {
     position: relative;
     display: block;
@@ -201,7 +217,6 @@ const pageCss = `
     transform: translateZ(0);
     -ms-touch-action: pan-y;
     touch-action: pan-y;
-    overflow: hidden;
   }
   .pf-book-root .sft__wrapper,
   .pf-book-root .stf__wrapper {
@@ -222,7 +237,6 @@ const pageCss = `
     height: 100%;
     box-sizing: border-box;
     perspective: 2000px;
-    overflow: hidden;
   }
   .pf-book-root .stf__item {
     display: none;
@@ -236,6 +250,13 @@ const pageCss = `
     position: absolute;
     left: 0;
     top: 0;
+  }
+  .pf-book-root .stf__hardShadow,
+  .pf-book-root .stf__hardInnerShadow {
+    display: none !important;
+    opacity: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
   }
 
   .pf-page {
@@ -281,19 +302,145 @@ const pageCss = `
     font-size: 11px;
     opacity: .4;
   }
+
   .pf-cover {
-    background: #8a6954;
+    --pf-cover-thickness: 6px;
+    --pf-cover-base: #815f4b;
+    --pf-cover-inside: #71513f;
+    --pf-cover-edge: #4a3429;
+    --pf-cover-highlight: rgba(255, 239, 215, .15);
+    overflow: visible !important;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
     color: #fff8ec;
-    border: 1px solid rgba(68,47,33,.32);
+    transform-style: preserve-3d;
   }
-  .pf-cover-inner {
+  .pf-cover-shell {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    pointer-events: none;
+  }
+  .pf-cover-face {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid rgba(48, 34, 25, .28);
+    border-radius: 3px;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .pf-cover-face--outside {
+    transform: translateZ(calc(var(--pf-cover-thickness) / 2));
+    background-color: var(--pf-cover-base);
+  }
+  .pf-cover-face--inside {
+    transform: rotateY(180deg) translateZ(calc(var(--pf-cover-thickness) / 2));
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.06), transparent 18%, transparent 82%, rgba(0,0,0,.08)),
+      var(--pf-cover-inside);
+  }
+  .pf-cover--back .pf-cover-face--outside {
+    transform: rotateY(180deg) translateZ(calc(var(--pf-cover-thickness) / 2));
+  }
+  .pf-cover--back .pf-cover-face--inside {
+    transform: translateZ(calc(var(--pf-cover-thickness) / 2));
+  }
+
+  .pf-cover-edge {
+    position: absolute;
+    display: block;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.12), transparent 28%, rgba(0,0,0,.2)),
+      var(--pf-cover-edge);
+    transform-style: preserve-3d;
+  }
+  .pf-cover-edge--outer {
+    top: 0;
+    right: calc(var(--pf-cover-thickness) / -2);
+    width: var(--pf-cover-thickness);
+    height: 100%;
+    transform: rotateY(90deg);
+  }
+  .pf-cover-edge--top {
+    top: calc(var(--pf-cover-thickness) / -2);
+    left: 0;
+    width: 100%;
+    height: var(--pf-cover-thickness);
+    transform: rotateX(90deg);
+  }
+  .pf-cover-edge--bottom {
+    bottom: calc(var(--pf-cover-thickness) / -2);
+    left: 0;
+    width: 100%;
+    height: var(--pf-cover-thickness);
+    transform: rotateX(90deg);
+  }
+
+  .pf-cover--leather {
+    --pf-cover-base: #805d48;
+    --pf-cover-inside: #684a39;
+    --pf-cover-edge: #443026;
+  }
+  .pf-cover--leather .pf-cover-face--outside {
+    background-color: var(--pf-cover-base);
+    background-image:
+      radial-gradient(circle at 20% 12%, rgba(255,255,255,.11) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 73% 66%, rgba(0,0,0,.09) 0 1px, transparent 1.6px),
+      linear-gradient(135deg, rgba(255,255,255,.07), transparent 28%, rgba(0,0,0,.08));
+    background-size: 13px 13px, 17px 17px, 100% 100%;
+  }
+  .pf-cover--fabric {
+    --pf-cover-base: #8f8777;
+    --pf-cover-inside: #787164;
+    --pf-cover-edge: #555047;
+  }
+  .pf-cover--fabric .pf-cover-face--outside {
+    background-color: var(--pf-cover-base);
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, rgba(0,0,0,.045) 1px 2px, transparent 2px 4px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 1px, rgba(0,0,0,.035) 1px 2px, transparent 2px 5px);
+  }
+  .pf-cover--kraft {
+    --pf-cover-base: #a77f55;
+    --pf-cover-inside: #967049;
+    --pf-cover-edge: #684a32;
+  }
+  .pf-cover--kraft .pf-cover-face--outside {
+    background-color: var(--pf-cover-base);
+    background-image:
+      radial-gradient(circle at 16% 28%, rgba(80,50,28,.1) 0 1px, transparent 1.4px),
+      radial-gradient(circle at 72% 62%, rgba(255,255,255,.1) 0 1px, transparent 1.5px),
+      linear-gradient(100deg, rgba(255,255,255,.05), transparent 42%, rgba(80,50,28,.07));
+    background-size: 19px 21px, 23px 17px, 100% 100%;
+  }
+
+  .pf-cover-content {
     height: 100%;
     padding: 52px 42px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     box-sizing: border-box;
-    background: linear-gradient(135deg, rgba(255,255,255,.06), transparent 34%), radial-gradient(circle at 70% 22%, rgba(255,232,194,.13), transparent 30%);
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.06), transparent 34%),
+      radial-gradient(circle at 70% 22%, var(--pf-cover-highlight), transparent 30%);
+  }
+  .pf-cover-lining {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-sizing: border-box;
+    border: 12px solid rgba(255,255,255,.035);
+    font-size: 12px;
+    letter-spacing: .18em;
+    opacity: .68;
   }
   .pf-kicker {
     font-size: 12px;
@@ -314,10 +461,6 @@ const pageCss = `
     font-size: 11px;
     opacity: .5;
   }
-  .pf-back {
-    background: #80604d;
-    color: #fff8ec;
-  }
   .pf-back-inner {
     height: 100%;
     display: grid;
@@ -327,7 +470,7 @@ const pageCss = `
   }
 `;
 
-export default function Book3DTest() {
+export default function Book3DTest({ appVersion = 'dev' }: { appVersion?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const pageFlipRef = useRef<PageFlipInstance | null>(null);
   const [ready, setReady] = useState(false);
@@ -349,7 +492,7 @@ export default function Book3DTest() {
 
     const root = document.createElement('div');
     root.className = 'pf-book-root';
-    root.innerHTML = makePageMarkup(settings.hardCover);
+    root.innerHTML = makePageMarkup(settings);
     host.appendChild(root);
 
     const init = async () => {
@@ -386,9 +529,9 @@ export default function Book3DTest() {
           if (cancelled) return;
           const nextState = String(event.data);
           if (nextState === 'flipping' || nextState === 'user_fold') {
-            setState('纸页正在折叠 · 重点看弯曲、书脊和落页');
+            setState('纸页正在折叠 · 封面不再叠加 StPageFlip 的硬页大片阴影');
           } else if (nextState === 'read') {
-            setState('参数已生效 · 可以继续翻页或换一组参数');
+            setState('参数已生效 · 可以继续翻页或换封面材质');
           }
         });
 
@@ -400,7 +543,7 @@ export default function Book3DTest() {
 
         pageFlipRef.current = instance;
         setReady(true);
-        setState('参数已生效 · 先开封面，再连续翻两次观察');
+        setState('参数已生效 · 先检查封面厚度，再连续翻两张内页');
       } catch (error) {
         console.error('Failed to initialise StPageFlip experiment', error);
         if (!cancelled) {
@@ -432,8 +575,8 @@ export default function Book3DTest() {
     setState('已回到封面 · 使用当前参数重新测试');
   };
   const applySettings = () => setEngineKey((value) => value + 1);
-  const applyPreset = (value: DebugSettings) => {
-    setSettings(value);
+  const applyPreset = (patch: Partial<DebugSettings>) => {
+    setSettings((current) => ({ ...current, ...patch }));
     setTimeout(() => setEngineKey((current) => current + 1), 0);
   };
 
@@ -462,19 +605,29 @@ export default function Book3DTest() {
           <div>
             <div
               style={{
-                display: 'inline-flex',
-                padding: '6px 10px',
-                borderRadius: 999,
-                background: '#ffffffa8',
-                border: '1px solid #d9d0c5',
-                fontSize: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
                 marginBottom: 10,
               }}
             >
-              StPageFlip 调试台 · 参数可现场调整
+              <div
+                style={{
+                  display: 'inline-flex',
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  background: '#ffffffa8',
+                  border: '1px solid #d9d0c5',
+                  fontSize: 12,
+                }}
+              >
+                StPageFlip 调试台 · 封面结构实验
+              </div>
+              <div style={versionBadgeStyle}>当前版本 v{appVersion}</div>
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              先把翻页手感调对，再接回正式手帐
+              封面开始按“实体壳”来做
             </h1>
             <p style={{ margin: '8px 0 0', opacity: 0.72, fontSize: 14 }}>
               {state} · 当前页 {pageIndex + 1}
@@ -522,16 +675,16 @@ export default function Book3DTest() {
                 width: 'min(840px, 94vw)',
                 height: 'min(560px, 66vh)',
                 minHeight: 430,
-                filter: 'drop-shadow(0 26px 28px rgba(54, 43, 32, 0.22))',
+                filter: 'drop-shadow(0 26px 28px rgba(54, 43, 32, 0.16))',
               }}
             />
           </section>
 
           <aside style={panelStyle}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 650 }}>翻页参数</div>
+              <div style={{ fontSize: 13, fontWeight: 650 }}>翻页 / 封面参数</div>
               <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.55, opacity: 0.58 }}>
-                改动后点“应用参数”。你可以直接告诉我哪组数值更接近想要的感觉。
+                封面已经和软页分开处理：软页保留动态阴影，硬封面关闭引擎自带的大面积硬页阴影。
               </div>
             </div>
 
@@ -545,7 +698,7 @@ export default function Book3DTest() {
               onChange={(value) => setSettings((current) => ({ ...current, flippingTime: value }))}
             />
             <DebugSlider
-              label="动态阴影"
+              label="内页动态阴影"
               value={settings.maxShadowOpacity}
               min={0.1}
               max={0.8}
@@ -572,6 +725,38 @@ export default function Book3DTest() {
               suffix=" px"
               onChange={(value) => setSettings((current) => ({ ...current, pageHeight: value }))}
             />
+            <DebugSlider
+              label="封面厚度"
+              value={settings.coverThickness}
+              min={2}
+              max={14}
+              step={1}
+              suffix=" px"
+              onChange={(value) =>
+                setSettings((current) => ({ ...current, coverThickness: value }))
+              }
+            />
+
+            <label style={{ display: 'grid', gap: 7, fontSize: 12 }}>
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span>封面材质</span>
+                <span style={{ opacity: 0.56 }}>{coverMaterialLabel(settings.coverMaterial)}</span>
+              </span>
+              <select
+                value={settings.coverMaterial}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    coverMaterial: event.target.value as CoverMaterial,
+                  }))
+                }
+                style={selectStyle}
+              >
+                <option value="leather">牛皮革</option>
+                <option value="fabric">布艺</option>
+                <option value="kraft">牛皮纸</option>
+              </select>
+            </label>
 
             <label style={toggleRowStyle}>
               <span>显示折角提示</span>
@@ -587,7 +772,7 @@ export default function Book3DTest() {
               />
             </label>
             <label style={toggleRowStyle}>
-              <span>硬封面</span>
+              <span>使用硬封面壳</span>
               <input
                 type="checkbox"
                 checked={settings.hardCover}
@@ -606,7 +791,7 @@ export default function Book3DTest() {
                 <button
                   key={preset.label}
                   type="button"
-                  onClick={() => applyPreset(preset.value)}
+                  onClick={() => applyPreset(preset.patch)}
                   style={smallButtonStyle}
                 >
                   {preset.label}
@@ -621,17 +806,29 @@ export default function Book3DTest() {
                 borderTop: '1px solid rgba(98,78,61,.12)',
                 fontSize: 11,
                 lineHeight: 1.65,
-                opacity: 0.58,
+                opacity: 0.64,
               }}
             >
-              当前：{settings.flippingTime}ms · 阴影 {settings.maxShadowOpacity.toFixed(2)} ·{' '}
-              {settings.pageWidth}×{settings.pageHeight}
+              <div style={{ fontWeight: 700, opacity: 1 }}>版本 v{appVersion}</div>
+              <div>
+                当前：{settings.flippingTime}ms · 内页阴影 {settings.maxShadowOpacity.toFixed(2)}
+              </div>
+              <div>
+                {settings.pageWidth}×{settings.pageHeight} · 封面 {settings.coverThickness}px ·{' '}
+                {coverMaterialLabel(settings.coverMaterial)}
+              </div>
             </div>
           </aside>
         </div>
       </div>
     </main>
   );
+}
+
+function coverMaterialLabel(material: CoverMaterial): string {
+  if (material === 'fabric') return '布艺';
+  if (material === 'kraft') return '牛皮纸';
+  return '牛皮革';
 }
 
 function DebugSlider({
@@ -673,6 +870,21 @@ function DebugSlider({
   );
 }
 
+const versionBadgeStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 28,
+  padding: '5px 11px',
+  borderRadius: 9,
+  background: '#4f3b2f',
+  color: '#fffaf2',
+  border: '1px solid rgba(66,45,32,.25)',
+  boxShadow: '0 5px 14px rgba(68,47,34,.16)',
+  fontSize: 13,
+  fontWeight: 750,
+  letterSpacing: '.02em',
+};
+
 const buttonStyle: CSSProperties = {
   border: '1px solid #cdbfaf',
   borderRadius: 999,
@@ -687,7 +899,7 @@ const panelStyle: CSSProperties = {
   minHeight: 620,
   display: 'flex',
   flexDirection: 'column',
-  gap: 18,
+  gap: 16,
   padding: '20px 18px',
   borderRadius: 24,
   border: '1px solid #d8cfc4',
@@ -700,6 +912,16 @@ const toggleRowStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 12,
+  fontSize: 12,
+};
+
+const selectStyle: CSSProperties = {
+  width: '100%',
+  border: '1px solid #d4c7b8',
+  borderRadius: 10,
+  padding: '8px 10px',
+  background: '#fffaf3',
+  color: '#5b4d43',
   fontSize: 12,
 };
 
