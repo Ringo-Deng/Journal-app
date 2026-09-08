@@ -38,7 +38,12 @@ test('single-material AI classification is available for every material and is n
   assert.doesNotMatch(source,/再次识别\$\{a\.name\}/);
 });
 
-test('built-in material cards keep the current-image edit action balanced across the card width',()=>{
-  assert.match(source,/style=\{userAsset\?undefined:\{gridColumn:'1 \/ -1'\}\}/);
-  assert.match(source,/library-card-actions\$\{userAsset\?' has-delete':''\}/);
+test('every material card keeps the same four actions',()=>{
+  assert.match(source,/className="library-card-actions has-delete"/);
+  assert.match(source,/>编辑标签<\/button>/);
+  assert.match(source,/>AI分类<\/button>/);
+  assert.match(source,/>再次编辑<\/button>/);
+  assert.match(source,/>删除<\/button>/);
+  assert.match(source,/journal-hidden-materials-v1/);
+  assert.match(source,/window\.localStorage\.setItem\(hiddenKey/);
 });
