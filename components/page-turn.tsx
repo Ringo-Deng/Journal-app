@@ -19,12 +19,14 @@ function SpreadPreviewImpl({
   spread,
   assets,
   flyleaf = false,
+  movingFlyleaf = false,
   pageIndex,
 }: {
   book: Book;
   spread: Spread;
   assets: Asset[];
   flyleaf?: boolean;
+  movingFlyleaf?: boolean;
   pageIndex?: number;
 }) {
   const paper = flyleaf
@@ -39,7 +41,7 @@ function SpreadPreviewImpl({
   const cover = coverInfo(book.cover);
   return (
     <div
-      className={`turn-snapshot paper-${paper.style} notebook-${cover.material.id} ${flyleaf ? 'flyleaf-sheet' : ''}`}
+      className={`turn-snapshot paper-${paper.style} notebook-${cover.material.id} ${flyleaf ? 'flyleaf-sheet' : ''} ${movingFlyleaf ? 'flyleaf-moving' : ''}`}
       style={
         {
           '--paper': paper.color,
@@ -52,13 +54,15 @@ function SpreadPreviewImpl({
     >
       {flyleaf ? (
         <>
-          <div
-            className={`cover-inside texture-${cover.material.id}`}
-            style={{ '--cover-base': cover.colorway.color } as CSSProperties}
-          >
-            <span className="cover-inside-edge" aria-hidden="true" />
-            <span className="cover-binding" aria-hidden="true" />
-          </div>
+          {!movingFlyleaf && (
+            <div
+              className={`cover-inside texture-${cover.material.id}`}
+              style={{ '--cover-base': cover.colorway.color } as CSSProperties}
+            >
+              <span className="cover-inside-edge" aria-hidden="true" />
+              <span className="cover-binding" aria-hidden="true" />
+            </div>
+          )}
           <div className="paper-page right-paper">
             <span className="flyleaf-page-layer flyleaf-page-layer-back" aria-hidden="true" />
             <span className="flyleaf-page-layer flyleaf-page-layer-mid" aria-hidden="true" />
