@@ -1,286 +1,143 @@
 'use client';
 
-import { Canvas, useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  DoubleSide,
-  Group,
-  MathUtils,
-  Mesh,
-  MeshStandardMaterial,
-  PlaneGeometry,
-} from 'three';
+import { useEffect, useRef, useState } from 'react';
+import type { PageFlip } from 'page-flip';
 
-/**
- * The turning-sheet motion is adapted from the cylindrical page-curl approach
- * used by oguzhanT/turngl (MIT License, 2026). See THIRD_PARTY_NOTICES.md.
- *
- * The important invariant is geometric rather than state-based: the page is
- * built from x=0 (the spine) to x=PAGE_WIDTH. Every animation frame computes
- * each vertex from its original distance to x=0. Vertices on the spine have
- * distance 0, so they stay at x=0/z=0 for the entire flip and cannot detach.
- */
+const PAGE_WIDTH = 380;
+const PAGE_HEIGHT = 520;
 
-const PAGE_WIDTH = 3.72;
-const PAGE_HEIGHT = 5.04;
-const PAGE_SEGMENTS = 40;
-const PAGE_Z = 0.19;
-const CURL_LEAD = 0.24;
-const CURL_DEPTH = 0.58;
-
-type Phase = 'closed' | 'opening' | 'open' | 'flipping' | 'flipped';
-
-function StaticPage({ side, z = 0.145 }: { side: 'left' | 'right'; z?: number }) {
-  return (
-    <mesh position={[side === 'left' ? -PAGE_WIDTH / 2 : PAGE_WIDTH / 2, 0, z]} receiveShadow>
-      <planeGeometry args={[PAGE_WIDTH - 0.08, PAGE_HEIGHT - 0.08]} />
-      <meshStandardMaterial color="#fffaf0" roughness={0.96} />
-    </mesh>
-  );
-}
-
-function CylindricalTurningPage({
-  enabled,
-  progressRef,
-  onFlip,
-}: {
-  enabled: boolean;
-  progressRef: { current: number };
-  onFlip: () => void;
-}) {
-  const pageMesh = useRef<Mesh>(null);
-
-  const page = useMemo(() => {
-    const geometry = new PlaneGeometry(PAGE_WIDTH, PAGE_HEIGHT, PAGE_SEGMENTS, 2);
-    geometry.translate(PAGE_WIDTH / 2, 0, 0);
-
-    const positions = geometry.attributes.position;
-    const normalizedX = new Float32Array(positions.count);
-    const originalY = new Float32Array(positions.count);
-
-    for (let i = 0; i < positions.count; i += 1) {
-      normalizedX[i] = MathUtils.clamp(positions.getX(i) / PAGE_WIDTH, 0, 1);
-      originalY[i] = positions.getY(i);
-    }
-
-    const material = new MeshStandardMaterial({
-      color: '#fffdf6',
-      roughness: 0.94,
-      metalness: 0,
-      side: DoubleSide,
-    });
-
-    return { geometry, material, normalizedX, originalY };
-  }, []);
-
-  useEffect(
-    () => () => {
-      page.geometry.dispose();
-      page.material.dispose();
-    },
-    [page],
-  );
-
-  useFrame(() => {
-    const mesh = pageMesh.current;
-    if (!mesh) return;
-
-    const raw = MathUtils.clamp(progressRef.current, 0, 1);
-    // Ease both take-off and landing. Unlike the previous bone rig, this easing
-    // drives vertex positions directly and there is no second damping system
-    // that can continue moving after the logical flip is complete.
-    const progress = raw * raw * (3 - 2 * raw);
-    const positions = page.geometry.attributes.position;
-
-    for (let i = 0; i < positions.count; i += 1) {
-      const t = page.normalizedX[i];
-      const distanceFromSpine = t * PAGE_WIDTH;
-
-      // Outer columns lead the inner columns slightly, producing the characteristic
-      // rolling curl rather than a rigid door rotation. At progress 0 all angles
-      // are 0; at progress 1 all angles are PI.
-      const adjusted = progress * (1 + CURL_LEAD) - CURL_LEAD * 0.5;
-      const vertexProgress = MathUtils.clamp(
-        adjusted + (t - 0.5) * CURL_LEAD,
-        0,
-        1,
-      );
-      const angle = vertexProgress * Math.PI;
-
-      const x = distanceFromSpine * Math.cos(angle);
-      const z = distanceFromSpine * Math.sin(angle) * CURL_DEPTH;
-
-      // A very small diagonal lift keeps the free corner from looking perfectly
-      // machine-bent. It is zero at the spine and zero again at both end states.
-      const turnPulse = Math.sin(progress * Math.PI);
-      const verticalBias =
-        Math.sin(t * Math.PI) *
-        (page.originalY[i] / PAGE_HEIGHT) *
-        0.075 *
-        turnPulse;
-
-      positions.setXYZ(i, x, page.originalY[i] + verticalBias, z);
-    }
-
-    positions.needsUpdate = true;
-    page.geometry.computeVertexNormals();
-  });
-
-  return (
-    <mesh
-      ref={pageMesh}
-      geometry={page.geometry}
-      material={page.material}
-      position={[0, 0, PAGE_Z]}
-      castShadow
-      receiveShadow
-      onClick={(event) => {
-        event.stopPropagation();
-        if (enabled) onFlip();
-      }}
-    />
-  );
-}
-
-function BookModel({
-  onPhaseChange,
-}: {
-  onPhaseChange: (phase: Phase) => void;
-}) {
-  const root = useRef<Group>(null);
-  const cover = useRef<Group>(null);
-  const [phase, setPhase] = useState<Phase>('closed');
-  const coverProgress = useRef(0);
-  const pageProgress = useRef(0);
-
-  const changePhase = (next: Phase) => {
-    setPhase(next);
-    onPhaseChange(next);
-  };
-
-  useFrame((state, delta) => {
-    if (!root.current || !cover.current) return;
-
-    if (phase === 'opening') {
-      coverProgress.current = Math.min(1, coverProgress.current + delta / 1.05);
-      if (coverProgress.current >= 1) changePhase('open');
-    }
-
-    if (phase === 'flipping') {
-      pageProgress.current = Math.min(1, pageProgress.current + delta / 1.08);
-      if (pageProgress.current >= 1) {
-        pageProgress.current = 1;
-        changePhase('flipped');
-      }
-    }
-
-    const easedCover = MathUtils.smoothstep(coverProgress.current, 0, 1);
-    cover.current.rotation.y = -Math.PI * easedCover;
-
-    const openCenterShift = MathUtils.lerp(-PAGE_WIDTH / 2, 0, easedCover);
-    root.current.position.x = MathUtils.damp(root.current.position.x, openCenterShift, 5, delta);
-
-    const targetX = -0.23 + state.pointer.y * 0.045;
-    const targetY = state.pointer.x * 0.075;
-    root.current.rotation.x = MathUtils.damp(root.current.rotation.x, targetX, 5, delta);
-    root.current.rotation.y = MathUtils.damp(root.current.rotation.y, targetY, 5, delta);
-  });
-
-  const openCover = () => {
-    if (phase !== 'closed') return;
-    changePhase('opening');
-  };
-
-  const flipPage = () => {
-    if (phase !== 'open') return;
-    changePhase('flipping');
-  };
-
-  return (
-    <group ref={root} position={[-PAGE_WIDTH / 2, 0, 0]} rotation={[-0.23, 0, 0]}>
-      <mesh position={[PAGE_WIDTH / 2, 0, -0.24]} castShadow receiveShadow>
-        <boxGeometry args={[PAGE_WIDTH + 0.18, PAGE_HEIGHT + 0.2, 0.18]} />
-        <meshStandardMaterial color="#82624f" roughness={0.8} />
-      </mesh>
-
-      <mesh position={[PAGE_WIDTH / 2, 0, -0.02]} castShadow receiveShadow>
-        <boxGeometry args={[PAGE_WIDTH, PAGE_HEIGHT, 0.28]} />
-        <meshStandardMaterial color="#eee6d6" roughness={0.94} />
-      </mesh>
-
-      {phase !== 'closed' && <StaticPage side="left" z={0.135} />}
-      <StaticPage side="right" z={0.145} />
-
-      <CylindricalTurningPage
-        enabled={phase === 'open'}
-        progressRef={pageProgress}
-        onFlip={flipPage}
-      />
-
-      <group ref={cover} position={[0, 0, 0.31]}>
-        <mesh
-          position={[PAGE_WIDTH / 2, 0, 0]}
-          castShadow
-          receiveShadow
-          onClick={(event) => {
-            event.stopPropagation();
-            openCover();
-          }}
-        >
-          <boxGeometry args={[PAGE_WIDTH + 0.18, PAGE_HEIGHT + 0.2, 0.16]} />
-          <meshStandardMaterial color="#8a6954" roughness={0.77} />
-        </mesh>
-        <mesh position={[PAGE_WIDTH / 2, 0, -0.086]} receiveShadow>
-          <planeGeometry args={[PAGE_WIDTH - 0.08, PAGE_HEIGHT - 0.08]} />
-          <meshStandardMaterial color="#a98970" roughness={0.9} />
-        </mesh>
-      </group>
-
-      <mesh position={[0, 0, 0.04]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.14, 0.14, PAGE_HEIGHT + 0.08, 28]} />
-        <meshStandardMaterial color="#6f5142" roughness={0.84} />
-      </mesh>
-    </group>
-  );
-}
-
-function BookScene({ onPhaseChange }: { onPhaseChange: (phase: Phase) => void }) {
-  return (
-    <>
-      <color attach="background" args={['#ede7de']} />
-      <ambientLight intensity={1.25} />
-      <directionalLight position={[-4, 5, 7]} intensity={1.4} />
-      <spotLight
-        position={[4.5, 5.5, 8]}
-        angle={0.5}
-        penumbra={0.72}
-        intensity={58}
-        castShadow
-      />
-      <BookModel onPhaseChange={onPhaseChange} />
-      <mesh position={[0, 0, -0.82]} receiveShadow>
-        <planeGeometry args={[18, 14]} />
-        <meshStandardMaterial color="#e4ddd3" roughness={1} />
-      </mesh>
-    </>
-  );
-}
-
-const phaseCopy: Record<Phase, string> = {
-  closed: '点击封面打开手帐',
-  opening: '封面正在打开…',
-  open: '点击右页，测试圆柱式真实卷页',
-  flipping: '纸页沿书脊连续卷动…',
-  flipped: '翻页完成 · 同一张纸固定在左侧',
+const pageStyle: React.CSSProperties = {
+  position: 'relative',
+  overflow: 'hidden',
+  boxSizing: 'border-box',
+  background: '#fffaf0',
+  color: '#4a433b',
+  border: '1px solid rgba(104, 86, 69, 0.12)',
+  boxShadow: 'inset 0 0 34px rgba(102, 83, 62, 0.045)',
+  fontFamily: 'PingFang SC, -apple-system, BlinkMacSystemFont, sans-serif',
 };
 
-export default function Book3DTest() {
-  const [phase, setPhase] = useState<Phase>('closed');
-  const [sceneKey, setSceneKey] = useState(0);
+function PageContent({
+  eyebrow,
+  title,
+  body,
+  pageNumber,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  pageNumber?: string;
+}) {
+  return (
+    <div
+      style={{
+        height: '100%',
+        padding: '44px 38px 32px',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        background:
+          'radial-gradient(circle at 20% 10%, rgba(255,255,255,.95), rgba(255,250,240,.9) 46%, rgba(244,234,216,.82) 100%)',
+      }}
+    >
+      <div style={{ fontSize: 11, letterSpacing: '0.18em', opacity: 0.5, marginBottom: 16 }}>
+        {eyebrow}
+      </div>
+      <div style={{ fontSize: 28, lineHeight: 1.22, fontWeight: 650, letterSpacing: '-0.03em' }}>
+        {title}
+      </div>
+      <div style={{ marginTop: 18, fontSize: 14, lineHeight: 1.9, opacity: 0.72 }}>{body}</div>
+      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.4 }}>
+        <span>拾光手帐</span>
+        {pageNumber ? <span>{pageNumber}</span> : null}
+      </div>
+    </div>
+  );
+}
 
+export default function Book3DTest() {
+  const bookHostRef = useRef<HTMLDivElement>(null);
+  const pageFlipRef = useRef<PageFlip | null>(null);
+  const [ready, setReady] = useState(false);
+  const [state, setState] = useState('正在加载成熟翻页引擎…');
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let instance: PageFlip | null = null;
+
+    const init = async () => {
+      try {
+        const { PageFlip: PageFlipCtor } = await import('page-flip');
+        if (cancelled || !bookHostRef.current) return;
+
+        instance = new PageFlipCtor(bookHostRef.current, {
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT,
+          size: 'stretch',
+          minWidth: 280,
+          maxWidth: PAGE_WIDTH,
+          minHeight: 383,
+          maxHeight: PAGE_HEIGHT,
+          drawShadow: true,
+          flippingTime: 900,
+          usePortrait: false,
+          autoSize: true,
+          maxShadowOpacity: 0.42,
+          showCover: true,
+          mobileScrollSupport: false,
+          clickEventForward: true,
+          useMouseEvents: true,
+          swipeDistance: 30,
+          showPageCorners: true,
+          disableFlipByClick: false,
+        });
+
+        const pages = bookHostRef.current.querySelectorAll<HTMLElement>('[data-journal-page]');
+        instance.loadFromHTML(pages);
+
+        instance.on('changeState', (event) => {
+          if (cancelled) return;
+          const nextState = String(event.data);
+          if (nextState === 'flipping' || nextState === 'user_fold') {
+            setState('纸页正在真实折叠；翻完后会保留在左侧书页堆中');
+          } else if (nextState === 'read') {
+            setState('点击右页继续翻；也可以拖动右下角');
+          }
+        });
+
+        instance.on('flip', (event) => {
+          if (cancelled) return;
+          const nextPage = Number(event.data);
+          if (Number.isFinite(nextPage)) setPageIndex(nextPage);
+        });
+
+        pageFlipRef.current = instance;
+        setReady(true);
+        setState('先点击封面打开，再翻一张软页测试落页效果');
+      } catch (error) {
+        console.error('Failed to initialise StPageFlip experiment', error);
+        if (!cancelled) {
+          setState('翻页引擎未安装：请先执行 npm install，再刷新此页');
+        }
+      }
+    };
+
+    void init();
+
+    return () => {
+      cancelled = true;
+      pageFlipRef.current = null;
+      instance?.destroy();
+    };
+  }, []);
+
+  const goNext = () => pageFlipRef.current?.flipNext('bottom');
+  const goPrev = () => pageFlipRef.current?.flipPrev('bottom');
   const reset = () => {
-    setPhase('closed');
-    setSceneKey((value) => value + 1);
+    pageFlipRef.current?.turnToPage(0);
+    setPageIndex(0);
+    setState('已回到封面；点击封面重新测试');
   };
 
   return (
@@ -301,6 +158,7 @@ export default function Book3DTest() {
             gap: 20,
             alignItems: 'flex-end',
             marginBottom: 18,
+            flexWrap: 'wrap',
           }}
         >
           <div>
@@ -315,54 +173,141 @@ export default function Book3DTest() {
                 marginBottom: 10,
               }}
             >
-              Three.js 实验页 · MIT 圆柱卷页方案
+              成熟翻页引擎对照实验 · StPageFlip
             </div>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: '-0.02em' }}>
-              封面打开 + 连续页纸卷曲
+              不再自制 Three.js 翻页
             </h1>
-            <p style={{ margin: '8px 0 0', opacity: 0.7, fontSize: 14 }}>
-              {phaseCopy[phase]}
+            <p style={{ margin: '8px 0 0', opacity: 0.72, fontSize: 14 }}>
+              {state} · 当前页 {pageIndex + 1}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={reset}
-            style={{
-              border: '1px solid #cdbfaf',
-              borderRadius: 999,
-              padding: '9px 14px',
-              background: '#fffaf2',
-              color: '#53483f',
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
-          >
-            重新测试
-          </button>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={goPrev} disabled={!ready} style={buttonStyle}>
+              上一页
+            </button>
+            <button type="button" onClick={goNext} disabled={!ready} style={buttonStyle}>
+              下一页
+            </button>
+            <button type="button" onClick={reset} disabled={!ready} style={buttonStyle}>
+              重新测试
+            </button>
+          </div>
         </div>
 
         <section
           style={{
-            height: 'min(72vh, 760px)',
-            minHeight: 520,
+            minHeight: 620,
+            display: 'grid',
+            placeItems: 'center',
             overflow: 'hidden',
             borderRadius: 28,
             border: '1px solid #d8cfc4',
             boxShadow: '0 24px 70px rgba(68, 53, 39, 0.14)',
-            background: '#ede7de',
+            background:
+              'radial-gradient(circle at 50% 36%, rgba(255,255,255,.82), rgba(232,224,214,.95) 68%, #ded4c8 100%)',
+            padding: '38px 20px',
           }}
         >
-          <Canvas
-            key={sceneKey}
-            shadows
-            dpr={[1, 2]}
-            camera={{ position: [0, 0.25, 9], fov: 38, near: 0.1, far: 50 }}
-            gl={{ antialias: true }}
+          <div
+            ref={bookHostRef}
+            style={{
+              width: 'min(840px, 94vw)',
+              height: 'min(560px, 66vh)',
+              minHeight: 430,
+              filter: 'drop-shadow(0 26px 28px rgba(54, 43, 32, 0.22))',
+            }}
           >
-            <BookScene onPhaseChange={setPhase} />
-          </Canvas>
+            <div
+              data-journal-page
+              data-density="hard"
+              style={{
+                ...pageStyle,
+                background: '#8a6954',
+                color: '#fff8ec',
+                border: '1px solid rgba(68,47,33,.32)',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  padding: '52px 42px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxSizing: 'border-box',
+                  background:
+                    'linear-gradient(135deg, rgba(255,255,255,.06), transparent 34%), radial-gradient(circle at 70% 22%, rgba(255,232,194,.13), transparent 30%)',
+                }}
+              >
+                <div style={{ fontSize: 12, letterSpacing: '0.24em', opacity: 0.72 }}>SHIGUANG JOURNAL</div>
+                <div>
+                  <div style={{ fontSize: 36, fontWeight: 650, letterSpacing: '-0.04em' }}>拾光</div>
+                  <div style={{ marginTop: 10, fontSize: 14, opacity: 0.72 }}>点击封面打开</div>
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.5 }}>成熟翻页引擎测试本</div>
+              </div>
+            </div>
+
+            <div data-journal-page style={pageStyle}>
+              <PageContent
+                eyebrow="INNER COVER"
+                title="打开以后，先看书是否真的成立"
+                body="这一版不再由我们手写纸张运动。封面、软页折角、阴影、拖拽和落页都交给成熟翻页引擎处理。"
+                pageNumber="01"
+              />
+            </div>
+
+            <div data-journal-page style={pageStyle}>
+              <PageContent
+                eyebrow="RIGHT PAGE"
+                title="现在翻这一张"
+                body="重点观察右侧纸张：它应该从右侧抬起、弯折、越过书脊，并持续作为同一张纸落到左侧，而不是在动画末尾突然消失。"
+                pageNumber="02"
+              />
+            </div>
+
+            <div data-journal-page style={pageStyle}>
+              <PageContent
+                eyebrow="LEFT PILE"
+                title="翻完后，纸必须留在这里"
+                body="如果这张软页翻完后稳定叠在左侧，说明成熟翻页引擎的运动模型符合我们的底线，再考虑把手帐真实内容接进去。"
+                pageNumber="03"
+              />
+            </div>
+
+            <div data-journal-page style={pageStyle}>
+              <PageContent
+                eyebrow="NEXT SPREAD"
+                title="先验证翻页，再谈视觉融合"
+                body="这一页故意保持简单。只有翻页结构可靠以后，才把现有封面、纸张纹理、真实手帐跨页和欣赏模式接回去。"
+                pageNumber="04"
+              />
+            </div>
+
+            <div
+              data-journal-page
+              data-density="hard"
+              style={{ ...pageStyle, background: '#80604d', color: '#fff8ec' }}
+            >
+              <div style={{ height: '100%', display: 'grid', placeItems: 'center', fontSize: 15, opacity: 0.78 }}>
+                拾光 · 测试结束
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </main>
   );
 }
+
+const buttonStyle: React.CSSProperties = {
+  border: '1px solid #cdbfaf',
+  borderRadius: 999,
+  padding: '9px 14px',
+  background: '#fffaf2',
+  color: '#53483f',
+  cursor: 'pointer',
+  fontSize: 13,
+};
