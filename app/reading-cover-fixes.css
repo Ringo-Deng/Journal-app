@@ -2,29 +2,58 @@
    Keep these rules separate from the editor/library cover geometry: StPageFlip
    rewrites hard-page inline styles while it animates. */
 
+/* One selected cover color is the single source of truth for every physical
+   surface. Faces may become a little lighter/darker because of lighting, but
+   they must never drift into a different beige/grey hue. */
+.reading-pageflip-book {
+  --reading-cover-surface: var(--cover-base);
+  --reading-cover-inside: color-mix(in srgb, var(--cover-base) 94%, white);
+  --reading-cover-edge-dark: color-mix(in srgb, var(--cover-base) 76%, black);
+  --reading-cover-edge-light: color-mix(in srgb, var(--cover-base) 91%, white);
+}
+
+.reading-pageflip-book .reading-flip-cover-outside {
+  background-color: var(--reading-cover-surface) !important;
+}
+
+.reading-pageflip-book .reading-flip-cover-inside,
+.reading-pageflip-book .reading-flip-lining {
+  background-color: var(--reading-cover-inside) !important;
+}
+
+.reading-pageflip-book .reading-flip-cover-edge {
+  background:
+    linear-gradient(
+      90deg,
+      var(--reading-cover-edge-dark),
+      var(--reading-cover-edge-light) 46%,
+      var(--reading-cover-edge-dark)
+    ) !important;
+}
+
 /* A bound back board sits below the paper stack, but while reading it should
    only peek out at the fore-edge. A full-size helper board caused a large
    coloured rectangle to appear whenever StPageFlip temporarily hid a paper. */
 .reading-pageflip-book .stf__block::before {
   content: '';
   position: absolute;
-  right: -7px;
+  right: -5px;
   top: 2%;
-  width: 8px;
+  width: 6px;
   height: 96%;
   z-index: 0;
   pointer-events: none;
-  border: 1px solid rgb(58 45 34 / 18%);
+  border: 1px solid color-mix(in srgb, var(--reading-cover-edge-dark) 64%, transparent);
   border-left: 0;
-  border-radius: 0 5px 5px 0;
-  background-color: color-mix(in srgb, var(--cover-base) 58%, #d8d0c2) !important;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--reading-cover-surface) !important;
   box-shadow:
     inset 1px 0 rgb(255 255 255 / 9%),
-    2px 2px 0 rgb(72 55 40 / 14%),
-    5px 10px 18px -12px rgb(28 23 19 / 48%);
+    2px 2px 0 rgb(72 55 40 / 12%),
+    4px 8px 15px -11px rgb(28 23 19 / 42%);
   transform: translateZ(-12px);
   transform-style: preserve-3d;
-  opacity: 1;
+  opacity: .9;
   transition: opacity 120ms linear;
 }
 
@@ -75,12 +104,12 @@
    final cover owns its own two physical faces, so the parent itself must stay
    solid rather than becoming a transparent carrier at some angles. */
 .reading-pageflip-book .reading-flip-cover-back {
-  background-color: var(--cover-base) !important;
+  background-color: var(--reading-cover-surface) !important;
   backface-visibility: visible !important;
   -webkit-backface-visibility: visible !important;
 }
 .reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
-  background-color: var(--cover-base);
+  background-color: var(--reading-cover-surface);
   border-radius: 5px;
 }
 
@@ -88,26 +117,29 @@
    Keep the macro photo out of the animated cover because at this book scale it
    reads as repeated towel ridges rather than book cloth. */
 .reading-pageflip-book .reading-flip-cover-face.texture-linen {
-  background-color: color-mix(in srgb, var(--cover-base) 56%, #aa9f89) !important;
+  background-color: var(--reading-cover-surface) !important;
   background-image:
-    radial-gradient(ellipse at 29% 13%, rgb(255 252 239 / 14%) 0, transparent 42%),
-    linear-gradient(96deg, rgb(43 34 25 / 16%) 0, transparent 8%, transparent 87%, rgb(31 25 19 / 9%) 100%),
-    repeating-linear-gradient(90deg, transparent 0 39px, rgb(80 65 45 / 5%) 39px 40px, transparent 40px 78px),
-    repeating-linear-gradient(0deg, transparent 0 39px, rgb(255 248 230 / 5%) 39px 40px, transparent 40px 78px),
+    radial-gradient(ellipse at 29% 13%, rgb(255 252 239 / 11%) 0, transparent 42%),
+    linear-gradient(96deg, rgb(43 34 25 / 12%) 0, transparent 8%, transparent 87%, rgb(31 25 19 / 7%) 100%),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgb(80 65 45 / 4%) 39px 40px, transparent 40px 78px),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgb(255 248 230 / 4%) 39px 40px, transparent 40px 78px),
     url('/textures/covers/fabric-weave.svg') !important;
   background-size: 100% 100%, 100% 100%, auto, auto, 66px 66px !important;
   background-position: center, center, 0 0, 0 0, 5px 7px !important;
   background-repeat: no-repeat, no-repeat, repeat, repeat, repeat !important;
   background-blend-mode: soft-light, multiply, multiply, screen, multiply !important;
   box-shadow:
-    inset 9px 0 13px -12px rgb(37 28 20 / 43%),
-    inset -1px 0 rgb(255 255 255 / 10%) !important;
+    inset 9px 0 13px -12px rgb(37 28 20 / 39%),
+    inset -1px 0 rgb(255 255 255 / 9%) !important;
 }
 
-.reading-pageflip-book .reading-flip-cover-inside.texture-linen {
-  background-color: color-mix(in srgb, var(--cover-base) 38%, #c8c0b1) !important;
+/* Both the physical inside face and the logical lining page use exactly the
+   same derived inner color, so the cover does not change hue mid-turn. */
+.reading-pageflip-book .reading-flip-cover-inside.texture-linen,
+.reading-pageflip-book .reading-flip-lining.texture-linen {
+  background-color: var(--reading-cover-inside) !important;
   background-image:
-    linear-gradient(90deg, rgb(0 0 0 / 14%), transparent 13%, transparent 92%, rgb(0 0 0 / 7%)),
+    linear-gradient(90deg, rgb(0 0 0 / 10%), transparent 13%, transparent 92%, rgb(0 0 0 / 5%)),
     url('/textures/covers/fabric-weave.svg') !important;
   background-size: 100% 100%, 78px 78px !important;
   background-position: center, 8px 10px !important;
@@ -117,8 +149,9 @@
 
 /* Canvas uses the same fibre source but a tighter, drier weave. */
 .reading-pageflip-book .reading-flip-cover-face.texture-canvas {
+  background-color: var(--reading-cover-surface) !important;
   background-image:
-    linear-gradient(94deg, rgb(0 0 0 / 22%), transparent 10%, transparent 89%, rgb(0 0 0 / 13%)),
+    linear-gradient(94deg, rgb(0 0 0 / 18%), transparent 10%, transparent 89%, rgb(0 0 0 / 10%)),
     url('/textures/covers/fabric-weave.svg') !important;
   background-size: 100% 100%, 56px 56px !important;
   background-position: center, 4px 6px !important;
