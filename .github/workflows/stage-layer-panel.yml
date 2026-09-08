@@ -5,7 +5,7 @@ on:
     branches:
       - automation/layer-panel-stage
     paths:
-      - .ai-layer-staging/READY
+      - .ai-layer-staging/READY*
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
         run: |
           test "$(git hash-object app/page.tsx)" = "d8bf2016878db023246951a548494bfcd3bd8018"
           test "$(git hash-object components/page-turn.tsx)" = "450bc805555d6e9cebe3734cdec3c0b19681ebcd"
-          test "$(git hash-object tests/layer-panel.test.mjs)" = "84507c86be113a9848cff4e40812374e59ac4876"
+          test "$(git hash-object tests/layer-panel.test.mjs)" = "d36dc99694762c6b29e7dcfdcbfed3838c62baf4"
       - name: Verify layer regressions
         run: node --test tests/layer-panel.test.mjs
       - name: Commit reconstructed product files
