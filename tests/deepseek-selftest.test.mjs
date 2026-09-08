@@ -43,11 +43,35 @@ test('connection test probes /models before Chat and continues when auth passes'
   ]);
 });
 
-test('invalid auth stops before Chat and returns the /models 401', async () => {
+test('/models auth failure cannot block a working Chat request', async () => {
   const calls = [];
   const host = {
     fetch: async (input, init) => {
-      calls.push([String(input), init?.method || 'GET']);
+      const url = String(input);
+      calls.push([url, init?.method || 'GET']);
+      if (url.endsWith('/models')) return new Response(JSON.stringify({ error: { message: 'Authentication Fails' } }), { status: 401 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), { status: 200 });
+    },
+  };
+  installDeepSeekSelfTestProbe(host);
+  const response = await host.fetch(chatUrl, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+    body: textBody,
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls.map(([url, method]) => [new URL(url).pathname, method]), [
+    ['/models', 'GET'],
+    ['/chat/completions', 'POST'],
+  ]);
+});
+
+test('real Chat auth failure remains the final result', async () => {
+  const calls = [];
+  const host = {
+    fetch: async (input, init) => {
+      const url = String(input);
+      calls.push([url, init?.method || 'GET']);
       return new Response(JSON.stringify({ error: { message: 'Authentication Fails' } }), { status: 401 });
     },
   };
@@ -58,8 +82,10 @@ test('invalid auth stops before Chat and returns the /models 401', async () => {
     body: textBody,
   });
   assert.equal(response.status, 401);
-  assert.equal(calls.length, 1);
-  assert.equal(new URL(calls[0][0]).pathname, '/models');
+  assert.deepEqual(calls.map(([url, method]) => [new URL(url).pathname, method]), [
+    ['/models', 'GET'],
+    ['/chat/completions', 'POST'],
+  ]);
 });
 
 test('production AI calls never incur the extra /models probe', async () => {

@@ -1,5 +1,4 @@
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.selftest.v1');
-const AUTH_FAILURE = new Set([401, 403]);
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.selftest.v2');
 
 export function isDeepSeekChatRequest(input, init) {
   try {
@@ -63,14 +62,13 @@ export function installDeepSeekSelfTestProbe(host = globalThis) {
       probeUrl.pathname = probeUrl.pathname.replace(/\/chat\/completions\/?$/, '/models');
       probeUrl.search = '';
       probeUrl.hash = '';
-      const probeResponse = await nativeFetch(probeUrl, {
+      await nativeFetch(probeUrl, {
         method: 'GET',
         headers: { Authorization: authorization },
         signal: AbortSignal.timeout(10_000),
       });
-      if (AUTH_FAILURE.has(probeResponse.status)) return probeResponse;
-      // A transient /models failure must not make a working Chat endpoint look broken.
-      // The existing Chat retry/diagnostic layer remains the source of truth.
+      // /models is diagnostic only. Never substitute its response for the real
+      // Chat request: some managed networks treat GET and POST differently.
     } catch {
       // Network-specific /models probing is diagnostic only; continue to Chat.
     }
