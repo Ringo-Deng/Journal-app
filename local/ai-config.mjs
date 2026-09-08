@@ -49,6 +49,9 @@ const isModelName = (value) => {
   );
 };
 
+export const modelSupportsVision = (model) =>
+  String(model || '').trim() === 'deepseek-v4-flash-vision-exp';
+
 export function configIssue(config) {
   const model = String(config?.model || '').trim();
   const apiKey = normalizeApiKey(config?.apiKey);
@@ -94,6 +97,13 @@ export function migrateLegacyConfig(config) {
         next.model = 'deepseek-v4-flash';
         changed = true;
       }
+      // Older builds could preserve vision=true after migrating to a text-only
+      // model. That makes the final image stage of "保存并测试" fail even when
+      // the key and text model are valid.
+      if (next.vision !== false && !modelSupportsVision(next.model)) {
+        next.vision = false;
+        changed = true;
+      }
     }
   } catch {}
   return { config: next, changed };
@@ -133,33 +143,89 @@ export function prepareDeepSeekPayload(payload) {
   return next;
 }
 
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.fetch.compat.v0121');
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.fetch.compat.v0128');
+const assistantText = (result) => {
+  const content = result?.choices?.[0]?.message?.content;
+  return typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content
+          .filter((part) => part?.type === 'text')
+          .map((part) => part.text || '')
+          .join('\n')
+      : '';
+};
+const retryDelay = (signal) =>
+  new Promise((resolveDelay) => {
+    if (signal?.aborted) return resolveDelay();
+    const timer = setTimeout(resolveDelay, 250);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolveDelay();
+      },
+      { once: true },
+    );
+  });
+
 function installDeepSeekFetchCompatibility() {
   const host = globalThis;
   if (host[PATCH_FLAG] || typeof host.fetch !== 'function') return;
   const nativeFetch = host.fetch.bind(host);
   host.fetch = async (input, init) => {
+    let deepseek = false;
+    let payload;
     try {
       const rawUrl =
         typeof input === 'string' || input instanceof URL
           ? String(input)
           : String(input?.url || '');
       const url = new URL(rawUrl);
-      if (
+      deepseek =
         url.hostname === 'api.deepseek.com' &&
         /\/chat\/completions\/?$/.test(url.pathname) &&
-        typeof init?.body === 'string'
-      ) {
-        const parsed = JSON.parse(init.body);
-        init = {
-          ...init,
-          body: JSON.stringify(prepareDeepSeekPayload(parsed)),
-        };
+        typeof init?.body === 'string';
+      if (deepseek) {
+        payload = prepareDeepSeekPayload(JSON.parse(init.body));
+        init = { ...init, body: JSON.stringify(payload) };
       }
     } catch {
       // Non-DeepSeek and non-JSON requests pass through untouched.
     }
-    return nativeFetch(input, init);
+    if (!deepseek) return nativeFetch(input, init);
+
+    let response;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      response = await nativeFetch(input, init);
+      if (
+        attempt === 0 &&
+        !init?.signal?.aborted &&
+        RETRYABLE_STATUS.has(response.status)
+      ) {
+        await retryDelay(init?.signal);
+        continue;
+      }
+      if (
+        attempt === 0 &&
+        !init?.signal?.aborted &&
+        response.ok &&
+        payload?.response_format?.type === 'json_object'
+      ) {
+        try {
+          const parsed = await response.clone().json();
+          if (!assistantText(parsed).trim()) {
+            await retryDelay(init?.signal);
+            continue;
+          }
+        } catch {
+          // Let the existing response parser report a malformed provider body.
+        }
+      }
+      return response;
+    }
+    return response;
   };
   host[PATCH_FLAG] = true;
 }
