@@ -9,7 +9,7 @@
     "dev": "node local/dev.mjs",
     "build": "vinext build && node local/stamp-dist.mjs",
     "start": "node local/server-bootstrap.mjs",
-    "lint": "oxlint app lib local tests components/material-studio.tsx components/material-library.tsx components/journal-drawing.tsx components/page-turn.tsx components/notebook-paper.tsx",
+    "lint": "oxlint app lib local tests components/material-studio.tsx components/material-library.tsx components/material-recovery.tsx components/journal-drawing.tsx components/page-turn.tsx components/notebook-paper.tsx",
     "format": "oxfmt",
     "service": "node local/server-bootstrap.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
@@ -33,7 +33,7 @@
     "shadcn": "4.18.0",
     "tailwind-merge": "3.6.0",
     "three": "^0.185.1",
-    "tw-animate-css": "1.4.0",
+    "tw-animate-css": "4.1.0",
     "vinext": "1.0.0-beta.5"
   },
   "devDependencies": {
