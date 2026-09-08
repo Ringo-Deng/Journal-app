@@ -8,8 +8,9 @@ export function stationeryCoverSvg(title: string, color: string) {
   const base = /^#[0-9a-f]{6}$/i.test(color) ? color : "#f4ce75";
   const creamPlaid = base.toLowerCase() === "#f4ce75";
 
-  // The奶黄格纹款 intentionally stays extremely clean: one even gingham surface,
-  // a restrained brown cloth spine, and no label/snap/bookmark/page-edge decoration.
+  // The奶黄格纹款 keeps only the clean gingham board artwork here.
+  // Its brown binding is rendered separately by the real 3D BookSpine geometry,
+  // so no flat spine strip is baked into the front-cover image.
   if (creamPlaid) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
   <defs>
@@ -19,22 +20,9 @@ export function stationeryCoverSvg(title: string, color: string) {
       <path d="M28 0V112M0 28H112" stroke="#edd36c" stroke-width="56" opacity=".26"/>
       <path d="M0 0H112M0 56H112M0 112H112M0 0V112M56 0V112M112 0V112" stroke="#fffbe4" stroke-width="16" opacity=".85"/>
     </pattern>
-    <pattern id="spine-weave" width="4" height="4" patternUnits="userSpaceOnUse">
-      <path d="M0 1H4M1 0V4" stroke="#e5ccac" stroke-width=".5" opacity=".16"/>
-    </pattern>
-    <linearGradient id="spine" x1="0" x2="1">
-      <stop stop-color="#5d3b2c"/>
-      <stop offset=".48" stop-color="#704b37"/>
-      <stop offset="1" stop-color="#62402f"/>
-    </linearGradient>
   </defs>
   <g clip-path="url(#cover)">
     <rect width="600" height="900" fill="url(#plaid)"/>
-    <rect width="64" height="900" fill="url(#spine)"/>
-    <rect width="64" height="900" fill="url(#spine-weave)"/>
-    <rect x="10" width="2" height="900" fill="#b89770" opacity=".35"/>
-    <rect x="61" width="3" height="900" fill="#422a20" opacity=".34"/>
-    <rect x="64" width="2" height="900" fill="#fff6db" opacity=".28"/>
   </g>
   </svg>`;
   }
