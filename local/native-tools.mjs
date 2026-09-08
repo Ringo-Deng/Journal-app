@@ -54,9 +54,15 @@ async function upgradeSavedJobs(dataDir) {
   }
 }
 
-export async function prepareNativeImageTools({ root, dataDir = process.env.JOURNAL_DATA_DIR || resolve(root, 'data') }) {
+export async function prepareNativeImageTools({
+  root,
+  dataDir = process.env.JOURNAL_DATA_DIR || resolve(root, 'data'),
+  platformName = platform(),
+  archName = process.arch,
+} = {}) {
+  if (!root) throw new Error('prepareNativeImageTools requires root');
   const capabilities = Object.fromEntries(NATIVE_IMAGE_TOOLS.map((name) => [name, false]));
-  if (platform() !== 'darwin' || process.arch !== 'arm64') return { ...capabilities, upgradedJobs: false };
+  if (platformName !== 'darwin' || archName !== 'arm64') return { ...capabilities, upgradedJobs: false };
 
   for (const name of NATIVE_IMAGE_TOOLS) {
     capabilities[name] = await makeExecutable(resolve(root, 'local', name));
