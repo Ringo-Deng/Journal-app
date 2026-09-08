@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { prepareNativeImageTools } from './native-tools.mjs';
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 const children = [];
 let stopping = false;
@@ -9,6 +10,8 @@ function stop(code = 0) {
   for (const child of children) child.kill('SIGTERM');
   process.exitCode = code;
 }
+const nativeTools = await prepareNativeImageTools({ root: cwd });
+if (nativeTools.upgradedJobs) console.log('已恢复旧素材记录的自动拆图能力。');
 const apiPort = String(process.env.JOURNAL_API_PORT || '4329');
 const api = spawn(process.execPath, ['local/server.mjs'], { cwd, stdio: ['inherit', 'pipe', 'inherit'], env: { ...process.env, JOURNAL_PORT: apiPort } });
 children.push(api);
