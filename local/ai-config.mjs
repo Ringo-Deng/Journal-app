@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export function normalizeBaseUrl(value) {
   const url = new URL(String(value).trim());
   if (url.hostname === 'platform.deepseek.com')
@@ -27,10 +29,28 @@ export function normalizeApiKey(value) {
     (key.startsWith("'") && key.endsWith("'"));
   if (quoted && key.length >= 2) key = key.slice(1, -1).trim();
   key = key.replace(/^Bearer\s+/i, '').trim();
-  // API keys never contain whitespace or zero-width formatting characters.
-  // Removing them makes keys copied from terminals/password managers robust.
   key = key.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
   return key;
+}
+
+export function apiKeyIdentity(value) {
+  const key = normalizeApiKey(value);
+  return {
+    fingerprint: key
+      ? createHash('sha256').update(key).digest('hex').slice(0, 12)
+      : '',
+    length: key.length,
+  };
+}
+
+export function sanitizeProviderDiagnosticText(value, apiKey = '') {
+  let text = String(value || '').replace(/\s+/g, ' ').trim();
+  const key = normalizeApiKey(apiKey);
+  if (key) text = text.split(key).join('[REDACTED]');
+  text = text
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+    .replace(/(?:sk|key)[-_][A-Za-z0-9._~+/=-]{8,}/gi, '[REDACTED]');
+  return text.slice(0, 280);
 }
 
 export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash-vision-exp';
@@ -52,6 +72,13 @@ const isModelName = (value) => {
 export const modelSupportsVision = (model) =>
   String(model || '').trim() === 'deepseek-v4-flash-vision-exp';
 
+let lastConfigIdentity = { fingerprint: '', length: 0 };
+let lastProviderDiagnostic = null;
+
+const diagnosticFresh = () =>
+  lastProviderDiagnostic &&
+  Date.now() - Number(lastProviderDiagnostic.at || 0) < 60_000;
+
 export function configIssue(config) {
   const model = String(config?.model || '').trim();
   const apiKey = normalizeApiKey(config?.apiKey);
@@ -64,16 +91,63 @@ export function configIssue(config) {
   return '';
 }
 
+function authDiagnosticMessage() {
+  if (!diagnosticFresh()) return '';
+  const diagnostic = lastProviderDiagnostic;
+  const sent = diagnostic.sentIdentity || { fingerprint: '', length: 0 };
+  const saved = diagnostic.savedIdentity || { fingerprint: '', length: 0 };
+  const same =
+    !!saved.fingerprint &&
+    saved.fingerprint === sent.fingerprint &&
+    saved.length === sent.length;
+  const source = [
+    diagnostic.server && `server=${diagnostic.server}`,
+    diagnostic.via && `via=${diagnostic.via}`,
+    diagnostic.requestId && `request-id=${diagnostic.requestId}`,
+  ]
+    .filter(Boolean)
+    .join('，');
+  const probe =
+    diagnostic.probeStatus == null
+      ? '认证探针未完成'
+      : `/models ${diagnostic.probeStatus}`;
+  const parts = [
+    `诊断：Chat ${diagnostic.status}，${probe}`,
+    `本机保存密钥指纹 ${saved.fingerprint || '无'} / 长度 ${saved.length}`,
+    `请求头密钥指纹 ${sent.fingerprint || '无'} / 长度 ${sent.length}`,
+    `保存值→请求头：${same ? '一致' : '不一致'}`,
+  ];
+  if (source) parts.push(`响应来源：${source}`);
+  if (diagnostic.body) parts.push(`Chat 返回：${diagnostic.body}`);
+  if (diagnostic.probeBody)
+    parts.push(`/models 返回：${diagnostic.probeBody}`);
+
+  if (diagnostic.probeStatus === 200)
+    parts.push(
+      '同一密钥能通过 /models 认证，说明密钥本身有效；问题更可能在 Chat 接口、请求路径或中间网络层。',
+    );
+  else if (diagnostic.status === 401 && diagnostic.probeStatus === 401)
+    parts.push(
+      '同一密钥在 Chat 与 /models 都被拒绝。如果这是刚生成的新 Key，优先排查公司网络/代理是否改写 Authorization，或 DeepSeek 账户侧 API 权限。',
+    );
+
+  return parts.join('；') + '。';
+}
+
 export function providerError(status) {
   const messages = {
     400: 'AI 服务不接受这次请求，请确认模型支持当前输入格式；有照片时需要支持图片的模型。',
-    401: 'DeepSeek 返回 401：当前 API Key 未通过认证。Pull 新代码不会替换本机已保存的密钥，请重新复制或重新生成有效 API Key，保存后再测试。',
+    401: 'DeepSeek 返回 401：认证未通过。',
     402: 'AI 账户余额不足，请在服务商后台检查余额。',
     403: '当前密钥没有调用权限，请检查服务商账户或模型权限。',
     404: '没有找到接口或模型，请检查 API 基础地址和模型名称。',
     429: 'AI 服务请求过于频繁或用量已达上限，请稍后重试。',
   };
-  return messages[status] || `AI 服务暂时不可用（${status}），请稍后重试。`;
+  const base =
+    messages[status] || `AI 服务暂时不可用（${status}），请稍后重试。`;
+  return [base, status === 401 || status === 403 ? authDiagnosticMessage() : '']
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function migrateLegacyConfig(config) {
@@ -85,7 +159,9 @@ export function migrateLegacyConfig(config) {
     changed = true;
   }
   try {
-    const normalized = normalizeBaseUrl(next.baseUrl || 'https://api.deepseek.com');
+    const normalized = normalizeBaseUrl(
+      next.baseUrl || 'https://api.deepseek.com',
+    );
     if (normalized !== next.baseUrl) {
       next.baseUrl = normalized;
       changed = true;
@@ -97,24 +173,16 @@ export function migrateLegacyConfig(config) {
         next.model = 'deepseek-v4-flash';
         changed = true;
       }
-      // Older builds could preserve vision=true after migrating to a text-only
-      // model. That makes the final image stage of "保存并测试" fail even when
-      // the key and text model are valid.
       if (next.vision !== false && !modelSupportsVision(next.model)) {
         next.vision = false;
         changed = true;
       }
     }
   } catch {}
+  lastConfigIdentity = apiKeyIdentity(next.apiKey);
   return { config: next, changed };
 }
 
-/**
- * Keep every direct DeepSeek Chat Completions request on the same predictable
- * non-thinking path used by the journal's production design requests.
- * DeepSeek V4 enables thinking by default; tiny health checks can otherwise
- * spend their whole output allowance on reasoning and return no final text.
- */
 export function prepareDeepSeekPayload(payload) {
   const next = { ...(payload || {}) };
   if (next.thinking == null) next.thinking = { type: 'disabled' };
@@ -144,7 +212,8 @@ export function prepareDeepSeekPayload(payload) {
 }
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
-const PATCH_FLAG = Symbol.for('shiguang.deepseek.fetch.compat.v0128');
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.fetch.compat.v0133');
+
 const assistantText = (result) => {
   const content = result?.choices?.[0]?.message?.content;
   return typeof content === 'string'
@@ -156,6 +225,7 @@ const assistantText = (result) => {
           .join('\n')
       : '';
 };
+
 const retryDelay = (signal) =>
   new Promise((resolveDelay) => {
     if (signal?.aborted) return resolveDelay();
@@ -170,6 +240,84 @@ const retryDelay = (signal) =>
     );
   });
 
+function authHeader(init) {
+  try {
+    return new Headers(init?.headers || {}).get('authorization') || '';
+  } catch {
+    const headers = init?.headers || {};
+    return String(headers.Authorization || headers.authorization || '');
+  }
+}
+
+function responseMeta(response) {
+  return {
+    server: response.headers.get('server') || '',
+    via: response.headers.get('via') || '',
+    requestId:
+      response.headers.get('x-request-id') ||
+      response.headers.get('request-id') ||
+      response.headers.get('cf-ray') ||
+      '',
+  };
+}
+
+async function responseBodyForDiagnostic(response, apiKey) {
+  try {
+    return sanitizeProviderDiagnosticText(
+      await response.clone().text(),
+      apiKey,
+    );
+  } catch {
+    return '';
+  }
+}
+
+async function captureAuthDiagnostic(response, url, init, nativeFetch) {
+  const authorization = authHeader(init);
+  const apiKey = authorization.replace(/^Bearer\s+/i, '');
+  const sentIdentity = apiKeyIdentity(apiKey);
+  const diagnostic = {
+    at: Date.now(),
+    status: response.status,
+    endpoint: url.pathname,
+    sentIdentity,
+    savedIdentity: { ...lastConfigIdentity },
+    body: await responseBodyForDiagnostic(response, apiKey),
+    ...responseMeta(response),
+    probeStatus: null,
+    probeBody: '',
+  };
+
+  if ([401, 403].includes(response.status)) {
+    try {
+      const probeUrl = new URL(url.toString());
+      probeUrl.pathname = probeUrl.pathname.replace(
+        /\/chat\/completions\/?$/,
+        '/models',
+      );
+      probeUrl.search = '';
+      probeUrl.hash = '';
+      const probeResponse = await nativeFetch(probeUrl, {
+        method: 'GET',
+        headers: { Authorization: authorization },
+        signal: AbortSignal.timeout(10_000),
+      });
+      diagnostic.probeStatus = probeResponse.status;
+      diagnostic.probeBody = await responseBodyForDiagnostic(
+        probeResponse,
+        apiKey,
+      );
+    } catch (error) {
+      diagnostic.probeBody = sanitizeProviderDiagnosticText(
+        `探针连接失败：${error?.message || error}`,
+        apiKey,
+      );
+    }
+  }
+
+  lastProviderDiagnostic = diagnostic;
+}
+
 function installDeepSeekFetchCompatibility() {
   const host = globalThis;
   if (host[PATCH_FLAG] || typeof host.fetch !== 'function') return;
@@ -177,12 +325,13 @@ function installDeepSeekFetchCompatibility() {
   host.fetch = async (input, init) => {
     let deepseek = false;
     let payload;
+    let url;
     try {
       const rawUrl =
         typeof input === 'string' || input instanceof URL
           ? String(input)
           : String(input?.url || '');
-      const url = new URL(rawUrl);
+      url = new URL(rawUrl);
       deepseek =
         url.hostname === 'api.deepseek.com' &&
         /\/chat\/completions\/?$/.test(url.pathname) &&
@@ -223,6 +372,8 @@ function installDeepSeekFetchCompatibility() {
           // Let the existing response parser report a malformed provider body.
         }
       }
+      if ([401, 403].includes(response.status))
+        await captureAuthDiagnostic(response, url, init, nativeFetch);
       return response;
     }
     return response;
