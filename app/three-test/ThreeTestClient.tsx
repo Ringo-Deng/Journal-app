@@ -4,20 +4,6 @@ import { useLayoutEffect, useRef } from 'react';
 import Book3DTest from '@/components/book3d/Book3DTest';
 
 const THICKNESS_LABEL = '封面厚度';
-const MATERIAL_LABEL = '封面材质';
-
-const EXTRA_MATERIALS = [
-  { value: 'soft-leather', label: '软皮' },
-  { value: 'hardboard', label: '硬纸板' },
-] as const;
-
-const MATERIAL_NAMES: Record<string, string> = {
-  leather: '牛皮革',
-  fabric: '布艺',
-  kraft: '牛皮纸',
-  'soft-leather': '软皮',
-  hardboard: '硬纸板',
-};
 
 export default function ThreeTestClient({ appVersion }: { appVersion: string }) {
   const scopeRef = useRef<HTMLDivElement>(null);
@@ -31,37 +17,6 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
         input.closest('label')?.textContent?.includes(THICKNESS_LABEL),
       );
 
-    const findMaterialSelect = () =>
-      Array.from(scope.querySelectorAll<HTMLSelectElement>('select')).find((select) =>
-        select.closest('label')?.textContent?.includes(MATERIAL_LABEL),
-      );
-
-    const ensureMaterialOptions = () => {
-      const select = findMaterialSelect();
-      if (!select) return;
-
-      for (const material of EXTRA_MATERIALS) {
-        if (select.querySelector(`option[value="${material.value}"]`)) continue;
-        const option = document.createElement('option');
-        option.value = material.value;
-        option.textContent = material.label;
-        select.appendChild(option);
-      }
-    };
-
-    const syncMaterialLabel = () => {
-      const select = findMaterialSelect();
-      const label = select?.closest('label');
-      if (!select || !label) return;
-
-      const spans = label.querySelectorAll('span');
-      const valueSpan = spans.item(1);
-      const nextLabel = MATERIAL_NAMES[select.value];
-      if (valueSpan && nextLabel && valueSpan.textContent !== nextLabel) {
-        valueSpan.textContent = nextLabel;
-      }
-    };
-
     const syncThickness = () => {
       const root = scope.querySelector<HTMLElement>('.pf-book-root');
       const input = findThicknessInput();
@@ -72,34 +27,50 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       root.style.setProperty('--pf-book-cover-thickness', `${input.value}px`);
     };
 
-    const ensureBackCoverParity = () => {
+    const ensureBackCoverStructure = () => {
       const root = scope.querySelector<HTMLElement>('.pf-book-root');
-      if (!root) return;
+      if (!root || root.dataset.backStructureReady === 'true') return;
 
       const backCover = root.querySelector<HTMLElement>('.pf-cover--back');
-      if (!backCover || root.querySelector('.pf-final-verso')) return;
+      if (!backCover) return;
 
-      // With showCover=true, odd page indexes sit on the left and even indexes on the right.
-      // The back hard cover must therefore be an even-indexed page. Add the missing verso of
-      // the final loose sheet before StPageFlip reads the page list, instead of faking another
-      // cover-lining page that would turn independently from the cover.
+      const materialClass =
+        Array.from(backCover.classList).find(
+          (className) => className.startsWith('pf-cover--') && className !== 'pf-cover--back',
+        ) ?? 'pf-cover--leather';
+
+      // StPageFlip's showCover layout is:
+      // [front cover], [1,2], [3,4] ... [back cover].
+      // The final back cover must remain the last *single* spread so the engine can
+      // actually flip it shut. Therefore the last normal spread must contain two
+      // logical pages: the verso of the final loose sheet on the left, and the
+      // pasted back-cover lining on the right.
       const finalVerso = document.createElement('div');
       finalVerso.className = 'pf-page pf-final-verso';
       finalVerso.innerHTML = `
         <div class="pf-page-inner">
           <div class="pf-eyebrow">LAST LEFT PAGE</div>
           <div class="pf-title">最后一张纸留在左边</div>
-          <div class="pf-body">这一面仍然是纸张；右侧才是真正固定在硬封底上的封底内衬。</div>
+          <div class="pf-body">这一面仍然是纸张；右侧才是固定在硬封底上的封底内衬。</div>
           <div class="pf-footer"><span>拾光手帐</span><span>04</span></div>
         </div>
       `;
-      backCover.before(finalVerso);
+
+      const backLining = document.createElement('div');
+      backLining.className = `pf-page pf-cover-lining-page pf-back-lining-page ${materialClass}`;
+      backLining.innerHTML = `
+        <div class="pf-cover-lining pf-cover-lining--page">
+          <span>SHIGUANG JOURNAL</span>
+          <span>封底内侧</span>
+        </div>
+      `;
+
+      backCover.before(finalVerso, backLining);
+      root.dataset.backStructureReady = 'true';
     };
 
     const syncControls = () => {
-      ensureBackCoverParity();
-      ensureMaterialOptions();
-      syncMaterialLabel();
+      ensureBackCoverStructure();
       syncThickness();
     };
 
@@ -110,15 +81,7 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       syncThickness();
     };
 
-    const handleChange = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLSelectElement)) return;
-      if (!target.closest('label')?.textContent?.includes(MATERIAL_LABEL)) return;
-      requestAnimationFrame(syncMaterialLabel);
-    };
-
     scope.addEventListener('input', handleInput);
-    scope.addEventListener('change', handleChange);
     const observer = new MutationObserver(syncControls);
     observer.observe(scope, { childList: true, subtree: true });
     const frame = requestAnimationFrame(syncControls);
@@ -127,7 +90,6 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       cancelAnimationFrame(frame);
       observer.disconnect();
       scope.removeEventListener('input', handleInput);
-      scope.removeEventListener('change', handleChange);
     };
   }, []);
 
