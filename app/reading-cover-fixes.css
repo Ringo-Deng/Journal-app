@@ -1,15 +1,27 @@
 /* Production reading-cover corrections for the StPageFlip renderer.
-   Keep these rules separate from the editor/library cover geometry: StPageFlip
+   These rules are intentionally scoped to appreciation mode because StPageFlip
    rewrites hard-page inline styles while it animates. */
 
-/* One selected cover color is the single source of truth for every physical
-   surface. Faces may become a little lighter/darker because of lighting, but
-   they must never drift into a different beige/grey hue. */
+/* One selected cover color is the single source of truth. Physical surfaces may
+   differ slightly in value because of light, but never in hue. */
 .reading-pageflip-book {
   --reading-cover-surface: var(--cover-base);
-  --reading-cover-inside: color-mix(in srgb, var(--cover-base) 94%, white);
-  --reading-cover-edge-dark: color-mix(in srgb, var(--cover-base) 76%, black);
-  --reading-cover-edge-light: color-mix(in srgb, var(--cover-base) 91%, white);
+  --reading-cover-inside: color-mix(in srgb, var(--cover-base) 98%, white);
+  --reading-cover-edge-dark: color-mix(in srgb, var(--cover-base) 82%, black);
+  --reading-cover-edge-mid: color-mix(in srgb, var(--cover-base) 94%, black);
+  --reading-cover-edge-light: color-mix(in srgb, var(--cover-base) 94%, white);
+  --reading-cover-outline: color-mix(in srgb, var(--cover-base) 70%, black);
+}
+
+/* The animated cover should read as a thin bound board, not a thick slab. */
+.reading-pageflip-book .reading-flip-cover {
+  --reading-cover-depth: 6px !important;
+  --reading-cover-half: 3px !important;
+}
+
+.reading-pageflip-book .reading-flip-cover-face {
+  border-color: color-mix(in srgb, var(--reading-cover-outline) 26%, transparent) !important;
+  border-radius: 4px !important;
 }
 
 .reading-pageflip-book .reading-flip-cover-outside {
@@ -21,88 +33,76 @@
   background-color: var(--reading-cover-inside) !important;
 }
 
+/* Cross sections stay in the same color family. The narrow highlight is the
+   wrapped material catching light, not a second material. */
 .reading-pageflip-book .reading-flip-cover-edge {
   background:
     linear-gradient(
       90deg,
       var(--reading-cover-edge-dark),
-      var(--reading-cover-edge-light) 46%,
+      var(--reading-cover-edge-mid) 32%,
+      var(--reading-cover-edge-light) 50%,
+      var(--reading-cover-edge-mid) 68%,
       var(--reading-cover-edge-dark)
     ) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--reading-cover-edge-dark) 38%, transparent) !important;
 }
 
-/* A bound back board sits below the paper stack, but while reading it should
-   only peek out at the fore-edge. A full-size helper board caused a large
-   coloured rectangle to appear whenever StPageFlip temporarily hid a paper. */
+/* The resting back board only peeks out at the fore-edge. It must never become
+   a full colored rectangle while StPageFlip temporarily hides a paper. */
 .reading-pageflip-book .stf__block::before {
   content: '';
   position: absolute;
-  right: -5px;
-  top: 2%;
-  width: 6px;
-  height: 96%;
+  right: -2px;
+  top: 2.2%;
+  width: 3px;
+  height: 95.6%;
   z-index: 0;
   pointer-events: none;
-  border: 1px solid color-mix(in srgb, var(--reading-cover-edge-dark) 64%, transparent);
-  border-left: 0;
-  border-radius: 0 4px 4px 0;
+  border: 0;
+  border-radius: 0 3px 3px 0;
   background-color: var(--reading-cover-surface) !important;
   box-shadow:
-    inset 1px 0 rgb(255 255 255 / 9%),
-    2px 2px 0 rgb(72 55 40 / 12%),
-    4px 8px 15px -11px rgb(28 23 19 / 42%);
-  transform: translateZ(-12px);
-  transform-style: preserve-3d;
-  opacity: .9;
+    inset 1px 0 rgb(255 255 255 / 8%),
+    2px 4px 10px -7px rgb(28 23 19 / 40%);
+  transform: translateZ(-10px);
+  opacity: .72;
   transition: opacity 120ms linear;
 }
 
-/* Once the actual back cover becomes the final simple page, remove the helper
-   edge so a duplicate strip cannot remain beside the closed back cover. */
 .reading-pageflip-book .stf__block:has(.reading-flip-cover-back.--simple)::before {
   opacity: 0;
 }
 
-/* Match the small persistent board edge to the selected material family. */
+/* Material identity on the tiny exposed back-board edge. */
 .reading-pageflip-book .stf__block:has(.texture-leather)::before {
   background-image: url('/textures/covers/leather-grain.svg') !important;
-  background-size: 170px 170px !important;
-  background-position: 21px 13px !important;
+  background-size: 150px 150px !important;
   background-repeat: repeat !important;
   background-blend-mode: multiply !important;
 }
-.reading-pageflip-book .stf__block:has(.texture-linen)::before {
-  background-image: url('/textures/covers/fabric-weave.svg') !important;
-  background-size: 72px 72px !important;
-  background-position: 7px 9px !important;
-  background-repeat: repeat !important;
-  background-blend-mode: soft-light !important;
-}
+.reading-pageflip-book .stf__block:has(.texture-linen)::before,
 .reading-pageflip-book .stf__block:has(.texture-canvas)::before {
   background-image: url('/textures/covers/fabric-weave.svg') !important;
-  background-size: 58px 58px !important;
-  background-position: 5px 8px !important;
+  background-size: 54px 54px !important;
   background-repeat: repeat !important;
   background-blend-mode: multiply !important;
 }
 .reading-pageflip-book .stf__block:has(.texture-kraft)::before {
   background-image: url('/textures/covers/kraft-paper.svg') !important;
-  background-size: 180px 180px !important;
-  background-position: 17px 11px !important;
+  background-size: 160px 160px !important;
   background-repeat: repeat !important;
   background-blend-mode: multiply !important;
 }
 .reading-pageflip-book .stf__block:has(.texture-hardcover)::before {
   background-image: url('/textures/covers/hardboard-fiber.svg') !important;
-  background-size: 300px 300px !important;
-  background-position: 19px 12px !important;
+  background-size: 260px 260px !important;
   background-repeat: repeat !important;
   background-blend-mode: soft-light !important;
 }
 
-/* StPageFlip writes backface-visibility:hidden directly on hard pages. The
-   final cover owns its own two physical faces, so the parent itself must stay
-   solid rather than becoming a transparent carrier at some angles. */
+/* StPageFlip writes backface-visibility:hidden directly on hard pages. Keep the
+   final hard cover solid while its own two physical faces decide what is seen. */
 .reading-pageflip-book .reading-flip-cover-back {
   background-color: var(--reading-cover-surface) !important;
   backface-visibility: visible !important;
@@ -110,51 +110,154 @@
 }
 .reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
   background-color: var(--reading-cover-surface);
-  border-radius: 5px;
+  border-radius: 4px;
 }
 
-/* Reading-mode linen: fine woven fibres plus an extremely restrained plaid.
-   Keep the macro photo out of the animated cover because at this book scale it
-   reads as repeated towel ridges rather than book cloth. */
+/* Reduce the old exaggerated binding stripe. It should read as a hinge shadow,
+   not a separate brown strip glued onto the cover. */
+.reading-pageflip-book .cover-binding {
+  width: 12px !important;
+  opacity: .42 !important;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--reading-cover-edge-dark) 42%, transparent) 48%,
+      color-mix(in srgb, var(--reading-cover-edge-dark) 20%, transparent) 72%,
+      transparent
+    ) !important;
+}
+.reading-pageflip-book .cover-inside-edge {
+  width: 2px !important;
+  opacity: .24 !important;
+  background: var(--reading-cover-edge-dark) !important;
+}
+
+/* LINEN / PLAID — fine book cloth with a barely visible large plaid. The macro
+   linen photo is deliberately omitted in reading mode because it looked like
+   repeated towel ridges at animation scale. */
 .reading-pageflip-book .reading-flip-cover-face.texture-linen {
   background-color: var(--reading-cover-surface) !important;
   background-image:
-    radial-gradient(ellipse at 29% 13%, rgb(255 252 239 / 11%) 0, transparent 42%),
-    linear-gradient(96deg, rgb(43 34 25 / 12%) 0, transparent 8%, transparent 87%, rgb(31 25 19 / 7%) 100%),
-    repeating-linear-gradient(90deg, transparent 0 39px, rgb(80 65 45 / 4%) 39px 40px, transparent 40px 78px),
-    repeating-linear-gradient(0deg, transparent 0 39px, rgb(255 248 230 / 4%) 39px 40px, transparent 40px 78px),
+    radial-gradient(ellipse at 29% 13%, rgb(255 252 239 / 10%) 0, transparent 43%),
+    linear-gradient(96deg, rgb(42 33 24 / 10%) 0, transparent 8%, transparent 88%, rgb(31 24 18 / 6%) 100%),
+    repeating-linear-gradient(90deg, transparent 0 43px, rgb(72 60 44 / 4%) 43px 44px, transparent 44px 86px),
+    repeating-linear-gradient(0deg, transparent 0 43px, rgb(255 250 236 / 4%) 43px 44px, transparent 44px 86px),
     url('/textures/covers/fabric-weave.svg') !important;
-  background-size: 100% 100%, 100% 100%, auto, auto, 66px 66px !important;
+  background-size: 100% 100%, 100% 100%, auto, auto, 58px 58px !important;
   background-position: center, center, 0 0, 0 0, 5px 7px !important;
   background-repeat: no-repeat, no-repeat, repeat, repeat, repeat !important;
   background-blend-mode: soft-light, multiply, multiply, screen, multiply !important;
   box-shadow:
-    inset 9px 0 13px -12px rgb(37 28 20 / 39%),
-    inset -1px 0 rgb(255 255 255 / 9%) !important;
+    inset 7px 0 11px -11px rgb(37 28 20 / 34%),
+    inset -1px 0 rgb(255 255 255 / 8%) !important;
 }
-
-/* Both the physical inside face and the logical lining page use exactly the
-   same derived inner color, so the cover does not change hue mid-turn. */
 .reading-pageflip-book .reading-flip-cover-inside.texture-linen,
 .reading-pageflip-book .reading-flip-lining.texture-linen {
   background-color: var(--reading-cover-inside) !important;
   background-image:
-    linear-gradient(90deg, rgb(0 0 0 / 10%), transparent 13%, transparent 92%, rgb(0 0 0 / 5%)),
+    linear-gradient(90deg, rgb(0 0 0 / 8%), transparent 12%, transparent 93%, rgb(0 0 0 / 4%)),
     url('/textures/covers/fabric-weave.svg') !important;
-  background-size: 100% 100%, 78px 78px !important;
-  background-position: center, 8px 10px !important;
+  background-size: 100% 100%, 64px 64px !important;
   background-repeat: no-repeat, repeat !important;
   background-blend-mode: multiply, multiply !important;
 }
 
-/* Canvas uses the same fibre source but a tighter, drier weave. */
+/* CANVAS — tighter and drier than linen, with no plaid and almost no sheen. */
 .reading-pageflip-book .reading-flip-cover-face.texture-canvas {
   background-color: var(--reading-cover-surface) !important;
   background-image:
-    linear-gradient(94deg, rgb(0 0 0 / 18%), transparent 10%, transparent 89%, rgb(0 0 0 / 10%)),
+    linear-gradient(94deg, rgb(0 0 0 / 14%), transparent 9%, transparent 90%, rgb(0 0 0 / 8%)),
     url('/textures/covers/fabric-weave.svg') !important;
-  background-size: 100% 100%, 56px 56px !important;
-  background-position: center, 4px 6px !important;
+  background-size: 100% 100%, 46px 46px !important;
+  background-position: center, 3px 5px !important;
   background-repeat: no-repeat, repeat !important;
   background-blend-mode: multiply, multiply !important;
+  box-shadow: inset 6px 0 10px -11px rgb(0 0 0 / 30%) !important;
+}
+.reading-pageflip-book .reading-flip-cover-inside.texture-canvas,
+.reading-pageflip-book .reading-flip-lining.texture-canvas {
+  background-color: var(--reading-cover-inside) !important;
+  background-image: url('/textures/covers/fabric-weave.svg') !important;
+  background-size: 50px 50px !important;
+  background-repeat: repeat !important;
+  background-blend-mode: multiply !important;
+}
+
+/* LEATHER — irregular grain plus a restrained grazing highlight. Avoid a glossy
+   plastic clear-coat look; notebook leather is usually soft and semi-matte. */
+.reading-pageflip-book .reading-flip-cover-face.texture-leather {
+  background-color: var(--reading-cover-surface) !important;
+  background-image:
+    radial-gradient(ellipse at 25% 14%, rgb(255 244 224 / 13%) 0, transparent 34%),
+    linear-gradient(118deg, rgb(255 255 255 / 4%), transparent 38%, rgb(28 17 12 / 10%)),
+    url('/textures/covers/leather-grain.svg') !important;
+  background-size: 100% 100%, 100% 100%, 210px 210px !important;
+  background-position: center, center, 17px 23px !important;
+  background-repeat: no-repeat, no-repeat, repeat !important;
+  background-blend-mode: soft-light, multiply, multiply !important;
+  box-shadow:
+    inset 7px 0 11px -10px rgb(20 12 8 / 44%),
+    inset -1px 0 rgb(255 245 226 / 8%) !important;
+}
+.reading-pageflip-book .reading-flip-cover-inside.texture-leather,
+.reading-pageflip-book .reading-flip-lining.texture-leather {
+  background-color: var(--reading-cover-inside) !important;
+  background-image:
+    linear-gradient(90deg, rgb(0 0 0 / 9%), transparent 13%, transparent 92%, rgb(0 0 0 / 4%)),
+    url('/textures/covers/leather-grain.svg') !important;
+  background-size: 100% 100%, 240px 240px !important;
+  background-repeat: no-repeat, repeat !important;
+  background-blend-mode: multiply, multiply !important;
+}
+
+/* KRAFT — paper fibres stay visible, but the surface remains matte. */
+.reading-pageflip-book .reading-flip-cover-face.texture-kraft {
+  background-color: var(--reading-cover-surface) !important;
+  background-image:
+    linear-gradient(97deg, rgb(65 44 27 / 11%), transparent 11%, transparent 88%, rgb(47 31 20 / 6%)),
+    url('/textures/covers/kraft-paper.svg') !important;
+  background-size: 100% 100%, 190px 190px !important;
+  background-position: center, 13px 17px !important;
+  background-repeat: no-repeat, repeat !important;
+  background-blend-mode: multiply, multiply !important;
+}
+.reading-pageflip-book .reading-flip-cover-inside.texture-kraft,
+.reading-pageflip-book .reading-flip-lining.texture-kraft {
+  background-color: var(--reading-cover-inside) !important;
+  background-image: url('/textures/covers/kraft-paper.svg') !important;
+  background-size: 220px 220px !important;
+  background-repeat: repeat !important;
+  background-blend-mode: multiply !important;
+}
+
+/* HARDCOVER — very subtle board fibre; almost solid at normal viewing distance. */
+.reading-pageflip-book .reading-flip-cover-face.texture-hardcover {
+  background-color: var(--reading-cover-surface) !important;
+  background-image:
+    radial-gradient(ellipse at 30% 12%, rgb(255 255 255 / 6%) 0, transparent 48%),
+    linear-gradient(95deg, rgb(0 0 0 / 10%), transparent 10%, transparent 90%, rgb(0 0 0 / 5%)),
+    url('/textures/covers/hardboard-fiber.svg') !important;
+  background-size: 100% 100%, 100% 100%, 420px 420px !important;
+  background-position: center, center, 21px 11px !important;
+  background-repeat: no-repeat, no-repeat, repeat !important;
+  background-blend-mode: soft-light, multiply, soft-light !important;
+}
+.reading-pageflip-book .reading-flip-cover-inside.texture-hardcover,
+.reading-pageflip-book .reading-flip-lining.texture-hardcover {
+  background-color: var(--reading-cover-inside) !important;
+  background-image: url('/textures/covers/hardboard-fiber.svg') !important;
+  background-size: 460px 460px !important;
+  background-repeat: repeat !important;
+  background-blend-mode: soft-light !important;
+}
+
+/* Keep shadows quiet and physical. The page-flip engine supplies the moving
+   page shadow; the cover itself only needs a small contact shadow. */
+.reading-pageflip-book .reading-flip-cover-outside,
+.reading-pageflip-book .reading-flip-cover-inside {
+  filter: saturate(.96) contrast(.98);
+}
+.reading-pageflip-book .reading-flip-cover-shell {
+  filter: drop-shadow(0 8px 9px rgb(38 31 24 / 10%));
 }
