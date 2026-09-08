@@ -30,6 +30,17 @@ test('final back lining is one flat cover-colored surface', async () => {
   assert.match(styles, /display: none !important;/);
 });
 
+test('hard back cover and back lining use the exact same flat surface', async () => {
+  const styles = await read('app/reading-back-cover-fixes.css');
+  assert.match(styles, /reading-flip-cover-back \.reading-flip-cover-face/);
+  assert.match(styles, /background-color: var\(--cover-base\) !important;/);
+  assert.match(styles, /background-image: none !important;/);
+  assert.match(styles, /background-blend-mode: normal !important;/);
+  assert.match(styles, /border-color: transparent !important;/);
+  assert.match(styles, /reading-flip-cover-back \.reading-flip-cover-inside \.cover-binding/);
+  assert.match(styles, /reading-flip-cover-back \.reading-flip-cover-inside \.cover-inside-edge/);
+});
+
 test('visible bottom pagination controls are removed while keyboard turning remains', async () => {
   const source = await read('components/reading-deck.tsx');
   assert.doesNotMatch(source, /<footer className="deck-controls">/);
