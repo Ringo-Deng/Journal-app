@@ -33,3 +33,41 @@
 .reading-pageflip-book .reading-flip-cover-inside {
   filter: none !important;
 }
+
+/* A real back board mirrors the front board: its hinge is on the left and its
+   free fore-edge is on the right. Reusing the front-cover directions made the
+   back lining look like a second front cover during the final turn. */
+.reading-pageflip-book .reading-flip-back-lining .cover-binding,
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-binding {
+  left: 0 !important;
+  right: auto !important;
+  background:
+    linear-gradient(
+      270deg,
+      transparent,
+      color-mix(in srgb, var(--reading-cover-edge-dark) 42%, transparent) 48%,
+      color-mix(in srgb, var(--reading-cover-edge-dark) 20%, transparent) 72%,
+      transparent
+    ) !important;
+}
+
+.reading-pageflip-book .reading-flip-back-lining .cover-inside-edge,
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-inside-edge {
+  left: auto !important;
+  right: 0 !important;
+  border-radius: 0 4px 4px 0 !important;
+  box-shadow: -1px 0 3px color-mix(in srgb, var(--reading-cover-edge-dark) 24%, transparent) !important;
+}
+
+/* Keep the last lining physically attached to the spine without the old heavy
+   right-side band. The shadow is now on the left hinge and is deliberately
+   shallow so the back cover closes onto the paper block instead of floating. */
+.reading-pageflip-book .reading-flip-back-lining {
+  box-shadow:
+    inset 10px 0 16px -15px color-mix(in srgb, var(--reading-cover-edge-dark) 54%, transparent),
+    inset -1px 0 color-mix(in srgb, var(--cover-base) 92%, white) !important;
+}
+
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
+  filter: drop-shadow(1px 6px 7px rgb(38 31 24 / 8%));
+}
