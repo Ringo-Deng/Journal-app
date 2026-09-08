@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { access, copyFile, mkdir } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const APP_VERSION = '0.1.20';
+const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+const APP_VERSION = String(packageJson.version || '').trim();
+// This is an internal API protocol marker, not the visible application version.
+// Keep it paired with local/server.mjs until the server protocol itself changes.
 const EXPECTED_RUNTIME = 'page-elements-v0.1.20';
 const REQUIRED_NODE = [22, 13, 0];
 const noOpen = process.env.SHIGUANG_NO_OPEN === '1';
@@ -31,7 +34,7 @@ function configDir() {
 async function exists(path) { try { await access(path, constants.F_OK); return true; } catch { return false; } }
 async function ensureDevDependencies() {
   if (await exists(resolve(root, 'node_modules/vinext/dist/cli.js'))) return;
-  console.log('开发模式缺少依赖，正在安装…');
+  console.log('最新源码需要本地开发依赖，正在安装一次…');
   const npm = platform() === 'win32' ? 'npm.cmd' : 'npm';
   await new Promise((ok, fail) => {
     const child = spawn(npm, ['install'], { cwd: root, stdio: 'inherit' });
@@ -61,6 +64,16 @@ async function ensurePersistentSettings(dir) {
   const legacy = resolve(root, 'data', 'settings.json');
   if (!(await exists(persistent)) && await exists(legacy)) await copyFile(legacy, persistent);
 }
+async function productionBundleState() {
+  const index = resolve(root, 'dist/client/index.html');
+  if (!(await exists(index))) return { available: false, version: '' };
+  try {
+    const version = (await readFile(resolve(root, 'dist/client/.shiguang-version'), 'utf8')).trim();
+    return { available: version === APP_VERSION, version };
+  } catch {
+    return { available: false, version: '' };
+  }
+}
 function openBrowser(url) {
   if (noOpen) return;
   const spec = platform() === 'win32'
@@ -85,10 +98,12 @@ async function waitForHealth(url, child) {
 
 let child;
 try {
+  if (!APP_VERSION) throw Error('无法读取 package.json 中的应用版本。');
   if (!nodeVersionOK()) throw Error(`Node.js 版本过旧（当前 ${process.versions.node}）。拾光手帐 v${APP_VERSION} 需要 Node.js 22.13.0 或更高版本。`);
   const cfg = configDir();
   await ensurePersistentSettings(cfg);
   let url;
+  const production = await productionBundleState();
   if (devMode) {
     await ensureDevDependencies();
     const [apiPort, webPort] = await pairedPorts();
@@ -98,7 +113,7 @@ try {
       stdio: 'inherit',
       env: { ...process.env, JOURNAL_API_PORT: String(apiPort), JOURNAL_WEB_PORT: String(webPort), JOURNAL_CONFIG_DIR: cfg },
     });
-  } else if (await exists(resolve(root, 'dist/client/index.html'))) {
+  } else if (production.available) {
     const port = await freePort();
     url = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, ['local/server.mjs'], {
@@ -107,7 +122,11 @@ try {
       env: { ...process.env, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: String(port), JOURNAL_CONFIG_DIR: cfg },
     });
   } else {
-    console.log('当前包未包含 production 页面，使用兼容启动模式。');
+    if (await exists(resolve(root, 'dist/client/index.html'))) {
+      console.log(`检测到旧 production 页面（${production.version || '未标记版本'}），当前源码为 v${APP_VERSION}。为避免新旧代码混用，已跳过旧页面。`);
+    } else {
+      console.log('当前目录未包含与源码匹配的 production 页面，改用最新源码启动。');
+    }
     await ensureDevDependencies();
     const [apiPort, webPort] = await pairedPorts();
     url = `http://127.0.0.1:${webPort}`;
@@ -120,7 +139,7 @@ try {
   await waitForHealth(url, child);
   console.log(`拾光手帐 v${APP_VERSION} 已启动：${url}`);
   console.log(`AI 配置保存在：${cfg}`);
-  openBrowser(`${url}/?build=${APP_VERSION}`);
+  openBrowser(`${url}/?build=${encodeURIComponent(APP_VERSION)}`);
   if (exitAfterHealth) { child.kill('SIGTERM'); process.exit(0); }
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child?.kill('SIGTERM'));
   await new Promise((ok, fail) => { child.on('exit', code => code === 0 || code === null ? ok() : fail(Error(`拾光已退出（${code}）`))); child.on('error', fail); });
