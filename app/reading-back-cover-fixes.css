@@ -26,17 +26,14 @@
   background-color: var(--cover-base) !important;
 }
 
-/* Avoid a second synthetic color transform on the cover faces. Material
-   identity remains in the grain/weave maps and their restrained gradients. */
+/* Avoid a second synthetic color transform on the cover faces. */
 .reading-pageflip-book .reading-flip-cover-outside,
 .reading-pageflip-book .reading-flip-cover-inside {
   filter: none !important;
 }
 
-/* The final back lining is intentionally plain. The previous hinge gradient,
-   inner shadow and edge strip made the closed back cover read as two different
-   panels. Keep the physical page in the sequence, but render it as one flat
-   cover-colored surface. */
+/* The final back lining is intentionally plain. Keep the physical page in the
+   sequence, but render it as one flat cover-colored surface. */
 .reading-pageflip-book .reading-flip-lining.reading-flip-back-lining {
   background-color: var(--cover-base) !important;
   background-image: none !important;
@@ -51,13 +48,27 @@
   display: none !important;
 }
 
-/* Keep the actual hard back board equally quiet when it is at rest. Its 3D
-   thickness still comes from the real cover edge faces, not a broad fake shade. */
-.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
-  filter: none !important;
+/* The hard back cover is the other half visible in the final resting spread.
+   Its material classes used to keep their texture map and grazing-light
+   gradient, so it looked darker than the plain back lining beside it. Flatten
+   both hard-cover faces to the exact same selected base color. */
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-face {
+  background-color: var(--cover-base) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+  border-color: transparent !important;
   box-shadow: none !important;
+  filter: none !important;
 }
 
-.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-face {
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-binding,
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-inside .cover-inside-edge {
+  display: none !important;
+}
+
+/* Keep the actual hard back board equally quiet when it is at rest. Its 3D
+   thickness still comes from the real narrow cover edge faces. */
+.reading-pageflip-book .reading-flip-cover-back .reading-flip-cover-shell {
+  filter: none !important;
   box-shadow: none !important;
 }
