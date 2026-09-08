@@ -130,3 +130,11 @@ npm run build
 - Exterior profile follows both cover-edge transforms, bulges outward when closed, and folds under the open covers with desk clearance. Closed front/back views turn slightly toward their exposed spine. Geometry updates only as the cover pose changes.
 - 36 related tests, focused TypeScript/lint and production build passed. New geometry tests sample attachment endpoints throughout both cover transitions, exterior positions in both closed states, and open desk clearance for multiple book thicknesses.
 - Actual rendering remains unverified. Browser access in this task has been blocked by the unavailable administrator policy check; no alternative browser-control route was used. Geometry checks do not prove visual quality or rule out every intermediate intersection.
+
+
+## v0.1.102 — Fixed flat desk view and collision clearance
+
+- Removed all whole-book and desk tilt/yaw, removed the angle slider, and centered the camera for a fixed overhead view. Page/cover turning remains animated; zoom and panning remain available. This addresses the user's correction that no view rotation is wanted.
+- Independent closed-book yaw had tilted covers relative to the stationary desk. Both now remain in the same unrotated frame.
+- Added desk clearance for the .06 cover overhang during thin-book cover motion, and capped the exterior spine's downward bulge to prevent thin bindings entering the desk. Cover-edge attachment is retained.
+- Validation: 38 related tests, focused TypeScript/lint and production build passed. New regression sweeps both full cover transitions, all board corners and spine inner/outer profiles over multiple thicknesses against the desk plane. User screenshot guided the fix; actual browser rendering remains unverified due to the browser policy-check limitation already encountered in this task.

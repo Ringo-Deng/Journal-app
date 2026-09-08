@@ -449,7 +449,6 @@ function CoverBoard({ detailed }: { detailed: boolean }) {
 function BookModel({
   state,
   complete,
-  tilt,
   reducedMotion,
   beginDrag,
   material,
@@ -461,7 +460,6 @@ function BookModel({
   state: BookState;
   material: CoverMaterial;
   complete: () => void;
-  tilt: number;
   reducedMotion: boolean;
   beginDrag: (motion: Motion) => void;
 }) {
@@ -632,18 +630,6 @@ function BookModel({
     backCover.current.rotation.y = backPose.angle;
     backCover.current.position.z = backPose.z;
     root.current.position.x = (-BOOK.width / 2) * (1 - opening) + (BOOK.width / 2) * backClosing;
-    root.current.rotation.x = MathUtils.damp(
-      root.current.rotation.x,
-      (-tilt * Math.PI) / 180,
-      7,
-      delta,
-    );
-    root.current.rotation.y = MathUtils.damp(
-      root.current.rotation.y,
-      paperStyle === "bound" ? 0.3 * (1 - opening - backClosing) : -0.1 * (1 - opening),
-      7,
-      delta,
-    );
     if (motion && finished && !notified.current) {
       notified.current = true;
       complete();
@@ -655,11 +641,7 @@ function BookModel({
   const rightCount = turning ? BOOK.leaves - leaf - 1 : BOOK.leaves - state.turned;
 
   return (
-    <group
-      ref={root}
-      rotation={[(-tilt * Math.PI) / 180, paperStyle === "bound" ? 0.3 : -0.1, 0]}
-      position={[-BOOK.width / 2, 0, 0]}
-    >
+    <group ref={root} position={[-BOOK.width / 2, 0, 0]}>
       {paperStyle === "bound" && (
         <BookSpine book={BOOK} pose={spinePose} material={material} bump={coverTextures.bump} />
       )}
@@ -778,9 +760,9 @@ function BookModel({
   );
 }
 
-function WoodenDesk({ tilt }: { tilt: number }) {
+function WoodenDesk() {
   const { BOOK, coverHeight } = useBookScene();
-  const desk = useRef<Group>(null);
+
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 1536;
@@ -813,17 +795,8 @@ function WoodenDesk({ tilt }: { tilt: number }) {
     return result;
   }, []);
   useEffect(() => () => texture.dispose(), [texture]);
-  useFrame((_, delta) => {
-    if (desk.current)
-      desk.current.rotation.x = MathUtils.damp(
-        desk.current.rotation.x,
-        (-tilt * Math.PI) / 180,
-        7,
-        delta,
-      );
-  });
   return (
-    <group ref={desk} rotation={[(-tilt * Math.PI) / 180, 0, 0]}>
+    <group>
       <mesh position={[0, 0, coverHeight("below") - BOOK.cover / 2 - 0.15 - 0.006]} receiveShadow>
         <boxGeometry args={[38, 28, 0.3]} />
         <meshStandardMaterial map={texture} roughness={0.88} />
@@ -845,7 +818,7 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
     const x = pan.x * 4.5 * (1 - 1 / zoom);
     const y = pan.y * 3.5 * (1 - 1 / zoom);
     camera.zoom = zoom;
-    camera.position.set(x, y + 0.3, distance);
+    camera.position.set(x, y, distance);
     camera.lookAt(x, y, 0);
     camera.updateProjectionMatrix();
   }, [camera, size.width, size.height, zoom, pan.x, pan.y, BOOK.height]);
@@ -900,7 +873,6 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
   useEffect(() => {
     if (!state.motion) onPosition?.(state);
   }, [state, onPosition]);
-  const [tilt, setTilt] = useState(28);
   const [material, setMaterial] = useState<CoverMaterial>(
     content?.material ?? (experiment ? "fabric" : "leather"),
   );
@@ -1016,19 +988,6 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         )}
       </div>
       <footer className="book3d-controls">
-        <label className="book3d-angle">
-          视角{" "}
-          <input
-            aria-label="书本视角"
-            disabled={busy}
-            type="range"
-            min="0"
-            max="48"
-            value={tilt}
-            onChange={(e) => setTilt(Number(e.target.value))}
-          />
-          <span>{tilt}°</span>
-        </label>
         <div className="book3d-navigation">
           <button disabled={busy || !state.opened} onClick={() => navigate(-1)}>
             {state.backClosed ? "打开封底" : state.turned === 0 ? "合上封面" : "← 上一页"}
@@ -1144,7 +1103,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
             <Canvas
               shadows="percentage"
               dpr={[1, 2]}
-              camera={{ position: [0, 0.3, 12], fov: 38, near: 0.1, far: 100 }}
+              camera={{ position: [0, 0, 12], fov: 38, near: 0.1, far: 100 }}
               gl={{ antialias: true }}
               fallback={<p>当前浏览器无法显示 3D 书本。</p>}
             >
@@ -1172,7 +1131,6 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                 state={state}
                 material={material}
                 complete={complete}
-                tilt={tilt}
                 reducedMotion={reducedMotion}
                 beginDrag={(motion) =>
                   setState((current) =>
@@ -1180,7 +1138,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                   )
                 }
               />
-              <WoodenDesk tilt={tilt} />
+              <WoodenDesk />
             </Canvas>
           )}
           {!ready && preparing && (

@@ -159,7 +159,15 @@ export function coverPose(progress: number, side: "front" | "back", geometry: Bo
   const eased = t * t * (3 - 2 * t);
   const from = coverHeight(side === "front" ? "above" : "below", geometry);
   const to = coverHeight(side === "front" ? "below" : "above", geometry);
-  return { angle: -Math.PI * p, z: from + (to - from) * eased };
+  const angle = -Math.PI * p;
+  const floor = coverHeight("below", geometry) - geometry.cover / 2 - 0.006;
+  // The board extends .06 beyond its pivot: that small corner must also clear the desk.
+  const minimumZ =
+    floor +
+    0.001 +
+    0.06 * Math.abs(Math.sin(angle)) +
+    (geometry.cover / 2) * Math.abs(Math.cos(angle));
+  return { angle, z: Math.max(from + (to - from) * eased, minimumZ) };
 }
 
 /** Exterior spine follows both cover edges, folding below the book when open. */
@@ -184,7 +192,14 @@ export function exteriorSpineProfile(
     0.097 * Math.min(1, Math.abs(b.z - a.z) / Math.max(0.001, geometry.leaves * geometry.sheet));
   return Array.from({ length: 33 }, (_, i) => {
     const t = i / 32;
-    const bulge = Math.sin(Math.PI * t) * bow;
+    const linearZ = a.z + (b.z - a.z) * t;
+    const floor = coverHeight("below", geometry) - geometry.cover / 2 - 0.006;
+    // A thin book must fold sideways rather than drive its curved spine through the desk.
+    const requestedBulge = Math.sin(Math.PI * t) * bow;
+    const bulge =
+      outward.z < -0.000001
+        ? Math.min(requestedBulge, Math.max(0, (linearZ - floor - 0.001) / -outward.z))
+        : requestedBulge;
     return {
       x: a.x + (b.x - a.x) * t + outward.x * bulge,
       z: a.z + (b.z - a.z) * t + outward.z * bulge,
