@@ -1,10 +1,29 @@
-import { bookFormat, type Book, type Asset } from "@/lib/journal";
+import { bookFormat, coverInfo, type Book, type Asset } from "@/lib/journal";
 import { readingBookPlan } from "@/lib/reading-book-plan";
 import { getReadingJpg } from "@/lib/reading-jpg";
+import { createCoverTextures } from "./cover-materials";
 
 /** Decode saved JPGs into a bounded neighborhood of GPU-ready page images. */
 export function createReadingTextures(book: Book, assets: Asset[]) {
   const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
+  const coverInfoValue = coverInfo(book.cover);
+  const yellowPlaid = !book.coverAsset && coverInfoValue.colorway.id === "linen-oat";
+  // The clean yellow edition must use exactly the same generated gingham on both boards.
+  // Copy the real back-cover canvas once and hand that copy to the 3D front-cover path,
+  // instead of feeding it the separately rendered cover JPG.
+  const sharedYellowPlaidCover = (() => {
+    if (!yellowPlaid) return undefined;
+    const textures = createCoverTextures("leather", coverInfoValue.colorway.color);
+    const source = textures.back.image as HTMLCanvasElement;
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    canvas.getContext("2d")!.drawImage(source, 0, 0);
+    textures.front.dispose();
+    textures.back.dispose();
+    textures.bump.dispose();
+    return canvas;
+  })();
   const cache = new Map<number, [HTMLCanvasElement, HTMLCanvasElement]>();
   const jpgs = new Map<number | null, Blob>();
   let preload: Promise<void> | undefined;
@@ -43,7 +62,7 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
       })();
       await preload;
       if (disposed) return;
-      if (!front) {
+      if (!front && !sharedYellowPlaidCover) {
         const image = await decode(null);
         if (disposed) return;
         front = crop(image, false, true);
@@ -97,6 +116,7 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
       return pair[face.side === "left" ? 0 : 1];
     },
     cover() {
+      if (sharedYellowPlaidCover) return sharedYellowPlaidCover;
       if (!front) throw Error("Cover texture is not ready");
       return front;
     },
