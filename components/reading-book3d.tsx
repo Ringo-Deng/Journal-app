@@ -51,11 +51,13 @@ export default forwardRef<
     const source = createReadingTextures(book, assets);
     const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
     const material = coverInfo(book.cover);
+    const yellowPlaid = book.cover === "linen-oat" || book.cover === "travel-note";
     setContent({
       id: crypto.randomUUID(),
       title: book.title || "拾光集",
       color: material.colorway.color,
-      spineColor: material.material.id === "linen" && !book.coverAsset ? (book.cover === "linen-oat" || book.cover === "travel-note" ? "#4b3a2c" : "#51402e") : undefined,
+      spineColor:
+        material.material.id === "linen" && !book.coverAsset && !yellowPlaid ? "#51402e" : undefined,
       material: ["linen", "canvas"].includes(material.material.id) ? "fabric" : "leather",
       ratio: bookFormat(book).ratio,
       leaves: plan.leaves,
