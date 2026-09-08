@@ -153,3 +153,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## ThreeUI Complete Shelf — bound book study
+
+Source: https://github.com/MengTo/threeui/blob/main/public/landing-pages/complete-shelf-v2.html
+
+The experimental “精装布艺” mode adapts the separate cloth normal/roughness treatment, folded cover turn-ins and diagonal page deformation ideas from `createBookRig`, `makeClothSurfaceMaps`, `addTurnIns` and `updateFlexiblePage`. The code is adapted to the existing React Three Fiber renderer and book geometry. Page twist is integrated through row tangents rather than copying the original vertex displacement, and the existing turn timing is retained. All textures are generated locally; the source page's cover atlas, wood imagery and fonts are not copied. The ThreeUI MIT license and copyright notice reproduced above also apply to this adaptation.

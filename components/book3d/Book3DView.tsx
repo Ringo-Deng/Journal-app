@@ -30,8 +30,14 @@ import {
   dragTurnSpan,
   releaseTurn,
 } from "@/lib/book3d-motion";
-import { COVER_MATERIALS, createCoverTextures, type CoverMaterial } from "./cover-materials";
+import {
+  COVER_MATERIALS,
+  createCoverTextures,
+  createClothSurfaceMaps,
+  type CoverMaterial,
+} from "./cover-materials";
 import "./book3d.css";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { createPortal } from "react-dom";
 import {
   BookSceneContext,
@@ -200,7 +206,11 @@ function TurningPage({
   leaf,
   progress,
   paperStyle,
+  dragControl,
+  reducedMotion,
 }: {
+  dragControl?: DragTurn;
+  reducedMotion: boolean;
   leaf: number;
   progress: { current: number };
   paperStyle: PaperStyle;
@@ -218,13 +228,25 @@ function TurningPage({
     return result;
   }, []);
   const lastProgress = useRef(-1);
+  const twist = useRef(0);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  useFrame(() => {
-    if (lastProgress.current === progress.current) return;
+  useFrame((_, delta) => {
+    const targetTwist =
+      paperStyle === "bound" && !reducedMotion ? (dragControl?.verticalBias ?? 0.45) : 0;
+    const nextTwist = MathUtils.damp(twist.current, targetTwist, 12, Math.min(delta, 0.05));
+    if (lastProgress.current === progress.current && Math.abs(nextTwist - twist.current) < 0.00001)
+      return;
+    twist.current = nextTwist;
     lastProgress.current = progress.current;
-    const points = samplePaper(progress.current, leaf, BOOK, paperStyle);
+    const rows =
+      paperStyle === "bound"
+        ? Array.from({ length: 9 }, (_, row) =>
+            samplePaper(progress.current, leaf, BOOK, paperStyle, (1 - row / 4) * twist.current),
+          )
+        : [samplePaper(progress.current, leaf, BOOK, paperStyle)];
     const positions = geometry.attributes.position;
     for (let i = 0; i < positions.count; i++) {
+      const points = rows.length === 1 ? rows[0] : rows[Math.floor(i / (BOOK.segments + 1))];
       const point = points[i % (BOOK.segments + 1)];
       positions.setX(i, point.x);
       positions.setZ(i, point.z);
@@ -235,7 +257,9 @@ function TurningPage({
         (next.x - prev.x) / Math.max(1e-6, Math.hypot(next.x - prev.x, next.z - prev.z)),
       );
       const tone =
-        paperStyle === "soft" ? 1 - 0.16 * Math.sin(Math.PI * progress.current) * (1 - facing) : 1;
+        paperStyle !== "original"
+          ? 1 - 0.16 * Math.sin(Math.PI * progress.current) * (1 - facing)
+          : 1;
       geometry.attributes.color.setXYZ(i, tone, tone, tone);
     }
     geometry.attributes.color.needsUpdate = true;
@@ -246,12 +270,12 @@ function TurningPage({
   return (
     <group>
       <mesh geometry={geometry} castShadow>
-        {paperStyle === "soft" ? (
+        {paperStyle !== "original" ? (
           <meshPhysicalMaterial
             map={front}
             vertexColors
             roughness={0.93}
-            sheen={paperStyle === "soft" ? 0.16 : 0}
+            sheen={0.16}
             sheenColor="#fff6e5"
             shadowSide={DoubleSide}
           />
@@ -260,12 +284,12 @@ function TurningPage({
         )}
       </mesh>
       <mesh geometry={geometry}>
-        {paperStyle === "soft" ? (
+        {paperStyle !== "original" ? (
           <meshPhysicalMaterial
             map={back}
             vertexColors
             roughness={0.93}
-            sheen={paperStyle === "soft" ? 0.16 : 0}
+            sheen={0.16}
             sheenColor="#fff6e5"
             side={BackSide}
           />
@@ -384,6 +408,43 @@ function BookBinding({
   );
 }
 
+/** Narrow folded cloth edges stay attached to each moving cover. */
+function CoverTurnIns({ side, color }: { side: -1 | 1; color: string }) {
+  const { BOOK } = useBookScene();
+  const z = side * (BOOK.cover / 2 + 0.0025);
+  return (
+    <group>
+      {[
+        [BOOK.width / 2, BOOK.height / 2 + 0.015, BOOK.width + 0.1, 0.07],
+        [BOOK.width / 2, -BOOK.height / 2 - 0.015, BOOK.width + 0.1, 0.07],
+        [0, 0, 0.075, BOOK.height - 0.04],
+        [BOOK.width, 0, 0.075, BOOK.height - 0.04],
+      ].map(([x, y, w, h], i) => (
+        <mesh key={i} position={[x, y, z]} raycast={() => {}}>
+          <boxGeometry args={[w, h, 0.003]} />
+          <meshStandardMaterial color={color} roughness={0.98} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+function CoverBoard({ detailed }: { detailed: boolean }) {
+  const { BOOK } = useBookScene();
+  const rounded = useMemo(
+    () =>
+      detailed
+        ? new RoundedBoxGeometry(BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover, 3, 0.009)
+        : null,
+    [detailed, BOOK.width, BOOK.height, BOOK.cover],
+  );
+  useEffect(() => () => rounded?.dispose(), [rounded]);
+  return rounded ? (
+    <primitive object={rounded} attach="geometry" />
+  ) : (
+    <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+  );
+}
+
 function BookModel({
   state,
   complete,
@@ -442,6 +503,17 @@ function BookModel({
     },
     [coverTextures],
   );
+  const clothMaps = useMemo(
+    () => (paperStyle === "bound" && material === "fabric" ? createClothSurfaceMaps() : null),
+    [paperStyle, material],
+  );
+  useEffect(
+    () => () => {
+      clothMaps?.normal.dispose();
+      clothMaps?.roughness.dispose();
+    },
+    [clothMaps],
+  );
   const liningMap = usePaperTexture("lining", true);
   const motion = state.motion;
   const startPageDrag = (event: ThreeEvent<PointerEvent>, direction: -1 | 1) => {
@@ -471,6 +543,11 @@ function BookModel({
     const move = (event: PointerEvent) => {
       const current = gesture.current;
       if (!current || current.id !== event.pointerId) return;
+      current.control.verticalBias = MathUtils.clamp(
+        (event.clientY - current.startY) / (current.span * 0.3),
+        -1,
+        1,
+      );
       current.control.progress = dragTurnProgress(
         event.clientX - current.startX,
         current.direction,
@@ -580,12 +657,13 @@ function BookModel({
       position={[-BOOK.width / 2, 0, 0]}
     >
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
+        {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow
           onPointerDown={(event) => startPageDrag(event, state.backClosed ? -1 : 1)}
         >
-          <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+          <CoverBoard detailed={paperStyle === "bound"} />
           <meshStandardMaterial color={surface.edge} roughness={surface.roughness} />
         </mesh>
         <mesh
@@ -604,6 +682,9 @@ function BookModel({
           <meshPhysicalMaterial
             map={coverTextures.back}
             bumpMap={coverTextures.bump}
+            normalMap={clothMaps?.normal ?? null}
+            normalScale={[0.28, 0.28]}
+            roughnessMap={clothMaps?.roughness ?? null}
             bumpScale={surface.bump}
             roughness={surface.roughness}
             clearcoat={surface.clearcoat}
@@ -637,18 +718,21 @@ function BookModel({
           leaf={leaf}
           progress={progress}
           paperStyle={paperStyle}
+          dragControl={motion?.drag}
+          reducedMotion={reducedMotion}
         />
       )}
-      {turning && paperStyle === "soft" && (
+      {turning && paperStyle !== "original" && (
         <PageShade progress={progress} leftCount={leftCount} rightCount={rightCount} />
       )}
       <group ref={cover} position={[0, 0, coverHeight("above")]}>
+        {paperStyle === "bound" && <CoverTurnIns side={-1} color={surface.color} />}
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow
           onPointerDown={(event) => startPageDrag(event, state.opened ? -1 : 1)}
         >
-          <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+          <CoverBoard detailed={paperStyle === "bound"} />
           <meshStandardMaterial color={surface.edge} roughness={surface.roughness} />
         </mesh>
         <mesh
@@ -659,6 +743,9 @@ function BookModel({
           <meshPhysicalMaterial
             map={coverTextures.front}
             bumpMap={coverTextures.bump}
+            normalMap={clothMaps?.normal ?? null}
+            normalScale={[0.28, 0.28]}
+            roughnessMap={clothMaps?.roughness ?? null}
             bumpScale={surface.bump}
             roughness={surface.roughness}
             clearcoat={surface.clearcoat}
@@ -780,7 +867,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         }
       : initialState,
   );
-  const [paperStyle, setPaperStyle] = useState<PaperStyle>(experiment ? "soft" : "original");
+  const [paperStyle, setPaperStyle] = useState<PaperStyle>(experiment ? "bound" : "original");
   const [ready, setReady] = useState(!content);
   const [preparedLeaf, setPreparedLeaf] = useState<number | null>(content ? null : 0);
   const [resetting, setResetting] = useState(false);
@@ -807,7 +894,9 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
     if (!state.motion) onPosition?.(state);
   }, [state, onPosition]);
   const [tilt, setTilt] = useState(28);
-  const [material, setMaterial] = useState<CoverMaterial>(content?.material ?? "leather");
+  const [material, setMaterial] = useState<CoverMaterial>(
+    content?.material ?? (experiment ? "fabric" : "leather"),
+  );
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [viewMode, setViewMode] = useState<"turn" | "pan">("turn");
@@ -1118,7 +1207,14 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         )}
         {experiment && (
           <div className="book3d-material-controls" role="group" aria-label="翻页效果对比">
-            <span>翻页效果</span>
+            <span>效果对比</span>
+            <button
+              disabled={busy}
+              aria-pressed={paperStyle === "bound"}
+              onClick={() => setPaperStyle("bound")}
+            >
+              精装布艺
+            </button>
             <button
               disabled={busy}
               aria-pressed={paperStyle === "soft"}
@@ -1133,7 +1229,13 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
             >
               原版
             </button>
-            <small>柔纸曲面：连续弯曲 · 柔和高光 · 渐变落影</small>
+            <small>
+              {paperStyle === "bound"
+                ? "包边与细圆角 · 织物反光 · 上下拖动看页角扭转"
+                : paperStyle === "soft"
+                  ? "连续弯曲 · 柔和高光 · 渐变落影"
+                  : "原版书本与翻页"}
+            </small>
           </div>
         )}
         {toolbar ? createPortal(controls, toolbar) : controls}

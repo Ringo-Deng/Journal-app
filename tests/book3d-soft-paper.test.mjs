@@ -37,3 +37,27 @@ test("soft paper has continuous single-direction curvature, distinct from the or
   assert.notDeepEqual(points, sampleSheet(0.5, 3));
   assert.deepEqual(sampleSheet(0.5, 3), sampleSheet(0.5, 3, BOOK, "original"));
 });
+
+test("bound paper twists between top and bottom while each row preserves width and spine", () => {
+  for (const p of [0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 1]) {
+    for (const bias of [-1, -0.5, 0, 0.5, 1]) {
+      const points = sampleSheet(p, 3, BOOK, "bound", bias);
+      near(points[0].x, 0);
+      near(points[0].z, sampleSheet(p, 3)[0].z);
+      for (let i = 1; i < points.length; i++) {
+        near(
+          Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z),
+          BOOK.width / BOOK.segments,
+        );
+        assert.ok(points[i].z >= points[0].z - 1e-8);
+      }
+      if (p === 0 || p === 1) points.forEach((point) => near(point.z, points[0].z));
+    }
+  }
+  assert.notDeepEqual(
+    sampleSheet(0.5, 3, BOOK, "bound", -1),
+    sampleSheet(0.5, 3, BOOK, "bound", 1),
+  );
+  assert.deepEqual(sampleSheet(0.5, 3, BOOK, "original", 1), sampleSheet(0.5, 3));
+  assert.deepEqual(sampleSheet(0.5, 3, BOOK, "soft", 1), sampleSheet(0.5, 3, BOOK, "soft"));
+});

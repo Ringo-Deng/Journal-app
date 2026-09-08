@@ -30,13 +30,14 @@ export function turnTarget(turned: number, direction: -1 | 1, count = BOOK.leave
 }
 
 /** Integrate unit tangents: every strip keeps its length, unlike scaled sin/cos folds. */
-export type PaperStyle = "original" | "soft";
+export type PaperStyle = "original" | "soft" | "bound";
 // Curvature adapted from ThreeUI Sketchbook applyTurn (MIT); see THIRD_PARTY_NOTICES.md.
 export function sampleSheet(
   progress: number,
   leaf: number,
   geometry: BookGeometry = BOOK,
   style: PaperStyle = "original",
+  rowBias = 0,
 ) {
   const p = Math.max(0, Math.min(1, progress));
   const pulse = Math.sin(Math.PI * p);
@@ -51,8 +52,13 @@ export function sampleSheet(
     const t = (i - 0.5) / geometry.segments;
     // Soft mode forms one continuous arc; original keeps its small S curve.
     const bend =
-      style === "soft" ? 0.95 * pulse * (1 - 2 * t) : 0.46 * pulse * Math.sin(2 * Math.PI * t);
-    const angle = Math.PI * p + bend;
+      style !== "original" ? 0.95 * pulse * (1 - 2 * t) : 0.46 * pulse * Math.sin(2 * Math.PI * t);
+    // Complete Shelf-inspired diagonal twist, integrated as tangents to retain paper width.
+    const twist =
+      style === "bound"
+        ? 0.22 * pulse * pulse * Math.pow(t, 1.35) * Math.max(-1, Math.min(1, rowBias))
+        : 0;
+    const angle = Math.PI * p + bend + twist;
     x += (Math.cos(angle) * geometry.width) / geometry.segments;
     z += (Math.sin(angle) * geometry.width) / geometry.segments;
     points.push({ x, z });
@@ -77,6 +83,7 @@ export function dragTurnSpan(projectedBookWidth: number, viewportWidth: number) 
 
 export const TURN_SECONDS = { page: 1.08, cover: 1.05 } as const;
 export type DragTurn = {
+  verticalBias?: number;
   progress: number;
   target: 0 | 1 | null;
   settleFrom: number;

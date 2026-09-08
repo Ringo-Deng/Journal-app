@@ -113,3 +113,12 @@ npm run build
 - Adapted ThreeUI Sketchbook's continuous strip-angle profile into the existing length-preserving Three.js mesh. Added subtle orientation-based tone, paper sheen and a feathered gutter shadow that rises and fades with the turning leaf. Source and MIT notice are in `THIRD_PARTY_NOTICES.md`; no upstream artwork is bundled.
 - Validation: 33 related tests, focused TypeScript/lint, and production build passed. Soft-profile tests sweep endpoints, segment lengths, hinge heights and curvature across different book dimensions. Full-project TypeScript still reports six errors in the unchanged `components/collage-tools.tsx` (unknown `data`).
 - Browser preview was attempted at the existing development server, http://127.0.0.1:4341/three-test. Browser access was denied because its administrator security policy could not be verified. Actual appearance, drag gestures and mobile layout remain unverified; no alternate browser-control route was used.
+
+
+## v0.1.100 — Complete Shelf-inspired bound book study
+
+- `/three-test` defaults to “精装布艺” with a fabric cover, alongside the previous soft and original modes. Main appreciation keeps the original model/material defaults.
+- Added narrow turn-ins attached to both cover pivots and small rounded board edges; cover dimensions, hinge clearance and existing lining remain intact. Fabric in bound mode uses separate locally generated linear normal/roughness maps as well as its existing colour/bump texture. Switching modes/materials disposes these maps.
+- Bound pages integrate a row-dependent twist while preserving each row's length and common spine. Vertical pointer travel controls the twist through the existing drag record; automatic turns use a subtle bias. A damped response softens changes, and the twist vanishes at both endpoints. Reduced-motion preference disables twist. Existing release, cancel and cover timing are preserved.
+- Source acknowledgement for Complete Shelf added to THIRD_PARTY_NOTICES.md; upstream artwork is not bundled.
+- Validation: 34 related tests, focused TypeScript/lint and production build passed. Internal review also kept the original/soft paths on one curve calculation per frame. Browser preview was attempted, but denied because administrator policy could not be verified; material appearance, actual mouse/touch feel and mobile layout remain unverified.

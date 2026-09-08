@@ -130,3 +130,35 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   for (const texture of [front, back, bump]) texture.anisotropy = 8;
   return { front, back, bump };
 }
+
+/** Complete Shelf-inspired separate normal and roughness maps; no imported artwork. */
+export function createClothSurfaceMaps() {
+  const size = 256;
+  const normalCanvas = document.createElement("canvas"),
+    roughCanvas = document.createElement("canvas");
+  normalCanvas.width = roughCanvas.width = normalCanvas.height = roughCanvas.height = size;
+  const normalContext = normalCanvas.getContext("2d")!,
+    roughContext = roughCanvas.getContext("2d")!;
+  const normals = normalContext.createImageData(size, size),
+    roughness = roughContext.createImageData(size, size);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const dx = (grain(x + 1, y, "fabric") - grain(x - 1, y, "fabric")) * 2;
+      const dy = (grain(x, y + 1, "fabric") - grain(x, y - 1, "fabric")) * 2;
+      const length = Math.hypot(dx, dy, 1),
+        offset = (y * size + x) * 4;
+      normals.data[offset] = 128 - (dx / length) * 127;
+      normals.data[offset + 1] = 128 + (dy / length) * 127;
+      normals.data[offset + 2] = 128 + 127 / length;
+      normals.data[offset + 3] = 255;
+      const value = 228 + grain(x, y, "fabric") * 24;
+      roughness.data.set([value, value, value, 255], offset);
+    }
+  normalContext.putImageData(normals, 0, 0);
+  roughContext.putImageData(roughness, 0, 0);
+  const normal = new CanvasTexture(normalCanvas),
+    roughnessMap = new CanvasTexture(roughCanvas);
+  // Normal and roughness are linear data, not sRGB colour.
+  normal.anisotropy = roughnessMap.anisotropy = 8;
+  return { normal, roughness: roughnessMap };
+}
