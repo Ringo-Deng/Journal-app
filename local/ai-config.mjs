@@ -20,11 +20,16 @@ export function normalizeBaseUrl(value) {
 
 export function normalizeApiKey(value) {
   let key = String(value || '').trim();
+  key = key.replace(/^`+|`+$/g, '').trim();
+  key = key.replace(/^(?:export\s+)?DEEPSEEK_API_KEY\s*=\s*/i, '').trim();
   const quoted =
     (key.startsWith('"') && key.endsWith('"')) ||
     (key.startsWith("'") && key.endsWith("'"));
   if (quoted && key.length >= 2) key = key.slice(1, -1).trim();
   key = key.replace(/^Bearer\s+/i, '').trim();
+  // API keys never contain whitespace or zero-width formatting characters.
+  // Removing them makes keys copied from terminals/password managers robust.
+  key = key.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
   return key;
 }
 
@@ -59,7 +64,7 @@ export function configIssue(config) {
 export function providerError(status) {
   const messages = {
     400: 'AI 服务不接受这次请求，请确认模型支持当前输入格式；有照片时需要支持图片的模型。',
-    401: 'DeepSeek 返回 401：当前 API Key 未通过认证。请在 DeepSeek 开放平台重新复制或重新生成 API Key，然后保存并重新测试。',
+    401: 'DeepSeek 返回 401：当前 API Key 未通过认证。Pull 新代码不会替换本机已保存的密钥，请重新复制或重新生成有效 API Key，保存后再测试。',
     402: 'AI 账户余额不足，请在服务商后台检查余额。',
     403: '当前密钥没有调用权限，请检查服务商账户或模型权限。',
     404: '没有找到接口或模型，请检查 API 基础地址和模型名称。',
@@ -93,3 +98,70 @@ export function migrateLegacyConfig(config) {
   } catch {}
   return { config: next, changed };
 }
+
+/**
+ * Keep every direct DeepSeek Chat Completions request on the same predictable
+ * non-thinking path used by the journal's production design requests.
+ * DeepSeek V4 enables thinking by default; tiny health checks can otherwise
+ * spend their whole output allowance on reasoning and return no final text.
+ */
+export function prepareDeepSeekPayload(payload) {
+  const next = { ...(payload || {}) };
+  if (next.thinking == null) next.thinking = { type: 'disabled' };
+  if (
+    Number.isFinite(Number(next.max_tokens)) &&
+    Number(next.max_tokens) > 0 &&
+    Number(next.max_tokens) < 256
+  )
+    next.max_tokens = 256;
+  const prompt = Array.isArray(next.messages)
+    ? next.messages
+        .map((message) =>
+          typeof message?.content === 'string'
+            ? message.content
+            : Array.isArray(message?.content)
+              ? message.content
+                  .filter((part) => part?.type === 'text')
+                  .map((part) => part.text || '')
+                  .join(' ')
+              : '',
+        )
+        .join(' ')
+    : '';
+  if (!next.response_format && /\bjson\b/i.test(prompt))
+    next.response_format = { type: 'json_object' };
+  return next;
+}
+
+const PATCH_FLAG = Symbol.for('shiguang.deepseek.fetch.compat.v0121');
+function installDeepSeekFetchCompatibility() {
+  const host = globalThis;
+  if (host[PATCH_FLAG] || typeof host.fetch !== 'function') return;
+  const nativeFetch = host.fetch.bind(host);
+  host.fetch = async (input, init) => {
+    try {
+      const rawUrl =
+        typeof input === 'string' || input instanceof URL
+          ? String(input)
+          : String(input?.url || '');
+      const url = new URL(rawUrl);
+      if (
+        url.hostname === 'api.deepseek.com' &&
+        /\/chat\/completions\/?$/.test(url.pathname) &&
+        typeof init?.body === 'string'
+      ) {
+        const parsed = JSON.parse(init.body);
+        init = {
+          ...init,
+          body: JSON.stringify(prepareDeepSeekPayload(parsed)),
+        };
+      }
+    } catch {
+      // Non-DeepSeek and non-JSON requests pass through untouched.
+    }
+    return nativeFetch(input, init);
+  };
+  host[PATCH_FLAG] = true;
+}
+
+installDeepSeekFetchCompatibility();
