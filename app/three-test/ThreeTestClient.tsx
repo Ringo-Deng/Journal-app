@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import Book3DTest from '@/components/book3d/Book3DTest';
 
 const THICKNESS_LABEL = '封面厚度';
@@ -22,7 +22,7 @@ const MATERIAL_NAMES: Record<string, string> = {
 export default function ThreeTestClient({ appVersion }: { appVersion: string }) {
   const scopeRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scope = scopeRef.current;
     if (!scope) return;
 
@@ -72,7 +72,32 @@ export default function ThreeTestClient({ appVersion }: { appVersion: string }) 
       root.style.setProperty('--pf-book-cover-thickness', `${input.value}px`);
     };
 
+    const ensureBackCoverParity = () => {
+      const root = scope.querySelector<HTMLElement>('.pf-book-root');
+      if (!root) return;
+
+      const backCover = root.querySelector<HTMLElement>('.pf-cover--back');
+      if (!backCover || backCover.previousElementSibling?.classList.contains('pf-final-verso')) return;
+
+      // With showCover=true, odd page indexes sit on the left and even indexes on the right.
+      // The back hard cover must therefore be an even-indexed page. Add the missing verso of
+      // the final loose sheet before StPageFlip reads the page list, instead of faking another
+      // cover-lining page that would turn independently from the cover.
+      const finalVerso = document.createElement('div');
+      finalVerso.className = 'pf-page pf-final-verso';
+      finalVerso.innerHTML = `
+        <div class="pf-page-inner">
+          <div class="pf-eyebrow">LAST LEFT PAGE</div>
+          <div class="pf-title">最后一张纸留在左边</div>
+          <div class="pf-body">这一面仍然是纸张；右侧才是真正固定在硬封底上的封底内衬。</div>
+          <div class="pf-footer"><span>拾光手帐</span><span>04</span></div>
+        </div>
+      `;
+      backCover.before(finalVerso);
+    };
+
     const syncControls = () => {
+      ensureBackCoverParity();
       ensureMaterialOptions();
       syncMaterialLabel();
       syncThickness();
