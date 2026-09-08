@@ -338,22 +338,85 @@ function BookModel({
   );
 }
 
-function CameraFit() {
+function WoodenDesk({ tilt }: { tilt: number }) {
+  const desk = useRef<Group>(null);
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1536;
+    canvas.height = 1024;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#b18c61";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Long, gently wandering grain with subtle board joints, all generated locally.
+    for (let row = 0; row < 1024; row += 2) {
+      const shade = (Math.sin(row * 1.73) + 1) / 2;
+      ctx.strokeStyle = `rgba(74,43,20,${0.025 + shade * 0.07})`;
+      ctx.lineWidth = 0.5 + shade;
+      ctx.beginPath();
+      for (let x = 0; x <= 1536; x += 8) {
+        const y = row + Math.sin(x / 130 + row / 60) * 3 + Math.sin(x / 320 + row / 32) * 5;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    for (let y = 256; y < 1024; y += 256) {
+      ctx.fillStyle = "rgba(67,43,24,.13)";
+      ctx.fillRect(0, y, 1536, 2);
+      ctx.fillStyle = "rgba(255,234,199,.16)";
+      ctx.fillRect(0, y + 2, 1536, 1);
+    }
+    const result = new CanvasTexture(canvas);
+    result.colorSpace = SRGBColorSpace;
+    result.anisotropy = 8;
+    return result;
+  }, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  useFrame((_, delta) => {
+    if (desk.current)
+      desk.current.rotation.x = MathUtils.damp(
+        desk.current.rotation.x,
+        (-tilt * Math.PI) / 180,
+        7,
+        delta,
+      );
+  });
+  return (
+    <group ref={desk} rotation={[(-tilt * Math.PI) / 180, 0, 0]}>
+      <mesh position={[0, 0, BOOK.base - 0.34]} receiveShadow>
+        <boxGeometry args={[38, 28, 0.3]} />
+        <meshStandardMaterial map={texture} roughness={0.88} />
+      </mesh>
+    </group>
+  );
+}
+
+function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } }) {
   const { camera, size } = useThree();
   useEffect(() => {
     // Fit the entire open book, including its curved sheet, on portrait screens.
     const aspect = size.width / Math.max(1, size.height);
     const distance = Math.max(10.8, 4.5 / (Math.tan((19 * Math.PI) / 180) * aspect));
-    camera.position.set(0, 0.3, distance);
-    camera.lookAt(0, 0, 0);
+    const x = pan.x * 4.5 * (1 - 1 / zoom);
+    const y = pan.y * 3.5 * (1 - 1 / zoom);
+    camera.zoom = zoom;
+    camera.position.set(x, y + 0.3, distance);
+    camera.lookAt(x, y, 0);
     camera.updateProjectionMatrix();
-  }, [camera, size.width, size.height]);
+  }, [camera, size.width, size.height, zoom, pan.x, pan.y]);
   return null;
 }
 
 export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string }) {
   const [state, setState] = useState<BookState>(initialState);
   const [tilt, setTilt] = useState(28);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ id: number; x: number; y: number } | null>(null);
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
   const [reducedMotion, setReducedMotion] = useState(false);
   const busy = state.motion !== null;
   const navigate = (direction: -1 | 1) =>
@@ -431,7 +494,7 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
             gl={{ antialias: true }}
             fallback={<p>当前浏览器无法显示 3D 书本，请启用硬件加速后重试。</p>}
           >
-            <CameraFit />
+            <CameraFit zoom={zoom} pan={pan} />
             <color attach="background" args={["#e9e4db"]} />
             <ambientLight intensity={0.85} />
             <hemisphereLight args={["#fff9eb", "#8e8272", 1.1]} />
@@ -455,15 +518,77 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
               tilt={tilt}
               reducedMotion={reducedMotion}
             />
-            <mesh position={[0, 0, -2.2]} receiveShadow>
-              <planeGeometry args={[200, 200]} />
-              <meshStandardMaterial color="#e9e4db" roughness={1} />
-            </mesh>
+            <WoodenDesk tilt={tilt} />
           </Canvas>
+          {zoom > 1 && (
+            <div
+              className="book3d-pan-surface"
+              aria-label="拖动查看放大的手帐"
+              onPointerDown={(e) => {
+                if (drag.current || e.button !== 0) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+              }}
+              onPointerMove={(e) => {
+                const previous = drag.current;
+                if (!previous || previous.id !== e.pointerId) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const dx = (e.clientX - previous.x) / rect.width;
+                const dy = (e.clientY - previous.y) / rect.height;
+                setPan((value) => ({
+                  x: MathUtils.clamp(value.x - (dx * 3) / zoom, -1, 1),
+                  y: MathUtils.clamp(value.y + (dy * 3) / zoom, -1, 1),
+                }));
+                drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+              }}
+              onPointerUp={(e) => {
+                if (drag.current?.id === e.pointerId) {
+                  drag.current = null;
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }
+              }}
+              onPointerCancel={() => {
+                drag.current = null;
+              }}
+              onLostPointerCapture={() => {
+                drag.current = null;
+              }}
+            />
+          )}
           <div className="book3d-status" role="status" aria-live="polite">
-            {status}
+            {zoom > 1 ? "拖动查看局部 · 使用下方按钮或方向键翻页" : status}
           </div>
         </section>
+        <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
+          <button
+            aria-label="缩小手帐"
+            disabled={zoom <= 1}
+            onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
+          >
+            −
+          </button>
+          <label>
+            缩放{" "}
+            <input
+              aria-label="手帐缩放比例"
+              type="range"
+              min="100"
+              max="300"
+              step="25"
+              value={zoom * 100}
+              onChange={(e) => setZoom(Number(e.target.value) / 100)}
+            />
+          </label>
+          <output aria-live="polite">{Math.round(zoom * 100)}%</output>
+          <button
+            aria-label="放大手帐"
+            disabled={zoom >= 3}
+            onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
+          >
+            ＋
+          </button>
+          <button onClick={resetView}>恢复全景</button>
+        </div>
         <footer className="book3d-controls">
           <label className="book3d-angle">
             视角{" "}
@@ -493,7 +618,14 @@ export default function Book3DTest({ appVersion = "dev" }: { appVersion?: string
               {state.opened ? "下一页 →" : "打开手帐"}
             </button>
           </div>
-          <button className="book3d-reset" disabled={busy} onClick={() => setState(initialState)}>
+          <button
+            className="book3d-reset"
+            disabled={busy}
+            onClick={() => {
+              setState(initialState);
+              resetView();
+            }}
+          >
             重新开始
           </button>
         </footer>

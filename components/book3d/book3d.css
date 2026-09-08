@@ -184,3 +184,58 @@
     left: 18px;
   }
 }
+
+.book3d-pan-surface {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.book3d-pan-surface:active {
+  cursor: grabbing;
+}
+.book3d-status {
+  z-index: 2;
+  text-shadow: 0 1px 4px #f7ead6;
+}
+.book3d-zoom-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 18px;
+  font-size: 12px;
+  color: #69725e;
+}
+.book3d-zoom-controls label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.book3d-zoom-controls input {
+  width: clamp(80px, 18vw, 180px);
+  accent-color: #768368;
+}
+.book3d-zoom-controls output {
+  min-width: 38px;
+  font-variant-numeric: tabular-nums;
+}
+.book3d-zoom-controls button {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid #d8dccd;
+  border-radius: 7px;
+  background: #fcfbf7;
+  color: #59634e;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.book3d-zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.book3d-zoom-controls button:focus-visible {
+  outline: 2px solid #73875e;
+  outline-offset: 3px;
+}
