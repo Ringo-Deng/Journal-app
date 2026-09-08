@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "node local/dev.mjs",
-    "build": "vinext build",
+    "build": "vinext build && node local/stamp-dist.mjs",
     "start": "node local/server.mjs",
     "lint": "oxlint app lib local tests components/material-studio.tsx components/material-library.tsx components/journal-drawing.tsx components/page-turn.tsx components/notebook-paper.tsx",
     "format": "oxfmt",
@@ -23,7 +23,7 @@
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.2",
-    "input-otp": "1.4.2",
+    "input-otp": "4.2.1",
     "lucide-react": "1.31.0",
     "react": "19.2.6",
     "react-day-picker": "9.8.1",
