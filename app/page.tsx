@@ -1854,7 +1854,7 @@ export default function Home() {
               </p>
             )}
           </section>
-        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onImport={()=>setModal('material-import')} onOpenStudio={()=>{setMaterialStudioNotice('');setModal('studio')}} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
+        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onOpenStudio={()=>{setMaterialStudioNotice('');setModal('studio')}} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
           {loadError ? (
             <div className="error-box">
               <h2>暂时读不到手帐</h2>

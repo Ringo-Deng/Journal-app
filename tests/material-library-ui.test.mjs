@@ -12,6 +12,18 @@ test('material library keeps AI organize in the top bar and removes the right ac
   assert.doesNotMatch(source,/批量整理/);
 });
 
+test('library header replaces import with insert and stays compact at medium widths',()=>{
+  const heading=source.match(/<header className="library-heading">[\s\S]*?<\/header>/)?.[0];
+  assert.ok(heading);
+  assert.doesNotMatch(heading,/导入与拆分/);
+  assert.match(heading,/className="library-insert"/);
+  assert.match(heading,/插入手帐/);
+  const mediumHeading=css.match(/@media \(max-width: 1180px\) \{\s*\.library-heading \{[\s\S]*?\n  \}/)?.[0];
+  assert.ok(mediumHeading);
+  assert.match(mediumHeading,/grid-template-areas: 'back title search ai insert';/);
+  assert.doesNotMatch(mediumHeading,/insert insert insert/);
+});
+
 test('material cards keep classification in the tag editor and support drag-to-category',()=>{
   assert.doesNotMatch(source,/className="library-card-group"/);
   assert.doesNotMatch(source,/aria-label={`设置\$\{a\.name\}的分类`}/);

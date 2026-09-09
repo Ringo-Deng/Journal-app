@@ -29,8 +29,10 @@ test('local and Pinterest acquisition live in the importer instead of Material S
   assert.match(studio,/if\(notice\)setMessage\(notice\)/);
 });
 
-test('library import and material re-edit keep separate destinations',()=>{
-  assert.match(page,/onImport=\{\(\)=>setModal\('material-import'\)\}/);
+test('material import stays in the dedicated left rail and is absent from the library header',()=>{
+  assert.doesNotMatch(page,/onImport=\{\(\)=>setModal\('material-import'\)\}/);
+  assert.doesNotMatch(library,/导入与拆分/);
+  assert.doesNotMatch(library,/onImport/);
   assert.match(page,/onOpenStudio=\{\(\)=>\{setMaterialStudioNotice\(''\);setModal\('studio'\)\}\}/);
   assert.match(library,/await request\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\);onOpenStudio\(\)/);
 });

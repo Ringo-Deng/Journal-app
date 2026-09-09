@@ -13,11 +13,11 @@
 
 .library-heading {
   display: grid;
-  grid-template-columns: auto auto minmax(220px, 1fr) auto auto auto;
-  grid-template-areas: 'back title search ai import insert';
+  grid-template-columns: auto auto minmax(220px, 1fr) auto auto;
+  grid-template-areas: 'back title search ai insert';
   align-items: center;
-  gap: 10px;
-  padding: 11px 16px;
+  gap: 8px;
+  padding: 7px 16px;
   background: rgba(255, 254, 250, 0.96);
   border-bottom: 1px solid var(--library-line);
   box-shadow: 0 1px 0 rgba(52, 64, 49, 0.025);
@@ -70,18 +70,23 @@
 
 .library-heading .search-field input {
   width: 100%;
-  padding: 8px 0;
+  padding: 6px 0;
   font-size: 12px;
 }
 
-.library-heading .ai-organize-top {
+.library-ai-actions {
   grid-area: ai;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.library-heading .ai-organize-top {
   border-radius: 10px;
   box-shadow: none;
 }
 
-.library-heading > .outline {
-  grid-area: import;
+.library-ai-actions .outline {
   border-radius: 10px;
   background: #fffefa;
 }
@@ -456,13 +461,7 @@
 @media (max-width: 1180px) {
   .library-heading {
     grid-template-columns: auto auto minmax(190px, 1fr) auto auto;
-    grid-template-areas:
-      'back title search ai import'
-      '. . insert insert insert';
-  }
-
-  .library-insert {
-    justify-self: end;
+    grid-template-areas: 'back title search ai insert';
   }
 
   .library-grid {
@@ -475,9 +474,8 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       'back title ai'
-      'search search import'
-      'insert insert insert';
-    padding: 9px 11px;
+      'search search insert';
+    padding: 7px 11px;
   }
 
   .library-heading h1 small {
@@ -485,7 +483,6 @@
   }
 
   .library-insert {
-    width: 100%;
     justify-content: flex-end;
   }
 
