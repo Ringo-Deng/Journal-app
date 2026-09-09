@@ -37,6 +37,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Layers,
+  Sticker,
   Settings,
   Plus,
   Feather,
@@ -1676,7 +1677,7 @@ export default function Home() {
         <div className="brand">s.</div>
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
-        <button className={libraryOpen?'active':''} aria-label="素材库" disabled={!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null);}}><Layers/><span>素材</span></button>
+        <button className={libraryOpen?'active':''} aria-label="素材库" disabled={!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
         <button className={modal==='material-import'?'active':''} aria-label="导入素材" onClick={()=>setModal('material-import')}><ImagePlus/><span>导入</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
@@ -1731,21 +1732,23 @@ export default function Home() {
               </div>
               <span className="tool-divider"/>
             </>}
-            <button className="quiet" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
-            <button className="quiet" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
-            <button className="quiet" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Layers/><span>素材</span></button>
+            <button className="quiet" aria-label="添加文字" title="文字" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
+            <button className="quiet" aria-label={uploading?'正在添加照片':'添加照片'} title="照片" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
+            <button className="quiet" aria-label="打开素材库" title="素材" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
             <button
               className={`quiet ${panel==='elements'?'active':''}`}
+              aria-label="打开图层面板"
+              title="图层"
               aria-pressed={panel==='elements'}
               disabled={!spread||busy||!opened}
               onClick={()=>setPanel(panel==='elements'?null:'elements')}
             >
               <Layers/><span>图层</span>
             </button>
-            <button className="quiet" disabled={!spread||busy||!opened} onClick={()=>{finishEditing();setCollageOpen(true);}}><Feather/><span>旅行拼贴</span></button>
-            <button className="quiet" disabled={!spread||busy||!opened} onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span>粘贴</span></button>
+            <button className="quiet" aria-label="打开旅行拼贴" title="旅行拼贴" disabled={!spread||busy||!opened} onClick={()=>{finishEditing();setCollageOpen(true);}}><Feather/><span>旅行拼贴</span></button>
+            <button className="quiet" aria-label="粘贴素材" title="粘贴" disabled={!spread||busy||!opened} onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span>粘贴</span></button>
             <span className="tool-divider"/>
-            <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" onClick={redo}><Redo2/><span>重做</span></button>
+            <button className="quiet" aria-label="撤销调整" title="撤销" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" title="重做" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
         {!reading&&!libraryOpen&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>

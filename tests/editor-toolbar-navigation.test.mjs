@@ -17,9 +17,14 @@ test('page navigation and zoom live only in the first-row editor toolbar',async(
   assert.equal([...source.matchAll(/aria-label="下一跨页"/g)].length,1);
 });
 
-test('the first-row toolbar stays on one horizontally scrollable line',async()=>{
+test('the editor toolbar fits the window without a horizontal scrollbar',async()=>{
   const css=await read('app/globals.css');
-  assert.match(css,/\.creation-tools\{[^}]*flex-wrap:nowrap;[^}]*overflow-x:auto;/);
+  assert.match(css,/\.creation-tools\{[^}]*flex-wrap:nowrap;[^}]*overflow:visible;/);
   assert.match(css,/\.creation-tools \.quiet\{[^}]*flex:none;[^}]*white-space:nowrap;/);
   assert.match(css,/\.editor-page-navigation\{[^}]*display:flex;[^}]*flex:none;[^}]*margin-left:auto;/);
+  assert.match(css,/@media\(max-width:900px\)\{[^\n]*\.compact-shell \.editor-header\{[^}]*flex-wrap:wrap;/);
+  assert.match(css,/@media\(max-width:600px\)\{[^\n]*\.creation-tools\{[^}]*flex-wrap:wrap;/);
+  assert.match(css,/@media\(max-width:700px\)\{[^\n]*\.creation-tools\{flex-wrap:wrap;/);
+  assert.doesNotMatch(css,/\.creation-tools>button\.quiet>span\{display:none;/);
+  assert.doesNotMatch(css,/\.creation-tools\{[^}]*overflow-x:auto;/);
 });
