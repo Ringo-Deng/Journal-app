@@ -1,5 +1,5 @@
 /* Regular notebook previews: the full-book artwork is only a library/settings preview.
-   Travel Notes and the real 3D cover surface keep their existing rendering path. */
+   Travel Notes and the real physical cover surface keep their existing rendering path. */
 .stationery-cover-preview {
   display: none;
   position: absolute;
@@ -32,6 +32,20 @@
 .rigid-front .stationery-cover-preview,
 .deck-cover-front .stationery-cover-preview {
   display: none !important;
+}
+
+/* In the editor/reader the SVG is only the front cloth face. The existing
+   notebook geometry owns the spine, page block and closure, so keep those
+   physical layers visible instead of baking a second book into the face art. */
+.rigid-front .stationery-cover-art,
+.deck-cover-front .stationery-cover-art {
+  z-index: 1 !important;
+}
+.rigid-front:has(.stationery-cover-art)::before,
+.rigid-front:has(.stationery-cover-art)::after,
+.deck-cover-front:has(.stationery-cover-art)::before,
+.deck-cover-front:has(.stationery-cover-art)::after {
+  display: block !important;
 }
 
 /* The settings live preview uses the same three approved full-book images.
