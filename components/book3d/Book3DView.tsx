@@ -9,9 +9,12 @@ import {
   MeshBasicMaterial,
   DoubleSide,
   CanvasTexture,
+  ExtrudeGeometry,
   Group,
   MathUtils,
   PlaneGeometry,
+  Shape,
+  ShapeGeometry,
   SRGBColorSpace,
   Vector3,
 } from "three";
@@ -27,6 +30,7 @@ import {
   type BookPosition,
   dragTurnProgress,
   dragTurnSpan,
+  presentationCamera,
   releaseTurn,
 } from "@/lib/book3d-motion";
 import {
@@ -37,7 +41,6 @@ import {
 } from "./cover-materials";
 import "./book3d.css";
 import BookSpine from "./BookSpine";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { createPortal } from "react-dom";
 import {
   BookSceneContext,
@@ -184,17 +187,17 @@ function PaperStack({ side, count }: { side: -1 | 1; count: number }) {
     <group>
       <mesh position={[(side * BOOK.width) / 2, 0, BOOK.base + depth / 2]} castShadow receiveShadow>
         <boxGeometry args={[BOOK.width, BOOK.height, depth]} />
-        <meshStandardMaterial color="#e5dcc7" roughness={0.95} />
+        <meshStandardMaterial color="#f1eadb" roughness={0.96} />
       </mesh>
       {Array.from({ length: count }, (_, i) => (
         <group key={i}>
           <mesh position={[side * BOOK.width, 0, stackTop(i) + 0.008]}>
             <boxGeometry args={[0.006, BOOK.height, 0.003]} />
-            <meshStandardMaterial color="#bdb29d" roughness={1} />
+            <meshStandardMaterial color="#c9bea9" roughness={1} />
           </mesh>
           <mesh position={[(side * BOOK.width) / 2, -BOOK.height / 2 - 0.001, stackTop(i) + 0.008]}>
             <boxGeometry args={[BOOK.width, 0.006, 0.003]} />
-            <meshStandardMaterial color="#c4b8a2" roughness={1} />
+            <meshStandardMaterial color="#d2c7b2" roughness={1} />
           </mesh>
         </group>
       ))}
@@ -392,13 +395,66 @@ function CoverTurnIns({ side, color }: { side: -1 | 1; color: string }) {
     </group>
   );
 }
+function roundedRectangle(width: number, height: number, radius: number) {
+  const left = -width / 2;
+  const right = width / 2;
+  const bottom = -height / 2;
+  const top = height / 2;
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  const shape = new Shape();
+  shape.moveTo(left + r, bottom);
+  shape.lineTo(right - r, bottom);
+  shape.quadraticCurveTo(right, bottom, right, bottom + r);
+  shape.lineTo(right, top - r);
+  shape.quadraticCurveTo(right, top, right - r, top);
+  shape.lineTo(left + r, top);
+  shape.quadraticCurveTo(left, top, left, top - r);
+  shape.lineTo(left, bottom + r);
+  shape.quadraticCurveTo(left, bottom, left + r, bottom);
+  shape.closePath();
+  return shape;
+}
+
+function RoundedCoverFace({ lining = false }: { lining?: boolean }) {
+  const { BOOK } = useBookScene();
+  const width = BOOK.width + (lining ? -0.08 : 0.1);
+  const height = BOOK.height + (lining ? -0.08 : 0.14);
+  const geometry = useMemo(() => {
+    const result = new ShapeGeometry(roundedRectangle(width, height, lining ? 0.11 : 0.15), 10);
+    const position = result.attributes.position;
+    const uv = new Float32Array(position.count * 2);
+    for (let i = 0; i < position.count; i += 1) {
+      uv[i * 2] = position.getX(i) / width + 0.5;
+      uv[i * 2 + 1] = position.getY(i) / height + 0.5;
+    }
+    result.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+    return result;
+  }, [width, height, lining]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <primitive object={geometry} attach="geometry" />;
+}
+
 function CoverBoard({ detailed }: { detailed: boolean }) {
   const { BOOK } = useBookScene();
   const rounded = useMemo(
-    () =>
-      detailed
-        ? new RoundedBoxGeometry(BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover, 3, 0.009)
-        : null,
+    () => {
+      if (!detailed) return null;
+      const bevel = Math.min(0.012, BOOK.cover * 0.24);
+      const result = new ExtrudeGeometry(
+        roundedRectangle(BOOK.width + 0.12, BOOK.height + 0.16, 0.16),
+        {
+          depth: BOOK.cover - bevel * 2,
+          steps: 1,
+          curveSegments: 10,
+          bevelEnabled: true,
+          bevelSegments: 3,
+          bevelSize: 0.026,
+          bevelThickness: bevel,
+        },
+      );
+      result.translate(0, 0, -(BOOK.cover - bevel * 2) / 2);
+      return result;
+    },
     [detailed, BOOK.width, BOOK.height, BOOK.cover],
   );
   useEffect(() => () => rounded?.dispose(), [rounded]);
@@ -406,6 +462,56 @@ function CoverBoard({ detailed }: { detailed: boolean }) {
     <primitive object={rounded} attach="geometry" />
   ) : (
     <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
+  );
+}
+
+function Bookmark({
+  pose,
+  color,
+}: {
+  pose: { current: { front: number; back: number } };
+  color: string;
+}) {
+  const { BOOK } = useBookScene();
+  const group = useRef<Group>(null);
+  const geometry = useMemo(() => {
+    const shape = new Shape();
+    shape.moveTo(-0.15, 0.2);
+    shape.lineTo(0.15, 0.2);
+    shape.lineTo(0.15, -0.2);
+    shape.lineTo(0, -0.13);
+    shape.lineTo(-0.15, -0.2);
+    shape.closePath();
+    const depth = 0.012;
+    const result = new ExtrudeGeometry(shape, {
+      depth,
+      steps: 1,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      bevelSize: 0.008,
+      bevelThickness: 0.003,
+    });
+    result.translate(0, 0, -depth / 2);
+    return result;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useFrame(() => {
+    if (group.current)
+      group.current.position.x = MathUtils.lerp(
+        BOOK.width * 0.2,
+        -BOOK.width * 0.2,
+        pose.current.back,
+      );
+  });
+  return (
+    <group
+      ref={group}
+      position={[BOOK.width * 0.2, -BOOK.height / 2 - 0.1, BOOK.base - BOOK.coverGap / 2]}
+    >
+      <mesh geometry={geometry} castShadow raycast={() => {}}>
+        <meshPhysicalMaterial color={color} roughness={0.94} sheen={0.18} sheenColor={color} />
+      </mesh>
+    </group>
   );
 }
 
@@ -417,6 +523,7 @@ function BookModel({
   material,
   disabled,
   paperStyle,
+  presentationOpening,
 }: {
   disabled: boolean;
   paperStyle: PaperStyle;
@@ -425,6 +532,7 @@ function BookModel({
   complete: () => void;
   reducedMotion: boolean;
   beginDrag: (motion: Motion) => void;
+  presentationOpening: { current: number };
 }) {
   const { BOOK, content, stackTop, coverHeight, coverPose, nextBookTurn } = useBookScene();
   const turnStyle: PaperStyle = content ? "original" : paperStyle;
@@ -582,6 +690,7 @@ function BookModel({
     }
     let opening = state.opened ? 1 : 0;
     if (motion?.kind === "cover") opening = MathUtils.lerp(motion.from, motion.to, turn);
+    presentationOpening.current = opening;
     if (motion?.kind === "page") progress.current = motion.to > motion.from ? turn : 1 - turn;
     const frontPose = coverPose(opening, "front");
     cover.current.rotation.y = frontPose.angle;
@@ -617,6 +726,16 @@ function BookModel({
           edition={content ? "" : "VOL. 01"}
         />
       )}
+      {paperStyle === "bound" && (
+        <Bookmark
+          pose={spinePose}
+          color={
+            content?.color.toLowerCase() === "#f4ce75"
+              ? "#d9a34d"
+              : content?.color ?? surface.color
+          }
+        />
+      )}
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
         {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
         <mesh
@@ -631,7 +750,7 @@ function BookModel({
           position={[BOOK.width / 2, 0, BOOK.cover / 2 + 0.001]}
           onPointerDown={(event) => startPageDrag(event, 1)}
         >
-          <planeGeometry args={[BOOK.width - 0.08, BOOK.height - 0.08]} />
+          <RoundedCoverFace lining />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
         <mesh
@@ -639,7 +758,7 @@ function BookModel({
           rotation={[0, Math.PI, 0]}
           onPointerDown={(event) => startPageDrag(event, -1)}
         >
-          <planeGeometry args={[BOOK.width + 0.1, BOOK.height + 0.14]} />
+          <RoundedCoverFace />
           <meshPhysicalMaterial
             map={coverTextures.back}
             bumpMap={coverTextures.bump}
@@ -700,7 +819,7 @@ function BookModel({
           position={[BOOK.width / 2, 0, BOOK.cover / 2 + 0.001]}
           onPointerDown={(event) => startPageDrag(event, 1)}
         >
-          <planeGeometry args={[BOOK.width + 0.1, BOOK.height + 0.14]} />
+          <RoundedCoverFace />
           <meshPhysicalMaterial
             map={coverTextures.front}
             bumpMap={coverTextures.bump}
@@ -716,7 +835,7 @@ function BookModel({
           />
         </mesh>
         <mesh position={[BOOK.width / 2, 0, -(BOOK.cover / 2 + 0.001)]} rotation={[0, Math.PI, 0]}>
-          <planeGeometry args={[BOOK.width - 0.08, BOOK.height - 0.08]} />
+          <RoundedCoverFace lining />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
       </group>
@@ -770,10 +889,18 @@ function WoodenDesk() {
   );
 }
 
-function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } }) {
+function CameraFit({
+  zoom,
+  pan,
+  presentationOpening,
+}: {
+  zoom: number;
+  pan: { x: number; y: number };
+  presentationOpening: { current: number };
+}) {
   const { BOOK } = useBookScene();
   const { camera, size } = useThree();
-  useEffect(() => {
+  useFrame(() => {
     // Fit the entire open book, including its curved sheet, on portrait screens.
     const aspect = size.width / Math.max(1, size.height);
     const distance = Math.max(
@@ -782,11 +909,12 @@ function CameraFit({ zoom, pan }: { zoom: number; pan: { x: number; y: number } 
     );
     const x = pan.x * 4.5 * (1 - 1 / zoom);
     const y = pan.y * 3.5 * (1 - 1 / zoom);
+    const view = presentationCamera(presentationOpening.current, distance, x, y);
     camera.zoom = zoom;
-    camera.position.set(x, y, distance);
-    camera.lookAt(x, y, 0);
+    camera.position.set(view.position.x, view.position.y, view.position.z);
+    camera.lookAt(view.target.x, view.target.y, view.target.z);
     camera.updateProjectionMatrix();
-  }, [camera, size.width, size.height, zoom, pan.x, pan.y, BOOK.height]);
+  });
   return null;
 }
 
@@ -813,6 +941,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
         }
       : initialState,
   );
+  const presentationOpening = useRef(state.opened ? 1 : 0);
   const [paperStyle, setPaperStyle] = useState<PaperStyle>(
     initialPaperStyle ?? (experiment ? "bound" : "original"),
   );
@@ -1075,14 +1204,14 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
               gl={{ antialias: true }}
               fallback={<p>当前浏览器无法显示 3D 书本。</p>}
             >
-              <CameraFit zoom={zoom} pan={pan} />
+              <CameraFit zoom={zoom} pan={pan} presentationOpening={presentationOpening} />
               <ContextRecovery onError={onError} />
               <color attach="background" args={["#e9e4db"]} />
-              <ambientLight intensity={1.05} />
-              <hemisphereLight args={["#fff9eb", "#8e8272", 1.1]} />
+              <ambientLight intensity={0.72} />
+              <hemisphereLight args={["#fff9eb", "#8e8272", 0.76]} />
               <directionalLight
                 position={[-3, 6, 8]}
-                intensity={1.6}
+                intensity={2.05}
                 castShadow
                 shadow-mapSize={[2048, 2048]}
                 shadow-camera-left={-8}
@@ -1100,6 +1229,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                 material={material}
                 complete={complete}
                 reducedMotion={reducedMotion}
+                presentationOpening={presentationOpening}
                 beginDrag={(motion) =>
                   setState((current) =>
                     current.motion || preparing ? current : { ...current, motion },

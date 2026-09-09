@@ -29,7 +29,9 @@ test("exterior spine joins the actual front and back cover edges throughout open
 });
 test("closed spines sit outside the paper block and open spine clears the wooden desk", () => {
   for (const book of [BOOK, bookGeometry(120, 1.43), bookGeometry(1, 2)]) {
-    exteriorSpineProfile(0, 0, book).forEach((p) => assert.ok(p.x <= -0.04 + 1e-8));
+    const closed = exteriorSpineProfile(0, 0, book);
+    closed.forEach((p) => assert.ok(p.x <= -0.04 + 1e-8));
+    assert.ok(Math.min(...closed.map((p) => p.x)) <= -0.33, "closed spine should read as a cover band");
     exteriorSpineProfile(1, 1, book).forEach((p) => assert.ok(p.x >= 0.04 - 1e-8));
     const floor = coverHeight("below", book) - book.cover / 2 - 0.006;
     exteriorSpineProfile(1, 0, book).forEach((p) => {

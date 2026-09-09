@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { readingBookPlan } from "../lib/reading-book-plan.ts";
 import {
   bookGeometry,
@@ -54,6 +55,22 @@ test("standard and tall books keep page proportions, bounded thickness and conne
       }
       assert.ok(coverPose(0, "front", g).z - g.cover / 2 > stackTop(leaves, g));
     }
+});
+test("stationery editions keep their own physical spine colors and a passive bookmark", async () => {
+  const reader = await readFile(
+    new URL("../components/reading-book3d.tsx", import.meta.url),
+    "utf8",
+  );
+  const view = await readFile(
+    new URL("../components/book3d/Book3DView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(reader, /linen-forest[\s\S]*#6c596b/);
+  assert.match(reader, /linen-blue[\s\S]*#3c5b6a/);
+  assert.match(view, /function RoundedCoverFace/);
+  assert.match(view, /function Bookmark/);
+  assert.match(view, /<mesh geometry=\{geometry\} castShadow raycast=\{\(\) => \{\}\}>/);
+  assert.doesNotMatch(view, /function (?:Clasp|Snap|Closure)/);
 });
 const book = {
   id: "test-book",

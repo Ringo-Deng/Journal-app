@@ -82,6 +82,29 @@ export function dragTurnSpan(projectedBookWidth: number, viewportWidth: number) 
 }
 
 export const TURN_SECONDS = { page: 1.08, cover: 1.05 } as const;
+export const CLOSED_COVER_TILT = (7 * Math.PI) / 180;
+
+/** Keep reading front-on, but reveal the closed cover's spine, page block and depth. */
+export function presentationCamera(
+  frontOpen: number,
+  distance: number,
+  targetX = 0,
+  targetY = 0,
+) {
+  const p = Math.max(0, Math.min(1, frontOpen));
+  const eased = p * p * (3 - 2 * p);
+  const angle = CLOSED_COVER_TILT * (1 - eased);
+  return {
+    position: {
+      x: targetX,
+      y: targetY - Math.sin(angle) * distance,
+      z: Math.cos(angle) * distance,
+    },
+    target: { x: targetX, y: targetY, z: 0 },
+    angle,
+  };
+}
+
 export type DragTurn = {
   verticalBias?: number;
   progress: number;
@@ -188,8 +211,8 @@ export function exteriorSpineProfile(
   const angle = Math.PI + (Math.PI / 2) * (frontOpen + backClosed);
   const outward = { x: Math.cos(angle), z: Math.sin(angle) };
   const bow =
-    0.003 +
-    0.097 * Math.min(1, Math.abs(b.z - a.z) / Math.max(0.001, geometry.leaves * geometry.sheet));
+    0.012 +
+    0.288 * Math.min(1, Math.abs(b.z - a.z) / Math.max(0.001, geometry.leaves * geometry.sheet));
   return Array.from({ length: 33 }, (_, i) => {
     const t = i / 32;
     const linearZ = a.z + (b.z - a.z) * t;

@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BOOK, sampleSheet, stackTop, turnTarget } from "../lib/book3d-motion.ts";
+import {
+  BOOK,
+  CLOSED_COVER_TILT,
+  presentationCamera,
+  sampleSheet,
+  stackTop,
+  turnTarget,
+} from "../lib/book3d-motion.ts";
 
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 test("sheet lands flat on the matching stack at both ends", () => {
@@ -37,6 +44,19 @@ test("navigation clamps first and last page and returns through every spread", (
   near(turnTarget(page, 1), BOOK.leaves);
   for (let i = 0; i < BOOK.leaves; i++) page = turnTarget(page, -1);
   near(page, 0);
+});
+
+test("closed cover uses a restrained presentation angle and returns to front-on reading", () => {
+  const closed = presentationCamera(0, 12, 1, -0.5);
+  const halfway = presentationCamera(0.5, 12, 1, -0.5);
+  const open = presentationCamera(1, 12, 1, -0.5);
+  near(closed.angle, CLOSED_COVER_TILT);
+  near(open.angle, 0);
+  assert.ok(closed.angle > halfway.angle && halfway.angle > open.angle);
+  near(Math.hypot(closed.position.y + 0.5, closed.position.z), 12);
+  near(open.position.y, -0.5);
+  near(open.position.z, 12);
+  assert.deepEqual(open.target, { x: 1, y: -0.5, z: 0 });
 });
 
 test("pointer travel drives both directions continuously and pulling back unwinds the sheet", async () => {

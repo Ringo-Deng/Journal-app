@@ -10,7 +10,7 @@ import {
   exteriorSpineProfile,
 } from "../lib/book3d-motion.ts";
 
-test("book and desk remain flat with no view rotation control", async () => {
+test("book and desk remain flat while the camera owns the closed-cover presentation angle", async () => {
   const source = await readFile(
     new URL("../components/book3d/Book3DView.tsx", import.meta.url),
     "utf8",
@@ -22,6 +22,7 @@ test("book and desk remain flat with no view rotation control", async () => {
   assert.doesNotMatch(model, /root\.current\.rotation/);
   assert.doesNotMatch(model, /rotation=\{\[\(-tilt/);
   assert.doesNotMatch(source, /DeskScene|setTilt|书本视角|root\.current\.rotation/);
+  assert.match(source, /presentationCamera\(presentationOpening\.current/);
 });
 test("both closed covers and open book stay above the desk plane at every viewing angle", () => {
   for (const book of [BOOK, bookGeometry(120, 1.43), bookGeometry(1, 2)]) {

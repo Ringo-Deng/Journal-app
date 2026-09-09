@@ -52,16 +52,19 @@ export default forwardRef<
     const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
     const material = coverInfo(book.cover);
     const yellowPlaid = !book.coverAsset && material.colorway.id === "linen-oat";
+    const stationerySpine =
+      !book.coverAsset && material.colorway.id === "linen-forest"
+        ? "#6c596b"
+        : !book.coverAsset && material.colorway.id === "linen-blue"
+          ? "#3c5b6a"
+          : undefined;
     setContent({
       id: crypto.randomUUID(),
       title: book.title || "拾光集",
       color: material.colorway.color,
       // The clean yellow edition keeps the board edge yellow. BookSpine detects
       // the edition from the cover colour and owns the separate brown binding.
-      spineColor:
-        !yellowPlaid && material.material.id === "linen" && !book.coverAsset
-          ? "#51402e"
-          : undefined,
+      spineColor: stationerySpine,
       // Use the smooth physical-material path for this pristine edition so the
       // generic cloth normal/roughness maps cannot make the checks look dirty.
       material: yellowPlaid
