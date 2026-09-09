@@ -21,11 +21,11 @@ export default function Book3DTest({ appVersion }: { appVersion?: string }) {
         type="button"
         className="book3d-compare-toggle"
         onClick={() => setMode((current) => (current === "after" ? "before" : "after"))}
-        aria-label={mode === "after" ? "查看改动前的3D翻页效果" : "查看改动后的3D翻页效果"}
+        aria-label={mode === "after" ? "查看旧版封面外观" : "查看当前封面外观"}
       >
         {mode === "after"
-          ? "改动后（当前） · 查看改动前"
-          : "改动前（3D原版） · 查看改动后"}
+          ? "当前封面 · 第一版翻页 · 查看旧封面"
+          : "旧版封面 · 第一版翻页 · 查看当前封面"}
       </button>
       <style>{`
         .book3d-compare-shell .book3d-material-controls[aria-label="翻页效果对比"] {

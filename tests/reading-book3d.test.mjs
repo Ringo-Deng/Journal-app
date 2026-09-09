@@ -135,3 +135,12 @@ test("saved JPG is returned directly without importing or rendering any paper co
     globalThis.indexedDB = original;
   }
 });
+
+test("appreciation and standalone cover preview both route to the first-edition curl", async () => {
+  const view = await readFile(new URL("../components/book3d/Book3DView.tsx", import.meta.url), "utf8");
+  const preview = await readFile(new URL("../components/book3d/Book3DTest.tsx", import.meta.url), "utf8");
+  assert.match(view, /const turnStyle: PaperStyle = "original";/);
+  assert.match(view, /<TurningPage[\s\S]*?paperStyle=\{turnStyle\}/);
+  assert.doesNotMatch(view, /content \? "original" : paperStyle/);
+  assert.match(preview, /第一版翻页/);
+});

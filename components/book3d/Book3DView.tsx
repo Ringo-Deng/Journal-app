@@ -452,7 +452,9 @@ function BookModel({
   presentationOpening: { current: number };
 }) {
   const { BOOK, content, stackTop, coverHeight, coverPose, nextBookTurn } = useBookScene();
-  const turnStyle: PaperStyle = content ? "original" : paperStyle;
+  // Cover construction is independent of the approved first-edition page curl.
+  // The standalone preview must use the same original turn as appreciation mode.
+  const turnStyle: PaperStyle = "original";
   const { camera, size } = useThree();
   const gesture = useRef<{
     id: number;
