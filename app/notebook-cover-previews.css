@@ -13,6 +13,18 @@
   user-select: none;
 }
 
+/* This is the cover face, not a small custom decoration. Override the library's
+   generic image limits so Travel Notes uses the full notebook surface. */
+.library-cover .stationery-cover-art {
+  max-width: none;
+  max-height: none;
+  object-fit: cover !important;
+  pointer-events: none;
+}
+.library-cover:has(.stationery-cover-art) {
+  background-image: none !important;
+}
+
 .library-cover.format-standard:has(.stationery-cover-preview) {
   overflow: visible !important;
   background: transparent !important;
