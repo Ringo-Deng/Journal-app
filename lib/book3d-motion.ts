@@ -210,12 +210,17 @@ export function exteriorSpineProfile(
   const b = attach(front, geometry.cover / 2);
   const angle = Math.PI + (Math.PI / 2) * (frontOpen + backClosed);
   const outward = { x: Math.cos(angle), z: Math.sin(angle) };
-  const bow =
-    0.012 +
-    0.288 * Math.min(1, Math.abs(b.z - a.z) / Math.max(0.001, geometry.leaves * geometry.sheet));
+  // A compact rounded binding scales with the book thickness. The old fixed
+  // .3 bulge made even a thin notebook look like a wide, flared cover board.
+  const thickness = geometry.leaves * geometry.sheet + 2 * (geometry.coverGap + geometry.cover);
+  const closedness = Math.min(1, Math.abs(b.z - a.z) / thickness);
+  const bow = 0.012 + Math.min(0.08, thickness * 0.24) * closedness;
   return Array.from({ length: 33 }, (_, i) => {
     const t = i / 32;
-    const linearZ = a.z + (b.z - a.z) * t;
+    // An elliptical cross-section meets the covers with a soft horizontal
+    // tangent instead of leaving a sharp, slanted lip at the head and tail.
+    const along = (1 - Math.cos(Math.PI * t)) / 2;
+    const linearZ = a.z + (b.z - a.z) * along;
     const floor = coverHeight("below", geometry) - geometry.cover / 2 - 0.006;
     // A thin book must fold sideways rather than drive its curved spine through the desk.
     const requestedBulge = Math.sin(Math.PI * t) * bow;
@@ -224,8 +229,8 @@ export function exteriorSpineProfile(
         ? Math.min(requestedBulge, Math.max(0, (linearZ - floor - 0.001) / -outward.z))
         : requestedBulge;
     return {
-      x: a.x + (b.x - a.x) * t + outward.x * bulge,
-      z: a.z + (b.z - a.z) * t + outward.z * bulge,
+      x: a.x + (b.x - a.x) * along + outward.x * bulge,
+      z: linearZ + outward.z * bulge,
       nx: outward.x,
       nz: outward.z,
     };

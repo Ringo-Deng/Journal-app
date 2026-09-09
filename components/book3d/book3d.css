@@ -65,16 +65,6 @@
   letter-spacing: 0.15em;
   pointer-events: none;
 }
-.book3d-status {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 22px;
-  font-size: 12px;
-  color: #726e60;
-  text-align: center;
-  pointer-events: none;
-}
 .book3d-controls {
   display: flex;
   gap: 24px;
@@ -185,10 +175,6 @@
   }
 }
 
-.book3d-status {
-  z-index: 2;
-  text-shadow: 0 1px 4px #f7ead6;
-}
 .book3d-zoom-controls {
   display: flex;
   justify-content: center;

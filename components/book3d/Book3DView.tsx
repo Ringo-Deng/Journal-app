@@ -13,7 +13,6 @@ import {
   Group,
   MathUtils,
   PlaneGeometry,
-  Shape,
   ShapeGeometry,
   SRGBColorSpace,
   Vector3,
@@ -41,6 +40,7 @@ import {
 } from "./cover-materials";
 import "./book3d.css";
 import BookSpine from "./BookSpine";
+import { coverOutline } from "./cover-geometry";
 import { createPortal } from "react-dom";
 import {
   BookSceneContext,
@@ -395,32 +395,12 @@ function CoverTurnIns({ side, color }: { side: -1 | 1; color: string }) {
     </group>
   );
 }
-function roundedRectangle(width: number, height: number, radius: number) {
-  const left = -width / 2;
-  const right = width / 2;
-  const bottom = -height / 2;
-  const top = height / 2;
-  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
-  const shape = new Shape();
-  shape.moveTo(left + r, bottom);
-  shape.lineTo(right - r, bottom);
-  shape.quadraticCurveTo(right, bottom, right, bottom + r);
-  shape.lineTo(right, top - r);
-  shape.quadraticCurveTo(right, top, right - r, top);
-  shape.lineTo(left + r, top);
-  shape.quadraticCurveTo(left, top, left, top - r);
-  shape.lineTo(left, bottom + r);
-  shape.quadraticCurveTo(left, bottom, left + r, bottom);
-  shape.closePath();
-  return shape;
-}
-
-function RoundedCoverFace({ lining = false }: { lining?: boolean }) {
+function RoundedCoverFace({ lining = false, flipped = false }: { lining?: boolean; flipped?: boolean }) {
   const { BOOK } = useBookScene();
   const width = BOOK.width + (lining ? -0.08 : 0.1);
   const height = BOOK.height + (lining ? -0.08 : 0.14);
   const geometry = useMemo(() => {
-    const result = new ShapeGeometry(roundedRectangle(width, height, lining ? 0.11 : 0.15), 10);
+    const result = new ShapeGeometry(coverOutline(width, height, lining ? 0.11 : 0.15, flipped ? "right" : "left"), 10);
     const position = result.attributes.position;
     const uv = new Float32Array(position.count * 2);
     for (let i = 0; i < position.count; i += 1) {
@@ -429,7 +409,7 @@ function RoundedCoverFace({ lining = false }: { lining?: boolean }) {
     }
     result.setAttribute("uv", new Float32BufferAttribute(uv, 2));
     return result;
-  }, [width, height, lining]);
+  }, [width, height, lining, flipped]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <primitive object={geometry} attach="geometry" />;
 }
@@ -441,7 +421,7 @@ function CoverBoard({ detailed }: { detailed: boolean }) {
       if (!detailed) return null;
       const bevel = Math.min(0.012, BOOK.cover * 0.24);
       const result = new ExtrudeGeometry(
-        roundedRectangle(BOOK.width + 0.12, BOOK.height + 0.16, 0.16),
+        coverOutline(BOOK.width + 0.12, BOOK.height + 0.16, 0.16),
         {
           depth: BOOK.cover - bevel * 2,
           steps: 1,
@@ -462,56 +442,6 @@ function CoverBoard({ detailed }: { detailed: boolean }) {
     <primitive object={rounded} attach="geometry" />
   ) : (
     <boxGeometry args={[BOOK.width + 0.12, BOOK.height + 0.16, BOOK.cover]} />
-  );
-}
-
-function Bookmark({
-  pose,
-  color,
-}: {
-  pose: { current: { front: number; back: number } };
-  color: string;
-}) {
-  const { BOOK } = useBookScene();
-  const group = useRef<Group>(null);
-  const geometry = useMemo(() => {
-    const shape = new Shape();
-    shape.moveTo(-0.15, 0.2);
-    shape.lineTo(0.15, 0.2);
-    shape.lineTo(0.15, -0.2);
-    shape.lineTo(0, -0.13);
-    shape.lineTo(-0.15, -0.2);
-    shape.closePath();
-    const depth = 0.012;
-    const result = new ExtrudeGeometry(shape, {
-      depth,
-      steps: 1,
-      bevelEnabled: true,
-      bevelSegments: 2,
-      bevelSize: 0.008,
-      bevelThickness: 0.003,
-    });
-    result.translate(0, 0, -depth / 2);
-    return result;
-  }, []);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useFrame(() => {
-    if (group.current)
-      group.current.position.x = MathUtils.lerp(
-        BOOK.width * 0.2,
-        -BOOK.width * 0.2,
-        pose.current.back,
-      );
-  });
-  return (
-    <group
-      ref={group}
-      position={[BOOK.width * 0.2, -BOOK.height / 2 - 0.1, BOOK.base - BOOK.coverGap / 2]}
-    >
-      <mesh geometry={geometry} castShadow raycast={() => {}}>
-        <meshPhysicalMaterial color={color} roughness={0.94} sheen={0.18} sheenColor={color} />
-      </mesh>
-    </group>
   );
 }
 
@@ -726,16 +656,6 @@ function BookModel({
           edition={content ? "" : "VOL. 01"}
         />
       )}
-      {paperStyle === "bound" && (
-        <Bookmark
-          pose={spinePose}
-          color={
-            content?.color.toLowerCase() === "#f4ce75"
-              ? "#d9a34d"
-              : content?.color ?? surface.color
-          }
-        />
-      )}
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
         {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
         <mesh
@@ -758,7 +678,7 @@ function BookModel({
           rotation={[0, Math.PI, 0]}
           onPointerDown={(event) => startPageDrag(event, -1)}
         >
-          <RoundedCoverFace />
+          <RoundedCoverFace flipped />
           <meshPhysicalMaterial
             map={coverTextures.back}
             bumpMap={coverTextures.bump}
@@ -835,7 +755,7 @@ function BookModel({
           />
         </mesh>
         <mesh position={[BOOK.width / 2, 0, -(BOOK.cover / 2 + 0.001)]} rotation={[0, Math.PI, 0]}>
-          <RoundedCoverFace lining />
+          <RoundedCoverFace lining flipped />
           <meshStandardMaterial map={liningMap} roughness={0.95} />
         </mesh>
       </group>
@@ -1020,17 +940,6 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
   }, []);
-  const status = busy
-    ? state.motion?.kind !== "page"
-      ? "轻轻翻开，慢慢合上"
-      : "翻过一页，留住一刻"
-    : state.backClosed
-      ? "封底已合上 · 向右拖动重新打开"
-      : !state.opened
-        ? "点击或拖动封面，打开这本手帐"
-        : state.turned === BOOK.leaves
-          ? "向左拖动封底，合上这本手帐"
-          : "点击左、右书页翻阅，也可以使用方向键";
   const controls = (
     <>
       <div className="book3d-zoom-controls" aria-label="阅读缩放控制">
@@ -1244,13 +1153,6 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
               正在铺开手帐…
             </div>
           )}
-          <div className="book3d-status" role="status" aria-live="polite">
-            {zoom > 1 && viewMode === "pan"
-              ? "拖动移动视图 · 选择「翻页」即可拖动书页"
-              : state.opened && !state.backClosed && state.turned < BOOK.leaves && !busy
-                ? "左右拖动书页，松手翻过或回弹 · 放大后也可翻页"
-                : status}
-          </div>
         </section>
         {!content && (
           <div className="book3d-material-controls" role="group" aria-label="封面材质">
