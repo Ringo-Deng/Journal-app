@@ -12,13 +12,21 @@ test('material library keeps AI organize in the top bar and removes the right ac
   assert.doesNotMatch(source,/批量整理/);
 });
 
-test('each material can be categorized directly and dragged to a main category',()=>{
-  assert.match(source,/className="library-card-group"/);
-  assert.match(source,/aria-label={`设置\$\{a\.name\}的分类`}/);
+test('material cards keep classification in the tag editor and support drag-to-category',()=>{
+  assert.doesNotMatch(source,/className="library-card-group"/);
+  assert.doesNotMatch(source,/aria-label={`设置\$\{a\.name\}的分类`}/);
+  assert.match(source,/aria-label="素材主分类"/);
   assert.match(source,/draggable=\{!!catalog&&!busy\}/);
   assert.match(source,/text\/material-id/);
   assert.match(source,/onDrop=/);
   assert.match(source,/setAssetGroup\(id,g\)/);
+});
+
+test('single-line material titles do not reserve a second line',()=>{
+  const titleStyles=css.match(/\.library-card strong \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(titleStyles);
+  assert.doesNotMatch(titleStyles,/min-height:/);
+  assert.match(titleStyles,/line-height: 16px;/);
 });
 
 test('every material can reopen from its current image instead of requiring its original source',()=>{
