@@ -1,0 +1,120 @@
+/* v0.1.126 — keep page navigation in the first toolbar row and give its old footer space back to the journal. */
+.compact-shell.is-editing .editor-header {
+  position: relative;
+  z-index: 180;
+  background: #f7f5ef;
+}
+
+/* The open spread keeps its existing controls/state; only their visual home changes. */
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) {
+  position: fixed !important;
+  top: 11px;
+  right: 180px;
+  z-index: 190;
+  width: 286px !important;
+  height: 42px;
+  margin: 0 !important;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px !important;
+  background: #f7f5ef;
+  border: 0;
+  box-shadow: none;
+}
+
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > button {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 5px !important;
+  border-radius: 6px;
+}
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > button svg {
+  width: 16px;
+  height: 16px;
+}
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > button[aria-label='上一跨页'] { order: 1; }
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > span {
+  order: 2;
+  min-width: 46px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > button[aria-label='下一跨页'] { order: 3; }
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > .canvas-zoom {
+  position: static !important;
+  order: 4;
+  margin-left: 6px;
+  height: 30px;
+}
+.compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > .canvas-zoom select {
+  height: 30px;
+  min-width: 78px;
+  padding: 3px 6px;
+  border: 1px solid #cdd3c4;
+  border-radius: 5px;
+  background: #fafbf6;
+  font-size: 11px;
+}
+
+/* Reserve a real slot between creation tools and undo/redo instead of overlapping them. */
+.compact-shell.is-editing main:has(.book-scene > .page-navigation:not(.cover-navigation)) .editor-header .tool-divider {
+  margin-left: 292px;
+}
+
+/* Work-area container queries previously reserved room for the bottom navigation.
+   Switch this one sizing calculation back to the actual parent width so fixed toolbar
+   controls can escape the canvas, then use the freed vertical space for the paper. */
+.compact-shell.is-editing .work-area:has(.book-scene:not(.cover-stage)) {
+  container-type: normal;
+}
+.compact-shell.is-editing .work-area .book-scene:not(.cover-stage) {
+  width: calc(
+    min(
+      calc(100% - 24px),
+      max(180px, calc(100dvh - 150px)) * var(--spread-ratio, 1.43) * var(--book-scale, 1)
+    ) * var(--page-zoom, 1)
+  );
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Keep the first row single-line. On narrower windows, labels yield before page controls do. */
+@media (max-width: 1180px) {
+  .compact-shell.is-editing .editor-header .creation-tools > button > span { display: none; }
+  .compact-shell.is-editing .editor-header .creation-tools .quiet { padding-inline: 5px; gap: 0; }
+  .compact-shell.is-editing main:has(.book-scene > .page-navigation:not(.cover-navigation)) .editor-header .tool-divider { margin-left: 246px; }
+  .compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) {
+    right: 108px;
+    width: 240px !important;
+  }
+  .compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > .canvas-zoom select { min-width: 72px; }
+}
+
+@media (max-width: 720px) {
+  .compact-shell.is-editing .editor-header {
+    height: 60px !important;
+    min-height: 60px !important;
+    flex-wrap: nowrap !important;
+  }
+  .compact-shell.is-editing .creation-tools { flex-wrap: nowrap !important; }
+  .compact-shell.is-editing main:has(.book-scene > .page-navigation:not(.cover-navigation)) .editor-header .tool-divider { margin-left: 214px; }
+  .compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) {
+    top: 9px;
+    right: 82px;
+    width: 210px !important;
+  }
+  .compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > .canvas-zoom { margin-left: 2px; }
+  .compact-shell.is-editing .book-scene > .page-navigation:not(.cover-navigation) > .canvas-zoom select { min-width: 66px; max-width: 72px; }
+  .compact-shell.is-editing .work-area .book-scene:not(.cover-stage) {
+    width: calc(
+      min(
+        calc(100% - 16px),
+        max(180px, calc(100dvh - 146px)) * var(--spread-ratio, 1.43) * var(--book-scale, 1)
+      ) * var(--page-zoom, 1)
+    );
+  }
+}
