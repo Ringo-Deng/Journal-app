@@ -311,9 +311,11 @@ export default function Home() {
   const [coverDate,setCoverDate]=useState('');
   const [coverHeader, setCoverHeader] = useState<HeaderConfig>(defaultHeader);
   const [coverBg, setCoverBg] = useState<PaperBg | null>(null);
+  const [paperAdvancedOpen, setPaperAdvancedOpen] = useState(false);
   const [coverTemplates, setCoverTemplates] = useState<Book['paperTemplates']>([]);
   const coverBgInput = useRef<HTMLInputElement>(null);
   const coverHeaderText = useRef<HTMLTextAreaElement>(null);
+  const notebookSettingsScroll = useRef<HTMLDivElement>(null);
   const [coverUploadBusy, setCoverUploadBusy] = useState(false);
   const [coverTemplateName, setCoverTemplateName] = useState('我的内页');
   const canvas = useRef<HTMLDivElement>(null),
@@ -874,19 +876,24 @@ export default function Home() {
   };
   const startCover = (target?: Book) => {
     const b = target || book;
+    const canStartOnSpread = b?.id === book?.id && view === 'workbench' && page >= 0 && !!spread;
+    const initialScope = canStartOnSpread ? 'spread' : 'book';
+    const current = canStartOnSpread ? spread : undefined;
     setCoverTitle(b?.title || '拾光集');
     setCoverType(coverInfo(b?.cover).colorway.id);
     setCoverFormat(b?.format || 'standard');
     setCoverAsset(b?.coverAsset || '');
-    const paper = paperSettings(b);
+    const paper = paperSettings(b, current);
     setCoverPaperStyle(paper.style);
     setCoverPaperColor(paper.color);
-    setCoverHeaderOn(headerOf(b).enabled);
-    setCoverHeader({...headerOf(b)});
-    setCoverBg(b?.paperBg || null);
+    setCoverHeaderOn(headerOf(b, current).enabled);
+    setCoverHeader({...headerOf(b, current)});
+    const currentBackground = paperBgOf(b, current) || null;
+    setCoverBg(currentBackground);
+    setPaperAdvancedOpen(!!currentBackground);
     setCoverTemplates(b?.paperTemplates || []);
     setCoverTab('cover');
-    setCoverScope('book');
+    setCoverScope(initialScope);
     setCoverDate(spread?.date||spread?.days[0]?.date||today());
     setEditingBookId(b?.id||null);
     setModal('covers');
@@ -1410,30 +1417,56 @@ export default function Home() {
     setCoverScope(scope);
     const b=books.find(b=>b.id===editingBookId);
     const current=scope==='book'?undefined:scope==='spread'?spread:pageSpread(spread,scope==='right'?'right':'left');
-    const paper=paperSettings(b,current),header=headerOf(b,current);
-    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverBg(paperBgOf(b,current)||null);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
+    const paper=paperSettings(b,current),header=headerOf(b,current),background=paperBgOf(b,current)||null;
+    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverBg(background);setPaperAdvancedOpen(!!background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
     setCoverDate(current?.date||current?.days[0]?.date||spread?.date||spread?.days[0]?.date||today());
   }
-  function saveCover() {
+  function notebookWithSettingsDraft(existing: Book) {
     const header=sanitizeHeader({...coverHeader,enabled:coverHeaderOn});
+    const canScope=view==='workbench' && page>=0 && spread && existing.id===book?.id;
+    const target=canScope
+      ? coverScope==='book'
+        ? undefined
+        : coverScope==='spread'
+          ? spread
+          : pageSpread(spread,coverScope==='right'?'right':'left')
+      : undefined;
+    const currentPaper=paperSettings(existing,target);
+    const currentHeader=sanitizeHeader({...headerOf(existing,target)});
+    const currentBackground=paperBgOf(existing,target)||null;
+    const paperChanged=currentPaper.style!==coverPaperStyle||currentPaper.color!==coverPaperColor;
+    const headerChanged=JSON.stringify(currentHeader)!==JSON.stringify(header);
+    const backgroundChanged=JSON.stringify(currentBackground)!==JSON.stringify(coverBg);
+    const dateTarget=canScope
+      ? coverScope==='left'||coverScope==='right'
+        ? pageSpread(spread,coverScope)
+        : spread
+      : undefined;
+    const currentDate=dateTarget?.date||dateTarget?.days[0]?.date||today();
+    const dateChanged=!!canScope&&!!coverDate&&coverDate!==currentDate;
+    let next:Book={...existing,title:coverTitle.trim()||'未命名笔记本',cover:coverType,coverAsset,format:coverFormat,paperTemplates:coverTemplates};
+    if(canScope&&(coverScope==='left'||coverScope==='right')){
+      const patch:Parameters<typeof patchPage>[3]={};
+      if(paperChanged){patch.paperStyle=coverPaperStyle;patch.paperColor=coverPaperColor;}
+      if(headerChanged)patch.header=header;
+      if(backgroundChanged)patch.paperBg=coverBg;
+      if(dateChanged)patch.date=coverDate;
+      if(Object.keys(patch).length)next=patchPage(next,spread.id,coverScope,patch);
+    }else{
+      const id=canScope&&coverScope==='spread'?spread.id:undefined;
+      if(paperChanged)next=applyPaper(next,coverPaperStyle,coverPaperColor,id);
+      if(headerChanged)next=applyHeader(next,header,id);
+      if(backgroundChanged)next=applyPaperBg(next,coverBg,id);
+      if(canScope&&dateChanged)next={...next,spreads:next.spreads.map(item=>item.id===spread.id?{...item,date:coverDate}:item)};
+    }
+    return next;
+  }
+  function saveCover() {
     const existing=books.find(b=>b.id===editingBookId);
     if(existing){
-      change(all=>all.map(b=>{
-        if(b.id!==existing.id)return b;
-        let next:Book={...b,title:coverTitle.trim()||'未命名笔记本',cover:coverType,coverAsset,format:coverFormat,paperTemplates:coverTemplates};
-        const canScope=view==='workbench' && page>=0 && spread && existing.id===book?.id;
-        if(canScope&&(coverScope==='left'||coverScope==='right')){
-          next=patchPage(next,spread.id,coverScope,{paperStyle:coverPaperStyle,paperColor:coverPaperColor,header,paperBg:coverBg,...(coverDate?{date:coverDate}:{})});
-        }else{
-          const id=canScope&&coverScope==='spread'?spread.id:undefined;
-          next=applyPaper(next,coverPaperStyle,coverPaperColor,id);
-          next=applyHeader(next,header,id);
-          next=applyPaperBg(next,coverBg,id);
-          if(canScope&&coverDate)next={...next,spreads:next.spreads.map(s=>s.id===spread.id?{...s,date:coverDate}:s)};
-        }
-        return next;
-      }));
+      change(all=>all.map(item=>item.id===existing.id?notebookWithSettingsDraft(item):item));
     }else{
+      const header=sanitizeHeader({...coverHeader,enabled:coverHeaderOn});
       const b={...newBook(today().slice(0,7),coverType,coverTitle.trim()||'未命名笔记本',coverFormat,{paperStyle:coverPaperStyle,paperColor:coverPaperColor,header}),coverAsset,paperBg:coverBg||undefined,paperTemplates:coverTemplates};
       change(all=>[...all,b]);enterBook(b);setPage(-1);setOpened(false);setView('workbench');
     }
@@ -1648,6 +1681,28 @@ export default function Home() {
       parseInt(paper.color.slice(5, 7), 16) * 0.114 <
     125;
   const cover = coverInfo(book?.cover);
+  const canScopeNotebookSettings =
+    editingBookId === book?.id && view === 'workbench' && page >= 0 && !!spread;
+  const notebookScopeOptions = [
+    { id: 'book', name: '整本笔记本' },
+    { id: 'spread', name: '当前跨页' },
+    { id: 'left', name: '仅左页' },
+    { id: 'right', name: '仅右页' },
+  ];
+  const notebookScopeSummary =
+    coverScope === 'book'
+      ? '内页与页眉将应用于全部正文页'
+      : coverScope === 'spread'
+        ? '内页与页眉将应用于当前跨页'
+        : coverScope === 'left'
+          ? '内页与页眉将仅应用于当前左页'
+          : '内页与页眉将仅应用于当前右页';
+  const notebookSettingsPreview = (() => {
+    if (!canScopeNotebookSettings || !book || !spread) return null;
+    const previewBook=notebookWithSettingsDraft(book);
+    const previewSpread = previewBook.spreads.find((item) => item.id === spread.id);
+    return previewSpread ? { book: previewBook, spread: previewSpread } : null;
+  })();
   const bg = !isFlyleaf ? paperBgOf(book, spread) : undefined;
   const orderedBooks = [...books].sort((a, b) => {
     const ia = recent.indexOf(a.id), ib = recent.indexOf(b.id);
@@ -2825,293 +2880,321 @@ export default function Home() {
         onOpenChange={(v) => !v && setModal(null)}
       >
         <DialogContent className="journal-dialog cover-dialog">
-          <DialogTitle>{editingBookId?'笔记本设置':'新建笔记本'}</DialogTitle>
-          <DialogDescription>
-            选择封面、内页和页眉，左侧实时预览。
-          </DialogDescription>
+          <header className="notebook-settings-heading">
+            <span className="eyebrow">NOTEBOOK</span>
+            <DialogTitle>{editingBookId ? '笔记本设置' : '新建笔记本'}</DialogTitle>
+            <DialogDescription>
+              先在预览中确认效果，保存后才会应用到笔记本。
+            </DialogDescription>
+          </header>
 
           <div className="notebook-settings-layout">
-            <aside className="notebook-live-preview">
-              <div className="preview-caption">{coverTab === 'cover' ? '封面预览' : '正文预览'}</div>
-              {coverTab === 'cover' ? <div className={`settings-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`} style={{'--cover-base':coverInfo(coverType).colorway.color} as CSSProperties} /> :
-                <div className={`settings-paper paper-${coverPaperStyle}`} style={{backgroundColor:coverPaperColor, color:swatchDark(coverPaperColor)?'#f5f5ed':'#343b34','--ruling':swatchDark(coverPaperColor)?'#ffffff30':'#47556928',aspectRatio:String((formats.find(f=>f.id===coverFormat)?.ratio || 1.43)/2)} as CSSProperties}>
-                  {coverBg && <div className="paper-bg-layer"><img alt="" src={coverBg.src} style={{left:`${coverBg.x}%`,top:`${coverBg.y}%`,width:`${coverBg.scale}%`}}/></div>}
-                  <div className="paper-ruling" />
-                  {coverHeaderOn && <div className="settings-header-preview" style={{textAlign:coverHeader.align,color:coverHeader.color,fontSize:`${coverHeader.fontSize / 5}cqw`,paddingInline:`${coverHeader.margin}%`,height:`${coverHeader.height}%`}}>{renderHeader(coverHeader,{date:'2026-09-06',page:1})}</div>}
-                </div>}
-              <strong>{coverTitle || '未命名笔记本'}</strong>
-              <span>{coverInfo(coverType).material.name} · {coverInfo(coverType).colorway.name}</span>
-            </aside>
-            <div className="notebook-settings-controls">
-              <Tabs value={coverTab} onValueChange={v=>setCoverTab(String(v))}><TabsList aria-label="笔记本设置分类"><TabsTrigger value="cover">封面与开本</TabsTrigger><TabsTrigger value="paper">内页</TabsTrigger><TabsTrigger value="header">页眉</TabsTrigger></TabsList></Tabs>
-              <div className="notebook-settings-scroll">
-                {coverTab!=='cover' && editingBookId===book?.id && view==='workbench' && page>=0 && <div className="field"><span>应用范围</span><Pick label="设置应用范围" value={coverScope} onChange={changeCoverScope} items={[{id:'book',name:'整本笔记本'},{id:'spread',name:'当前跨页'},{id:'left',name:'仅当前左页'},{id:'right',name:'仅当前右页'}]}/></div>}
-
-                {coverTab === 'cover' && <>          <div className="two-fields">
-            <label className="field">
-              <span>笔记本名称</span>
-              <input
-                value={coverTitle}
-                maxLength={40}
-                onChange={(e) => setCoverTitle(e.target.value)}
-              />
-            </label>
-          </div>
-          <div className="field">
-            <span>开本规格</span>
-            <div className="format-options format-options-two">
-              {formats.map((f) => (
-                <button
-                  key={f.id}
-                  className={`format-option ${coverFormat === f.id ? 'chosen' : ''}`}
-                  onClick={() => setCoverFormat(f.id)}
-                >
-                  <span
-                    className="format-mini"
-                    style={{ width: `${Math.round(f.ratio * 40)}px`, height: '40px' }}
-                  />
-                  <span>{f.name}</span>
-                  <small>{f.desc}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <span>封面材质</span>
-            <div className="material-tabs">
-              {coverMaterials.map((m) => (
-                <button
-                  key={m.id}
-                  className={coverInfo(coverType).material.id === m.id ? 'active' : ''}
-                  onClick={() => setCoverType(m.colorways[0].id)}
-                >
-                  {m.name}
-                </button>
-              ))}
-            </div>
-            <div className="colorway-grid">
-              {coverInfo(coverType).material.colorways.map((c) => (
-                <button
-                  key={c.id}
-                  className={`colorway ${coverType === c.id ? 'chosen' : ''}`}
-                  onClick={() => setCoverType(c.id)}
-                >
-                  <span
-                    className={`colorway-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`}
-                    style={{ '--cover-base': c.color } as CSSProperties}
-                  />
-                  <span>{c.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-</>}
-                {coverTab === 'paper' && <>          <div className="field">
-            <span>整本内页</span>
-            <div className="paper-options paper-options-four">
-              {(
-                [
-                  { id: 'blank', name: '空白' },
-                  { id: 'lines', name: '横线' },
-                  { id: 'grid', name: '方格' },
-                  { id: 'dots', name: '点阵' },
-                ] as const
-              ).map((p) => (
-                <button
-                  key={p.id}
-                  className={coverPaperStyle === p.id ? 'chosen' : ''}
-                  onClick={() => setCoverPaperStyle(p.id)}
-                >
+            <aside className="notebook-live-preview" aria-label="设置效果预览">
+              <div className="preview-caption">
+                <span>{coverTab === 'cover' ? '封面预览' : '当前页面预览'}</span>
+                {coverTab !== 'cover' && canScopeNotebookSettings && (
+                  <small>{coverScope === 'book' ? '整本样式' : coverScope === 'spread' ? '当前跨页' : coverScope === 'left' ? '仅左页' : '仅右页'}</small>
+                )}
+              </div>
+              <div className="notebook-preview-stage">
+                {coverTab === 'cover' ? (
                   <div
-                    className={`paper-swatch paper-${p.id}`}
-                    style={
-                      {
-                        backgroundColor: coverPaperColor,
-                        '--ruling': swatchDark(coverPaperColor) ? '#ffffff35' : '#47556945',
-                      } as CSSProperties
-                    }
+                    className={`settings-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`}
+                    style={{ '--cover-base': coverInfo(coverType).colorway.color } as CSSProperties}
                   >
+                    {coverAsset ? (
+                      <img className="cover-art" src={resolveMaterial(coverAsset)} alt="封面装饰" />
+                    ) : (
+                      <span className="cover-title-stamp">
+                        {coverTitle || '未命名笔记本'}
+                        <i>SHIGUANG JOURNAL</i>
+                      </span>
+                    )}
+                  </div>
+                ) : notebookSettingsPreview ? (
+                  <div
+                    className="notebook-preview-spread"
+                    style={{ '--spread-ratio': bookFormat(notebookSettingsPreview.book).ratio } as CSSProperties}
+                  >
+                    <SpreadPreview
+                      book={notebookSettingsPreview.book}
+                      spread={notebookSettingsPreview.spread}
+                      pageIndex={page}
+                      assets={assets}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className={`settings-paper paper-${coverPaperStyle}`}
+                    style={{
+                      backgroundColor: coverPaperColor,
+                      color: swatchDark(coverPaperColor) ? '#f5f5ed' : '#343b34',
+                      '--ruling': swatchDark(coverPaperColor) ? '#ffffff30' : '#47556928',
+                      aspectRatio: String((formats.find((item) => item.id === coverFormat)?.ratio || 1.43) / 2),
+                    } as CSSProperties}
+                  >
+                    {coverBg && <div className="paper-bg-layer"><img alt="" src={coverBg.src} style={{ left: `${coverBg.x}%`, top: `${coverBg.y}%`, width: `${coverBg.scale}%` }} /></div>}
                     <div className="paper-ruling" />
-                  </div>
-                  <span>{p.name}</span>
-                </button>
-              ))}
-            </div>
-            <div className="paper-colors cover-paper-colors">
-              {[
-                { c: '#ffffff', n: '纯白' },
-                { c: '#f7f1e3', n: '米白' },
-                { c: '#e3d3ae', n: '浅牛皮' },
-                { c: '#2b2b28', n: '炭黑' },
-              ].map(({ c, n }) => (
-                <button
-                  key={c}
-                  aria-label={`选择颜色 ${n}`}
-                  title={n}
-                  aria-pressed={coverPaperColor === c}
-                  style={{ background: c }}
-                  onClick={() => setCoverPaperColor(c)}
-                >
-                  {coverPaperColor === c ? <Check /> : null}
-                </button>
-              ))}
-              <input
-                type="color"
-                aria-label="自定义纸张颜色"
-                value={coverPaperColor}
-                onChange={(e) => setCoverPaperColor(e.target.value)}
-              />
-            </div>
-          </div>
-
-                  <div className="field"><span>自定义内页背景</span>
-                    <input hidden type="file" ref={coverBgInput} accept="image/jpeg,image/png" onChange={e=>void uploadCoverBackground(e.target.files?.[0])}/>
-                    <button className="outline" disabled={coverUploadBusy} onClick={()=>coverBgInput.current?.click()}><ImagePlus/>{coverUploadBusy?'正在导入…':'上传 JPG / PNG 内页'}</button>
-                    {coverBg && <>
-                      <div className="bg-preview" style={{'--spread-ratio':coverFormat==='tn-regular'?1.05:1.43} as CSSProperties}
-                        onPointerDown={e=>{bgDrag.current={x:e.clientX,y:e.clientY,bx:coverBg.x,by:coverBg.y};e.currentTarget.setPointerCapture(e.pointerId);}}
-                        onPointerMove={e=>{const d=bgDrag.current;if(!d)return;const r=e.currentTarget.getBoundingClientRect();setCoverBg(f=>f?{...f,x:Math.max(-200,Math.min(100,d.bx+(e.clientX-d.x)/r.width*100)),y:Math.max(-200,Math.min(100,d.by+(e.clientY-d.y)/r.height*100))}:f);}}
-                        onPointerUp={()=>{bgDrag.current=null;}} onPointerCancel={()=>{bgDrag.current=null;}}>
-                        <img src={coverBg.src} alt="拖动调整内页背景位置" draggable={false} style={{left:`${coverBg.x}%`,top:`${coverBg.y}%`,width:`${coverBg.scale}%`}}/>
+                    {coverHeaderOn && (
+                      <div
+                        className="settings-header-preview"
+                        style={{ textAlign: coverHeader.align, color: coverHeader.color, fontSize: `${coverHeader.fontSize / 5}cqw`, paddingInline: `${coverHeader.margin}%`, height: `${coverHeader.height}%` }}
+                      >
+                        {renderHeader(coverHeader, { date: coverDate || today(), page: 1 })}
                       </div>
-                      <span>拖动调整位置 · 缩放 {Math.round(coverBg.scale)}%</span>
-                      <Slider aria-label="整本背景缩放" value={[coverBg.scale]} min={20} max={300} onValueChange={v=>setCoverBg(f=>f?{...f,scale:Array.isArray(v)?v[0]:v}:f)}/>
-                      <label className="field"><span>模板名称</span><input value={coverTemplateName} maxLength={20} onChange={e=>setCoverTemplateName(e.target.value)}/></label>
-                      <div className="row"><button className="outline" onClick={()=>{setCoverTemplates(t=>[...(t||[]),{...coverBg,id:uid(),name:coverTemplateName.trim()||'我的内页'}]);toast('模板将在保存笔记本时一并保存。');}}>存为模板</button><button className="quiet" onClick={()=>setCoverBg(null)}>移除背景</button></div>
-                    </>}
-                    {!!coverTemplates?.length && <div className="settings-template-list">{coverTemplates.map(t=><button key={t.id} className="outline" onClick={()=>setCoverBg({src:t.src,x:t.x,y:t.y,scale:t.scale})}><img src={t.src} alt=""/>{t.name}</button>)}</div>}
+                    )}
                   </div>
-                </>}
-                {coverTab === 'header' && <>
-                  {editingBookId===book?.id && view==='workbench' && page>=0 && <label className="field"><span>{coverScope==='left'?'左页':coverScope==='right'?'右页':'当前跨页'}记录日期</span><input type="date" value={coverDate} onChange={e=>setCoverDate(e.target.value)}/></label>}
-                  <div className="lock-card"><span>启用正文页眉</span><Switch aria-label="启用正文页眉" checked={coverHeaderOn} onCheckedChange={setCoverHeaderOn}/></div>
-                  {coverHeaderOn && <>          <label className="field">
-            <span>页眉文字（可换行）</span>
-            <textarea
-              ref={coverHeaderText}
-              rows={2}
-              maxLength={120}
-              value={coverHeader.text}
-              onChange={(e) => setCoverHeader((f) => ({ ...f, text: e.target.value }))}
-            />
-          </label>
-          <div className="row">
-            <button className="outline" onClick={() => insertCoverToken('{日期}')}>
-              插入日期
-            </button>
-            <button className="outline" onClick={() => insertCoverToken('{星期}')}>
-              插入星期
-            </button>
-            <button className="outline" onClick={() => insertCoverToken('{页码}')}>
-              插入页码
-            </button>
-          </div>
-          <div className="field">
-            <span>日期格式</span>
-            <Pick
-              label="日期格式"
-              value={coverHeader.dateFormat}
-              onChange={(v) => setCoverHeader((f) => ({ ...f, dateFormat: v }))}
-              items={headerDateFormats.map((f) => ({ id: f.id, name: f.name }))}
-            />
-          </div>
-          {coverHeader.dateFormat === 'custom' && (
-            <label className="field">
-              <span>自定义格式（yyyy 年 · MM 月 · dd 日，M d 不补零）</span>
-              <input
-                value={coverHeader.customFormat || ''}
-                maxLength={40}
-                placeholder="yyyy年M月d日"
-                onChange={(e) =>
-                  setCoverHeader((f) => ({ ...f, customFormat: e.target.value }))
-                }
-              />
-            </label>
-          )}
-          <div className="two-fields">
-            <div className="field">
-              <span>
-                字号 <small>{coverHeader.fontSize}</small>
-              </span>
-              <Slider
-                aria-label="页眉字号"
-                value={[coverHeader.fontSize]}
-                min={10}
-                max={24}
-                onValueChange={(v) =>
-                  setCoverHeader((f) => ({ ...f, fontSize: Array.isArray(v) ? v[0] : v }))
-                }
-              />
-            </div>
-            <div className="field">
-              <span>对齐</span>
-              <Pick
-                label="页眉对齐"
-                value={coverHeader.align}
-                onChange={(v) =>
-                  setCoverHeader((f) => ({ ...f, align: v as HeaderConfig['align'] }))
-                }
-                items={[
-                  { id: 'left', name: '左对齐' },
-                  { id: 'center', name: '居中' },
-                  { id: 'right', name: '右对齐' },
-                ]}
-              />
-            </div>
-          </div>
-          <div className="two-fields">
-            <div className="field">
-              <span>
-                高度 <small>{coverHeader.height}%</small>
-              </span>
-              <Slider
-                aria-label="页眉高度"
-                value={[coverHeader.height]}
-                min={4}
-                max={16}
-                onValueChange={(v) =>
-                  setCoverHeader((f) => ({ ...f, height: Array.isArray(v) ? v[0] : v }))
-                }
-              />
-            </div>
-            <div className="field">
-              <span>
-                边距 <small>{coverHeader.margin}%</small>
-              </span>
-              <Slider
-                aria-label="页眉边距"
-                value={[coverHeader.margin]}
-                min={0}
-                max={16}
-                onValueChange={(v) =>
-                  setCoverHeader((f) => ({ ...f, margin: Array.isArray(v) ? v[0] : v }))
-                }
-              />
-            </div>
-          </div>
-          <div className="field">
-            <span>颜色</span>
-            <div className="row">
-              <input
-                type="color"
-                aria-label="页眉颜色"
-                value={coverHeader.color || (swatchDark(coverPaperColor) ? '#f5f5ed' : '#343b34')}
-                onChange={(e) => setCoverHeader((f) => ({ ...f, color: e.target.value }))}
-              />
-              <button
-                className="quiet"
-                onClick={() => setCoverHeader((f) => ({ ...f, color: undefined }))}
-              >
-                随纸色自动
-              </button>
-            </div>
-          </div>
-</>}
-                </>}
+                )}
+              </div>
+              <div className="notebook-preview-meta">
+                <strong>{coverTitle || '未命名笔记本'}</strong>
+                <span>
+                  {coverTab === 'cover'
+                    ? `${coverInfo(coverType).material.name} · ${coverInfo(coverType).colorway.name}`
+                    : canScopeNotebookSettings
+                      ? `第 ${page + 1} 跨页 · 保留当前页面内容`
+                      : '新笔记本正文示例'}
+                </span>
+              </div>
+            </aside>
+
+            <div className="notebook-settings-controls">
+              <Tabs value={coverTab} onValueChange={(value) => { setCoverTab(String(value)); requestAnimationFrame(() => { if (notebookSettingsScroll.current) notebookSettingsScroll.current.scrollTop = 0; }); }}>
+                <TabsList aria-label="笔记本设置分类">
+                  <TabsTrigger value="cover"><BookOpen />封面</TabsTrigger>
+                  <TabsTrigger value="paper"><Layers />内页</TabsTrigger>
+                  <TabsTrigger value="header"><PanelTop />页眉</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div className="notebook-settings-scroll" ref={notebookSettingsScroll}>
+                {coverTab !== 'cover' && canScopeNotebookSettings && (
+                  <section className="notebook-scope-card" aria-labelledby="notebook-scope-title">
+                    <div className="settings-section-heading">
+                      <div>
+                        <strong id="notebook-scope-title">应用到</strong>
+                        <small>选择本次内页和页眉设置影响的页面</small>
+                      </div>
+                      <span>{coverScope === 'book' ? '全部正文页' : coverScope === 'spread' ? '当前两页' : coverScope === 'left' ? '当前左页' : '当前右页'}</span>
+                    </div>
+                    <div className="notebook-scope-options" role="radiogroup" aria-label="设置应用范围">
+                      {notebookScopeOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          role="radio"
+                          aria-checked={coverScope === option.id}
+                          className={coverScope === option.id ? 'chosen' : ''}
+                          onClick={() => changeCoverScope(option.id)}
+                        >
+                          {coverScope === option.id && <Check />}
+                          {option.name}
+                        </button>
+                      ))}
+                    </div>
+                    {coverScope === 'book' && (
+                      <p className="notebook-scope-warning">
+                        保存后，本次修改的内页或页眉设置将统一全部正文页，并替换对应的单页设置；页面内容和素材位置不会改变。
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {coverTab === 'cover' && (
+                  <>
+                    <section className="notebook-settings-section">
+                      <div className="settings-section-heading">
+                        <div><strong>基本信息</strong><small>名称与笔记本的页面比例</small></div>
+                      </div>
+                      <label className="field">
+                        <span>笔记本名称</span>
+                        <input value={coverTitle} maxLength={40} onChange={(event) => setCoverTitle(event.target.value)} />
+                      </label>
+                      <div className="field">
+                        <span>开本规格</span>
+                        <div className="format-options format-options-two">
+                          {formats.map((item) => (
+                            <button key={item.id} className={`format-option ${coverFormat === item.id ? 'chosen' : ''}`} onClick={() => setCoverFormat(item.id)}>
+                              <span className="format-mini" style={{ width: `${Math.round(item.ratio * 40)}px`, height: '40px' }} />
+                              <span>{item.name}</span>
+                              <small>{item.desc}</small>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="notebook-settings-section">
+                      <div className="settings-section-heading">
+                        <div><strong>封面质感</strong><small>先选材质，再挑选喜欢的颜色</small></div>
+                      </div>
+                      <div className="field">
+                        <span>材质</span>
+                        <div className="material-tabs">
+                          {coverMaterials.map((material) => (
+                            <button key={material.id} className={coverInfo(coverType).material.id === material.id ? 'active' : ''} onClick={() => setCoverType(material.colorways[0].id)}>
+                              {material.name}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="colorway-grid">
+                          {coverInfo(coverType).material.colorways.map((colorway) => (
+                            <button key={colorway.id} className={`colorway ${coverType === colorway.id ? 'chosen' : ''}`} onClick={() => setCoverType(colorway.id)}>
+                              <span className={`colorway-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`} style={{ '--cover-base': colorway.color } as CSSProperties} />
+                              <span>{colorway.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  </>
+                )}
+
+                {coverTab === 'paper' && (
+                  <>
+                    <section className="notebook-settings-section">
+                      <div className="settings-section-heading">
+                        <div><strong>纸张样式</strong><small>选择线格和纸张底色</small></div>
+                      </div>
+                      <div className="field">
+                        <div className="paper-options paper-options-four">
+                          {([
+                            { id: 'blank', name: '空白' },
+                            { id: 'lines', name: '横线' },
+                            { id: 'grid', name: '方格' },
+                            { id: 'dots', name: '点阵' },
+                          ] as const).map((option) => (
+                            <button key={option.id} className={coverPaperStyle === option.id ? 'chosen' : ''} onClick={() => setCoverPaperStyle(option.id)}>
+                              <div className={`paper-swatch paper-${option.id}`} style={{ backgroundColor: coverPaperColor, '--ruling': swatchDark(coverPaperColor) ? '#ffffff35' : '#47556945' } as CSSProperties}>
+                                <div className="paper-ruling" />
+                              </div>
+                              <span>{option.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="paper-colors cover-paper-colors">
+                          {[
+                            { c: '#ffffff', n: '纯白' },
+                            { c: '#f7f1e3', n: '米白' },
+                            { c: '#e3d3ae', n: '浅牛皮' },
+                            { c: '#2b2b28', n: '炭黑' },
+                          ].map(({ c, n }) => (
+                            <button key={c} aria-label={`选择颜色 ${n}`} title={n} aria-pressed={coverPaperColor === c} style={{ background: c }} onClick={() => setCoverPaperColor(c)}>
+                              {coverPaperColor === c ? <Check /> : null}
+                            </button>
+                          ))}
+                          <input type="color" aria-label="自定义纸张颜色" value={coverPaperColor} onChange={(event) => setCoverPaperColor(event.target.value)} />
+                          <span className="paper-color-label">自定义颜色</span>
+                        </div>
+                      </div>
+                    </section>
+
+                    <details className="notebook-settings-advanced" open={paperAdvancedOpen} onToggle={(event) => setPaperAdvancedOpen(event.currentTarget.open)}>
+                      <summary>
+                        <span className="advanced-icon"><ImagePlus /></span>
+                        <span><strong>自定义内页背景</strong><small>上传图片、调整位置或使用已保存模板</small></span>
+                        <ChevronRight className="advanced-chevron" />
+                      </summary>
+                      <div className="advanced-content">
+                        <input hidden type="file" ref={coverBgInput} accept="image/jpeg,image/png" onChange={(event) => void uploadCoverBackground(event.target.files?.[0])} />
+                        <button className="outline full" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传 JPG / PNG 内页'}</button>
+                        {coverBg && (
+                          <>
+                            <div className="bg-preview" style={{ '--spread-ratio': coverFormat === 'tn-regular' ? 1.05 : 1.43 } as CSSProperties}
+                              onPointerDown={(event) => { bgDrag.current = { x: event.clientX, y: event.clientY, bx: coverBg.x, by: coverBg.y }; event.currentTarget.setPointerCapture(event.pointerId); }}
+                              onPointerMove={(event) => { const drag = bgDrag.current; if (!drag) return; const rect = event.currentTarget.getBoundingClientRect(); setCoverBg((value) => value ? { ...value, x: Math.max(-200, Math.min(100, drag.bx + (event.clientX - drag.x) / rect.width * 100)), y: Math.max(-200, Math.min(100, drag.by + (event.clientY - drag.y) / rect.height * 100)) } : value); }}
+                              onPointerUp={() => { bgDrag.current = null; }} onPointerCancel={() => { bgDrag.current = null; }}>
+                              <img src={coverBg.src} alt="拖动调整内页背景位置" draggable={false} style={{ left: `${coverBg.x}%`, top: `${coverBg.y}%`, width: `${coverBg.scale}%` }} />
+                            </div>
+                            <span className="advanced-value">拖动调整位置 · 缩放 {Math.round(coverBg.scale)}%</span>
+                            <Slider aria-label="内页背景缩放" value={[coverBg.scale]} min={20} max={300} onValueChange={(value) => setCoverBg((current) => current ? { ...current, scale: Array.isArray(value) ? value[0] : value } : current)} />
+                            <label className="field"><span>模板名称</span><input value={coverTemplateName} maxLength={20} onChange={(event) => setCoverTemplateName(event.target.value)} /></label>
+                            <div className="row"><button className="outline" onClick={() => { setCoverTemplates((templates) => [...(templates || []), { ...coverBg, id: uid(), name: coverTemplateName.trim() || '我的内页' }]); toast('模板将在保存笔记本时一并保存。'); }}>存为模板</button><button className="quiet" onClick={() => setCoverBg(null)}>移除背景</button></div>
+                          </>
+                        )}
+                        {!!coverTemplates?.length && <div className="settings-template-list">{coverTemplates.map((template) => <button key={template.id} className="outline" onClick={() => setCoverBg({ src: template.src, x: template.x, y: template.y, scale: template.scale })}><img src={template.src} alt="" />{template.name}</button>)}</div>}
+                      </div>
+                    </details>
+                  </>
+                )}
+
+                {coverTab === 'header' && (
+                  <>
+                    {canScopeNotebookSettings && (
+                      <section className="notebook-settings-section notebook-date-section">
+                        <div className="settings-section-heading">
+                          <div><strong>页面日期</strong><small>用于页眉中的日期与星期变量，只修改当前所选页面</small></div>
+                        </div>
+                        <label className="field">
+                          <span>{coverScope === 'left' ? '左页记录日期' : coverScope === 'right' ? '右页记录日期' : '当前跨页记录日期'}</span>
+                          <input type="date" value={coverDate} onChange={(event) => setCoverDate(event.target.value)} />
+                        </label>
+                      </section>
+                    )}
+
+                    <section className="notebook-settings-section">
+                      <div className="settings-section-heading">
+                        <div><strong>页眉内容</strong><small>在每张正文页顶部显示固定信息</small></div>
+                      </div>
+                      <div className="lock-card notebook-header-switch">
+                        <div><PanelTop /><p>启用正文页眉<small>{coverHeaderOn ? '当前会显示页眉内容' : '关闭后不显示页眉，已有正文不受影响'}</small></p></div>
+                        <Switch aria-label="启用正文页眉" checked={coverHeaderOn} onCheckedChange={setCoverHeaderOn} />
+                      </div>
+                      {coverHeaderOn && (
+                        <>
+                          <label className="field">
+                            <span>页眉文字（可换行）</span>
+                            <textarea ref={coverHeaderText} rows={3} maxLength={120} value={coverHeader.text} onChange={(event) => setCoverHeader((value) => ({ ...value, text: event.target.value }))} />
+                          </label>
+                          <div className="notebook-token-row" aria-label="插入页眉变量">
+                            <button className="outline" onClick={() => insertCoverToken('{日期}')}>＋ 日期</button>
+                            <button className="outline" onClick={() => insertCoverToken('{星期}')}>＋ 星期</button>
+                            <button className="outline" onClick={() => insertCoverToken('{页码}')}>＋ 页码</button>
+                          </div>
+                        </>
+                      )}
+                    </section>
+
+                    {coverHeaderOn && (
+                      <details className="notebook-settings-advanced" key={`header-advanced-${coverScope}`}>
+                        <summary>
+                          <span className="advanced-icon"><Settings /></span>
+                          <span><strong>页眉高级样式</strong><small>日期格式、字号、对齐、尺寸与颜色</small></span>
+                          <ChevronRight className="advanced-chevron" />
+                        </summary>
+                        <div className="advanced-content">
+                          <div className="field">
+                            <span>日期格式</span>
+                            <Pick label="日期格式" value={coverHeader.dateFormat} onChange={(value) => setCoverHeader((current) => ({ ...current, dateFormat: value }))} items={headerDateFormats.map((item) => ({ id: item.id, name: item.name }))} />
+                          </div>
+                          {coverHeader.dateFormat === 'custom' && (
+                            <label className="field"><span>自定义格式（M、d 不补零）</span><input value={coverHeader.customFormat || ''} maxLength={40} placeholder="yyyy年M月d日" onChange={(event) => setCoverHeader((current) => ({ ...current, customFormat: event.target.value }))} /></label>
+                          )}
+                          <div className="two-fields">
+                            <div className="field"><span>字号 <small>{coverHeader.fontSize}</small></span><Slider aria-label="页眉字号" value={[coverHeader.fontSize]} min={10} max={24} onValueChange={(value) => setCoverHeader((current) => ({ ...current, fontSize: Array.isArray(value) ? value[0] : value }))} /></div>
+                            <div className="field"><span>对齐</span><Pick label="页眉对齐" value={coverHeader.align} onChange={(value) => setCoverHeader((current) => ({ ...current, align: value as HeaderConfig['align'] }))} items={[{ id: 'left', name: '左对齐' }, { id: 'center', name: '居中' }, { id: 'right', name: '右对齐' }]} /></div>
+                          </div>
+                          <div className="two-fields">
+                            <div className="field"><span>高度 <small>{coverHeader.height}%</small></span><Slider aria-label="页眉高度" value={[coverHeader.height]} min={4} max={16} onValueChange={(value) => setCoverHeader((current) => ({ ...current, height: Array.isArray(value) ? value[0] : value }))} /></div>
+                            <div className="field"><span>边距 <small>{coverHeader.margin}%</small></span><Slider aria-label="页眉边距" value={[coverHeader.margin]} min={0} max={16} onValueChange={(value) => setCoverHeader((current) => ({ ...current, margin: Array.isArray(value) ? value[0] : value }))} /></div>
+                          </div>
+                          <div className="field">
+                            <span>颜色</span>
+                            <div className="row"><input type="color" aria-label="页眉颜色" value={coverHeader.color || (swatchDark(coverPaperColor) ? '#f5f5ed' : '#343b34')} onChange={(event) => setCoverHeader((current) => ({ ...current, color: event.target.value }))} /><button className="quiet" onClick={() => setCoverHeader((current) => ({ ...current, color: undefined }))}>随纸色自动</button></div>
+                          </div>
+                        </div>
+                      </details>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
-          <footer className="notebook-settings-footer"><span>{coverScope==='book'?'内页与页眉应用于全部正文页':coverScope==='spread'?'应用于当前跨页':coverScope==='left'?'仅应用于当前左页':'仅应用于当前右页'}</span><button className="outline" onClick={()=>setModal(null)}>取消</button><button className="primary" disabled={coverUploadBusy} onClick={saveCover}><Check/>{editingBookId?'保存设置':'创建笔记本'}</button></footer>
+
+          <footer className="notebook-settings-footer">
+            <span><strong>{editingBookId ? '尚未保存' : '新笔记本'}</strong>{editingBookId ? notebookScopeSummary : '封面、内页与页眉将作为整本默认设置'}</span>
+            <button className="outline" onClick={() => setModal(null)}>取消</button>
+            <button className="primary" disabled={coverUploadBusy} onClick={saveCover}><Check />{editingBookId ? '保存设置' : '创建笔记本'}</button>
+          </footer>
         </DialogContent>
       </Dialog>
       <Dialog

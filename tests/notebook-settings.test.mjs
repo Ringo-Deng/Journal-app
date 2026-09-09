@@ -1,7 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats} from '../lib/journal.ts';
 import {copyNotebooks,notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
+
+test('notebook settings use a safe page scope, real-page preview and responsive control hierarchy',async()=>{
+ const [page,styles]=await Promise.all([
+  readFile(new URL('../app/page.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../app/globals.css',import.meta.url),'utf8'),
+ ]);
+ assert.match(page,/const initialScope = canStartOnSpread \? 'spread' : 'book'/);
+ assert.match(page,/className="notebook-scope-warning"/);
+ assert.match(page,/页面内容和素材位置不会改变/);
+ assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
+ assert.match(page,/function notebookWithSettingsDraft/);
+ assert.match(page,/if\(paperChanged\)next=applyPaper/);
+ assert.match(page,/页眉高级样式/);
+ assert.match(page,/用于页眉中的日期与星期变量，只修改当前所选页面/);
+ assert.match(styles,/@media\(max-width:900px\)[^{]*\{[\s\S]*\.notebook-settings-layout\{grid-template-columns:1fr/);
+ assert.match(styles,/\.notebook-settings-footer\{display:flex/);
+});
 
 test('whole-book settings reach existing and new pages without moving content or changing the flyleaf',()=>{
  const book=newBook('2026-09');
