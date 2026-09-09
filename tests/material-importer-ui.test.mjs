@@ -32,5 +32,5 @@ test('local and Pinterest acquisition live in the importer instead of Material S
 test('library import and material re-edit keep separate destinations',()=>{
   assert.match(page,/onImport=\{\(\)=>setModal\('material-import'\)\}/);
   assert.match(page,/onOpenStudio=\{\(\)=>\{setMaterialStudioNotice\(''\);setModal\('studio'\)\}\}/);
-  assert.match(library,/await request\('\/source',\{src,name:a\.name\}\);onOpenStudio\(\)/);
+  assert.match(library,/await request\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\);onOpenStudio\(\)/);
 });

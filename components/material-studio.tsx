@@ -82,7 +82,7 @@ export default function MaterialStudio({open,onClose,onImported,notice}:{open:bo
  }
  async function importItems(){
   if(!job||!selected.length)return;setBusy(true);
-  try{const result=await request<{added:number;assets:Asset[];job:Job}>('/import',{jobId:job.id,itemIds:selected,names});onImported(result.assets);setJobs(old=>old.map(j=>j.id===job.id?result.job:j));setSelected([]);setMessage(`已将 ${result.added} 个独立素材加入素材库，之后排版时也可以使用。`)}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}
+  try{const result=await request<{added:number;updated?:number;assets:Asset[];job:Job}>('/import',{jobId:job.id,itemIds:selected,names});onImported(result.assets);setJobs(old=>old.map(j=>j.id===job.id?result.job:j));setSelected([]);setMessage(result.updated?`已更新原素材${result.added?`，并新增 ${result.added} 个素材`:''}；原分类、标签及手帐引用均已保留。`:`已将 ${result.added} 个独立素材加入素材库，之后排版时也可以使用。`)}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}
  }
  function position(e:ReactPointerEvent<HTMLDivElement>){const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
  function beginPreviewPointer(e:ReactPointerEvent<HTMLDivElement>){

@@ -732,8 +732,12 @@ const server = http.createServer(async (req, res) => {
       const input = await body(req);
       if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || '')) throw error('请选择本机已保存的素材原图。');
       try { await stat(resolve(data, input.src.slice(1))); } catch { throw error('找不到原图，请重新导入。', 404); }
+      const replaceAssetId=String(input.replaceAssetId||'');
+      const replaceAsset=replaceAssetId?customAssets.find(asset=>asset.id===replaceAssetId):null;
+      if(replaceAssetId&&!replaceAsset)throw error('找不到需要更新的原素材，请返回素材库重试。',404);
+      if(replaceAsset&&replaceAsset.src!==input.src)throw error('原素材已发生变化，请返回素材库重新打开。',409);
       const previous = consolidatedJobs(materialJobs).find((j) => j.source === input.src);
-      if (previous) return json(res, previous);
+      if (previous&&!replaceAsset) return json(res, previous);
       const pinRecord = pinterestBySrc(input.src);
       const autoSegment = nativeCapabilities.segment;
       const job = {
@@ -742,6 +746,7 @@ const server = http.createServer(async (req, res) => {
           ? `Pinterest 原图 · ${autoSegment ? '可自动分离' : '手动裁切'}`
           : `原图 · ${autoSegment ? '可自动分离' : '手动裁切'}`,
         mode: autoSegment ? 'auto' : 'manual', manualOnly: !autoSegment,
+        ...(replaceAsset?{replaceAssetId:replaceAsset.id}:{}),
         sourceMeta: pinterestSourceMeta(pinRecord), items: [],
       };
       await materialWrite(async () => { materialJobs = [job, ...materialJobs.filter((j) => j.source !== input.src)]; await atomic('material-jobs.json', materialJobs); });
@@ -837,7 +842,7 @@ const server = http.createServer(async (req, res) => {
         // using the latest record inside the same serialized write as imports.
         const current = consolidatedJobs(materialJobs).find(j=>j.source===input.src);
         if(previous&&!current)throw error('这条处理记录已删除，请重新导入原图。',409);
-        if(current){job={...job,id:current.id,createdAt:current.createdAt,rect:null,items:rect?[...current.items,...job.items]:[...current.items.filter(i=>i.imported||i.manual),...job.items]};}
+        if(current){job={...job,id:current.id,createdAt:current.createdAt,rect:null,replaceAssetId:current.replaceAssetId,replacementDone:current.replacementDone,items:rect?[...current.items,...job.items]:[...current.items.filter(i=>i.imported||i.manual),...job.items]};}
         materialJobs = [job, ...materialJobs.filter(j=>j.source!==input.src)];
         await atomic('material-jobs.json', materialJobs);
       });
@@ -870,7 +875,18 @@ const server = http.createServer(async (req, res) => {
         )
           throw error('包含无效素材。');
         const selected = job.items.filter((i) => input.itemIds.includes(i.id));
-        const added = selected
+        const fresh=selected.filter((i) => !i.imported&&!customAssets.some((a) => a.id === i.id));
+        let updated=0;
+        if(job.replaceAssetId&&!job.replacementDone&&fresh.length){
+          const assetIndex=customAssets.findIndex(asset=>asset.id===job.replaceAssetId);
+          if(assetIndex<0)throw error('找不到需要更新的原素材，请返回素材库重试。',409);
+          const item=fresh.shift();
+          const existing=customAssets[assetIndex];
+          customAssets[assetIndex]={...existing,name:String(input.names?.[item.id]||item.name).trim().slice(0,80)||existing.name,src:item.src,width:item.width,height:item.height};
+          job.replacementDone=true;
+          updated=1;
+        }
+        const added = fresh
           .filter((i) => !customAssets.some((a) => a.id === i.id))
           .map((item, index) => ({
             id: item.id,
@@ -902,7 +918,7 @@ const server = http.createServer(async (req, res) => {
         await atomic('materials.json', customAssets);
         for (const item of selected) item.imported = true;
         await atomic('material-jobs.json', materialJobs);
-        return { added: added.length, assets: await library(), job };
+        return { added: added.length, updated, assets: await library(), job };
       });
       return json(res, result);
     }

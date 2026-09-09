@@ -223,8 +223,17 @@ test('saved user material can be reopened for editing and deleted again',async()
  const item=withItem.data.items.at(-1);
  const imported=await call('/api/materials/import',{jobId:source.data.id,itemIds:[item.id],names:{[item.id]:'可再次编辑素材'}},'POST');assert.equal(imported.status,200);
  const custom=imported.data.assets.find(a=>a.id===item.id);assert.ok(custom?.sourceImage);
+ const catalog=(await call('/api/materials/catalog')).data;
+ const classified=await call('/api/materials/catalog',{action:'apply',manual:true,revision:catalog.revision,patches:[{id:custom.id,group:'装饰贴纸',labels:{content:['植物'],style:['复古'],color:['绿']}}]},'POST');assert.equal(classified.status,200);
+ const editSource=await call('/api/materials/source',{src:custom.src,name:custom.name,replaceAssetId:custom.id},'POST');assert.equal(editSource.status,200);assert.equal(editSource.data.replaceAssetId,custom.id);assert.equal(editSource.data.items.length,0);
+ const editedJob=await call('/api/materials/add-item',{jobId:editSource.data.id,src:uploaded,width:2,height:3,name:'处理后的素材'},'POST');assert.equal(editedJob.status,200);
+ const editedItem=editedJob.data.items.at(-1);
+ const replaced=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id],names:{[editedItem.id]:'处理后的素材'}},'POST');assert.equal(replaced.status,200);assert.equal(replaced.data.updated,1);assert.equal(replaced.data.added,0);
+ const current=replaced.data.assets.find(a=>a.id===custom.id);assert.equal(current.name,'处理后的素材');assert.equal(current.src,uploaded);assert.equal(current.group,'装饰贴纸');assert.deepEqual(current.labels,{content:['植物'],style:['复古'],color:['绿']});
+ assert.equal(replaced.data.assets.some(a=>a.id===editedItem.id),false);
+ const repeated=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id]},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.updated,0);assert.equal(repeated.data.added,0);assert.equal(repeated.data.assets.length,replaced.data.assets.length);
  const queued=await call('/api/materials/reopen',{id:custom.id},'POST');assert.equal(queued.status,200);
- const take=await call('/api/materials/reopen');assert.equal(take.status,200);assert.equal(take.data.item.id,custom.id);assert.equal(take.data.item.src,custom.src);
+ const take=await call('/api/materials/reopen');assert.equal(take.status,200);assert.equal(take.data.item.id,custom.id);assert.equal(take.data.item.src,uploaded);
  assert.equal((await call('/api/materials/reopen')).data.item,null);
  const removed=await call('/api/materials/remove',{id:custom.id},'POST');assert.equal(removed.status,200);assert.equal(removed.data.assets.some(a=>a.id===custom.id),false);
  assert.equal((await call('/api/materials/remove',{id:custom.id},'POST')).status,404);
