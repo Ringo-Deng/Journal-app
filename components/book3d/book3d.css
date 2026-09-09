@@ -303,13 +303,11 @@
 .reading-texture-cover .cover-title-stamp { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 24px; font-size: 54px; text-align: center; padding: 36px; }
 .reading-texture-cover .cover-title-stamp i { font-size: 15px; }
 
-.reading-jpg-source > .turn-snapshot { width: 100%; height: 100%; }
-
-/* Main reader: one toolbar row, then a table filling all remaining space. */
-.reading-jpg-deck.deck-large .deck-heading { display: flex; align-items: center; gap: 16px; padding: 0 0 0 90px; margin-bottom: 10px; min-height: 42px; opacity: 1; pointer-events: auto; }
-.reading-jpg-deck .deck-heading h1 { flex: none; white-space: nowrap; }
-.reading-jpg-deck .deck-view-switch { opacity: 1; pointer-events: auto; }
-.reading-toolbar { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; overflow-x: auto; }
+/* Reader controls flow beside the title and wrap above the remaining table space. */
+.reading-jpg-deck.deck-large .deck-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 0; margin-bottom: 10px; min-height: 42px; opacity: 1; pointer-events: auto; }
+.reading-jpg-deck .deck-heading h1 { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.reading-jpg-deck .deck-view-switch { position: static; flex: none; z-index: auto; opacity: 1; pointer-events: auto; }
+.reading-toolbar { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; max-width: 100%; gap: 12px; overflow-x: auto; }
 .reading-toolbar .book3d-zoom-controls, .reading-toolbar .book3d-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 0; padding: 0; flex: none; }
 .reading-toolbar .book3d-navigation { gap: 6px; }
 .reading-toolbar button { padding: 6px 8px; min-width: 28px; height: 32px; font-size: 11px; white-space: nowrap; }

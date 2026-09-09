@@ -15,9 +15,12 @@ test('mac launcher starts from its own repository directory', async () => {
   assert.match(source, /exec node local\/launch\.mjs/);
 });
 
-test('mac launcher does not require terminal Git commands', async () => {
+test('mac launcher updates without credential prompts and falls back to the local checkout', async () => {
   const source = await readFile(launcher, 'utf8');
-  assert.doesNotMatch(source, /git\s+(pull|fetch|checkout)/);
+  assert.match(source, /GIT_TERMINAL_PROMPT=0 git fetch origin main --quiet/);
+  assert.match(source, /git merge --ff-only FETCH_HEAD --quiet/);
+  assert.match(source, /未能拉取 GitHub 更新，将继续启动当前本地版本/);
+  assert.doesNotMatch(source, /git\s+(reset\s+--hard|clean\s+-[a-z]*f|checkout\s+--)/);
   assert.match(source, /command -v node/);
 });
 

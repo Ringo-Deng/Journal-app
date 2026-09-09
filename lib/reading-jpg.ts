@@ -1,16 +1,50 @@
 import type { Book, Asset } from "./journal";
 
 // Increment only when the paper renderer changes. One saved JPG per current sheet/cover.
-const RENDER_VERSION = 2;
+const RENDER_VERSION = 3;
 const COVER_RENDER_VERSION = 9;
 export function readingJpgInput(book: Book, assets: Asset[], index: number | null) {
-  const { spreads, flyleaf, ...appearance } = book;
+  if (index === null) {
+    // Match renderReadingJpg's original-image lookup for custom covers. Catalog
+    // names, labels and unrelated images do not change the captured cover.
+    const coverAsset = book.coverAsset
+      ? assets.find((asset) => asset.originalSrc === book.coverAsset)?.src || book.coverAsset
+      : "";
+    return JSON.stringify({
+      version: COVER_RENDER_VERSION,
+      appearance: { title: book.title, cover: book.cover, format: book.format, coverAsset },
+      index,
+    });
+  }
+  const flyleaf = !!book.flyleaf && index === 0;
+  const pageIndex = index - (book.flyleaf ? 1 : 0);
+  const spread = flyleaf ? book.flyleaf : book.spreads[pageIndex];
+  // SpreadPreview resolves only visible asset pieces through the catalog.
+  // Photos and paper backgrounds keep their direct URLs in the page/book input.
+  const sources = spread?.elements
+    .filter((piece) =>
+      piece.kind === "asset" && piece.material !== "tape" &&
+      (piece as typeof piece & { hidden?: boolean }).hidden !== true,
+    )
+    .map((piece) => assets.find((asset) => asset.id === piece.assetId)?.src || piece.src);
   return JSON.stringify({
-    version: index === null ? COVER_RENDER_VERSION : RENDER_VERSION,
-    appearance,
+    version: RENDER_VERSION,
+    appearance: {
+      cover: book.cover,
+      format: book.format,
+      paperFeel: book.paperFeel,
+      paperStyle: book.paperStyle,
+      paperColor: book.paperColor,
+      paperBg: book.paperBg,
+      header: book.header,
+    },
     index,
-    spread: index === null ? null : [...(flyleaf ? [flyleaf] : []), ...spreads][index],
-    assets,
+    flyleaf,
+    pageIndex,
+    // Keep page and piece properties intact so all typography, crop, drawing,
+    // layer order and per-side paper settings remain part of freshness checks.
+    spread,
+    sources,
   });
 }
 type Entry = { signature: string; blob: Blob };

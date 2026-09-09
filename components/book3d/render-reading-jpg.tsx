@@ -84,6 +84,10 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
         ) : null,
       ),
     );
+    // The page index can capture before the lazy 3D stylesheet loads. Override
+    // the turning sheet's default double width at the capture root itself.
+    const captureRoot = host.firstElementChild as HTMLElement | null;
+    if (captureRoot) Object.assign(captureRoot.style, { width: "100%", height: "100%" });
     await document.fonts.ready;
     await Promise.all(Array.from(host.querySelectorAll("img")).map((img) => img.decode()));
     const fontEmbedCSS = sheet ? await exportFontCSS(sheet.elements) : "";

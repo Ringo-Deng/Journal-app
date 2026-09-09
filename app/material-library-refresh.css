@@ -403,13 +403,13 @@
 }
 
 .library-card-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  display: flex;
+  justify-content: flex-end;
   padding-top: 1px;
 }
 
-.library-card-actions .library-edit {
+.library-card-actions .library-edit,
+.library-more-menu .library-edit {
   justify-content: center;
   min-width: 0;
   min-height: 28px;
@@ -423,23 +423,45 @@
   white-space: nowrap;
 }
 
-.library-card-actions .library-edit:hover {
+.library-more-menu {
+  width: max-content;
+  min-width: 148px;
+  padding: 5px;
+  border: 1px solid #dedfd4;
+  background: #fffefa;
+  color: #354033;
+}
+
+.library-more-menu .library-edit {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  justify-content: flex-start;
+  background: transparent;
+  font-size: 12px;
+}
+
+.library-card-actions .library-edit:hover,
+.library-more-menu .library-edit:hover,
+.library-more-menu .library-edit[data-highlighted] {
   background: #e9ede3;
   color: #42503c;
 }
 
-.library-card-actions .library-edit svg {
+.library-card-actions .library-edit svg,
+.library-more-menu .library-edit svg {
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
 }
 
-.library-card-actions .library-edit.danger {
+.library-more-menu .library-edit.danger {
   background: #fbf3f0;
   color: #a96358;
 }
 
-.library-card-actions .library-edit.danger:hover {
+.library-more-menu .library-edit.danger:hover,
+.library-more-menu .library-edit.danger[data-highlighted] {
   background: #f5e5df;
 }
 

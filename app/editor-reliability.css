@@ -1,0 +1,25 @@
+.journal-save-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 5px 18px;
+  min-height: 28px;
+  color: #70786a;
+  font-size: 11px;
+  border-bottom: 1px solid #e0e2d8;
+}
+.journal-save-bar.has-conflict { justify-content: flex-start; background: #fff0e4; color: #844b2d; }
+.journal-save-bar button { font-size: 11px; padding: 5px 9px; }
+/* Override the legacy .journal-dialog size cap only for the page index. */
+.journal-dialog.page-index-dialog { width: min(860px, calc(100vw - 32px)) !important; max-width: 860px !important; }
+.page-index-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-height: 60dvh; overflow: auto; padding: 4px; }
+.page-index-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; text-align: left; padding: 10px; background: #fafbf5; border: 1px solid #dce1d4; border-radius: 9px; content-visibility: auto; contain-intrinsic-size: auto 210px; }
+.page-index-item[aria-current='page'] { border-color: #728264; }
+.page-index-preview { position: relative; width: 100%; overflow: hidden; background: #fff; pointer-events: none; }
+.page-index-preview > div { display: grid; place-items: center; }
+.page-index-item strong { font-size: 13px; }
+.page-index-item small { color: #777e70; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+@media(max-width:560px) { .page-index-grid { grid-template-columns: minmax(0, 1fr); } }

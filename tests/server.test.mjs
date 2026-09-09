@@ -1,22 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import http from 'node:http';
-const dir = await mkdtemp(join(tmpdir(), 'shiguang-test-'));
-const port = 4339,
-  base = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ['local/server.mjs'], {
-  env: { ...process.env, JOURNAL_DATA_DIR: dir, JOURNAL_PORT: String(port), JOURNAL_WEB_PORT: '4341' },
-  stdio: 'pipe',
-});
-await new Promise((ok, fail) => {
-  child.stdout.once('data', ok);
-  child.once('error', fail);
-  child.once('exit', (code) => fail(Error('server exited ' + code)));
-});
+import { startTestServer } from './test-server.mjs';
+const { dir, base, webPort } = await startTestServer(test);
 const call = async (path, data, method = 'PUT', headers = {}) => {
   const res = await fetch(base + path, {
     method: data === undefined ? 'GET' : method,
@@ -73,11 +62,10 @@ const mock = http.createServer(async (req, res) => {
     }),
   );
 });
-await new Promise((ok) => mock.listen(4340, '127.0.0.1', ok));
-test.after(() => {
-  child.kill();
-  mock.close();
-});
+test.after(() => new Promise(resolve => mock.close(resolve)));
+mock.listen(0, '127.0.0.1');
+await once(mock, 'listening');
+const mockUrl = `http://127.0.0.1:${mock.address().port}/v1`;
 test('saves durable journal data with optimistic revision conflict protection', async () => {
   const empty = await call('/api/state');
   assert.equal(empty.data.revision, 0);
@@ -104,7 +92,7 @@ test('saves durable journal data with optimistic revision conflict protection', 
 test('accepts the dynamically paired local web origin for saves', async () => {
   const current = await call('/api/state');
   const result = await call('/api/state', { revision: current.data.revision, books: current.data.books }, 'PUT', {
-    Origin: 'http://127.0.0.1:4341',
+    Origin: `http://127.0.0.1:${webPort}`,
   });
   assert.equal(result.status, 200);
 });
@@ -143,7 +131,7 @@ test('API key stays local and missing settings do not pretend to run AI', async 
     409,
   );
   const config = await call('/api/settings', {
-    baseUrl: 'http://127.0.0.1:4340/v1',
+    baseUrl: mockUrl,
     model: 'test-model',
     apiKey: 'private-test-key',
     vision: false,
@@ -167,7 +155,7 @@ test('real HTTP AI adapter validates output and respects photo sending preferenc
   assert.deepEqual(result.data.days[0].assetIds, ['asset-001']);
   assert.equal(typeof received.messages[1].content, 'string');
   await call('/api/settings', {
-    baseUrl: 'http://127.0.0.1:4340/v1',
+    baseUrl: mockUrl,
     model: 'test-model',
     vision: true,
   });
@@ -207,14 +195,21 @@ test('material workbench splits a sheet, imports transparent pieces and persists
  assert.equal(result.status,200);assert.equal(result.data.items.length,3);
  for(const item of result.data.items){const r=await fetch(base+item.src);assert.equal(r.status,200);const image=Buffer.from(await r.arrayBuffer());assert.equal(image[25],6);assert.ok(item.width>50&&item.height>50)}
  const first=result.data.items[0];
- const crop=await call('/api/materials/segment',{src:upload.data.src,name:'单个框选',mode:'paper',tolerance:28,rect:first.bounds},'POST');
- assert.equal(crop.status,200);assert.equal(crop.data.items.length,1);
+ const crop=await call('/api/materials/segment',{src:upload.data.src,name:'单个框选',mode:'crop',tolerance:28,rect:first.bounds},'POST');
+ assert.equal(crop.status,200);
+ const originalIds=new Set(result.data.items.map(item=>item.id));
+ const croppedItems=crop.data.items.filter(item=>!originalIds.has(item.id));
+ assert.equal(crop.data.id,result.data.id);
+ assert.equal(croppedItems.length,1);assert.equal(croppedItems[0].manual,true);
+ assert.deepEqual(crop.data.items.filter(item=>originalIds.has(item.id)),result.data.items);
  const payload={jobId:result.data.id,itemIds:result.data.items.map(i=>i.id),category:'测试贴纸',tags:'复古，测试',names:{[first.id]:'独立绿色素材'}};
  const imported=await call('/api/materials/import',payload,'POST');assert.equal(imported.status,200);assert.equal(imported.data.added,3);assert.equal(imported.data.assets.length,initial+3);assert.equal(imported.data.assets.find(a=>a.id===first.id).name,'独立绿色素材');
  assert.equal((await call('/api/materials/import',payload,'POST')).data.added,0);
  assert.equal((await call('/api/materials')).data.length,initial+3);
  assert.equal(JSON.parse(await readFile(join(dir,'materials.json'),'utf8')).length,3);
- assert.ok((await call('/api/materials/jobs')).data.find(j=>j.id===result.data.id).items.every(i=>i.imported));
+ const savedItems=(await call('/api/materials/jobs')).data.find(j=>j.id===result.data.id).items;
+ assert.ok(savedItems.filter(item=>originalIds.has(item.id)).every(item=>item.imported));
+ assert.equal(savedItems.find(item=>item.id===croppedItems[0].id).imported,false);
  assert.equal((await call('/api/materials/import',{jobId:result.data.id,itemIds:['unknown']},'POST')).status,400);
  assert.equal((await call('/api/materials/segment',{src:upload.data.src,rect:[.9,0,.5,.5]},'POST')).status,400);
 });

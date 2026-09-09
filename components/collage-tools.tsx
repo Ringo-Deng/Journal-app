@@ -8,13 +8,24 @@ import ToolbarPopover from './toolbar-popover';
 
 type UserFont={id:string;name:string;family:string;url:string;size:number;originalName?:string};
 
+function fontResponse(value:unknown):{fonts:UserFont[];error?:string}{
+ if(!value||typeof value!=='object')throw Error('字体服务返回的数据无效。');
+ const data=value as Record<string,unknown>;
+ const fonts=Array.isArray(data.fonts)?data.fonts.filter((font:unknown):font is UserFont=>{
+  if(!font||typeof font!=='object')return false;
+  const item=font as Record<string,unknown>;
+  return ['id','name','family','url'].every(key=>typeof item[key]==='string'&&item[key]!=='' )&&typeof item.size==='number'&&Number.isFinite(item.size)&&item.size>=0&&(item.originalName===undefined||typeof item.originalName==='string');
+ }):[];
+ return {fonts,error:typeof data.error==='string'?data.error:undefined};
+}
+
 export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,cropping,onCrop,busy,hasTextRange,onTextColor}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void}) {
  const [userFonts,setUserFonts]=useState<UserFont[]>([]);
  const [fontMessage,setFontMessage]=useState('');
  const [fontError,setFontError]=useState(false);
  const [fontBusy,setFontBusy]=useState(false);
  const fontInput=useRef<HTMLInputElement>(null);
- useEffect(()=>{let live=true;fetch('/api/fonts').then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||'读取字体失败。');if(live)setUserFonts(Array.isArray(data.fonts)?data.fonts:[]);}).catch(()=>{});return()=>{live=false};},[]);
+ useEffect(()=>{let live=true;fetch('/api/fonts').then(async r=>{const data=fontResponse(await r.json());if(!r.ok)throw Error(data.error||'读取字体失败。');if(live)setUserFonts(data.fonts);}).catch(()=>{});return()=>{live=false};},[]);
  async function importFonts(files:FileList|null){
   if(!files?.length)return;
   setFontBusy(true);setFontError(false);setFontMessage('正在导入字体…');
@@ -23,9 +34,9 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
    for(const file of Array.from(files)){
     if(file.size>80*1024*1024)throw Error(`${file.name} 太大，单个字体包不能超过 80 MB。`);
     const response=await fetch(`/api/fonts/import?filename=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':file.name.toLowerCase().endsWith('.zip')?'application/zip':'application/octet-stream'},body:file});
-    const data=await response.json();
+    const data=fontResponse(await response.json());
     if(!response.ok)throw Error(data.error||`${file.name} 导入失败。`);
-    if(Array.isArray(data.fonts))imported.push(...data.fonts);
+    imported.push(...data.fonts);
    }
    const deduped=[...new Map([...userFonts,...imported].map(font=>[font.id,font])).values()];
    setUserFonts(deduped);

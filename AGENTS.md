@@ -56,7 +56,7 @@
 | 保存 | `app/page.tsx` 的 `books` → `pending/flush` → `/api/state` → `local/server.mjs` 的校验、写入队列、revision 冲突检查及 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 |
 | 数据兼容 | `lib/journal.ts` 的默认值与 `ensureFlyleaf`、`local/server.mjs` 的 `validateState`：兼容及校验入口；当前没有统一手帐 schema migration，`revision` 是写入并发号 |
 | 专项迁移 | `local/material-catalog.mjs` 的 `createMaterialCatalog`：素材目录迁移；`local/ai-config.mjs` 的 `migrateLegacyConfig`：旧 AI 配置兼容 |
-| 备份与撤销 | `local/server.mjs`：保存前保留一份 `journal.previous.json`；`app/page.tsx`：会话内 `history/future` 撤销重做及 `exportBackup/importBackup`；`lib/journal-backup.ts` 收集与重映射图片引用 |
+| 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，保留最近 30 份健康快照；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用 |
 | 3D 阅读 | `components/reading-deck.tsx` → `components/reading-book3d.tsx` → `components/book3d/Book3DView.tsx`；`lib/book3d-motion.ts` 控制翻页几何；`app/three-test/page.tsx` 为独立测试入口 |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
@@ -101,7 +101,7 @@
 - 禁止把清空 localStorage、IndexedDB 或本地文件作为普通修复手段；未经用户明确要求，不删除用户内容、历史数据或手动编辑结果。
 - 保存结构变化必须兼容旧数据；必要迁移应可重复执行或有明确版本判断。字段缺失应提供合理默认值或局部容错，不能导致整个手帐无法打开。
 - 不把应用版本、保存并发号和 schema 版本混为一谈；修改保存链路要回归冲突处理及保存恢复。
-- 备份必须保留图片等素材引用。当前单份 previous 文件和内存撤销不等于完整历史备份，Git 历史也不能替代用户数据备份。
+- 备份必须保留图片等素材引用。自动历史快照、单份 previous 和会话撤销用途不同；历史快照只引用本机原图，迁移或独立保全需使用包含原图的导出备份。Git 历史不能替代用户数据备份。
 - 不提交密钥、Token、密码、真实 `.env`、私有设置、用户手帐数据、本地缓存、构建产物或临时文件。以 `.gitignore` 与 `git ls-files` 共同确认边界，不能仅凭路径名判断。
 - `data/` 仅保留已受控说明文件；`node_modules/`、`.next/`、`.vinext/`、`dist/`、`build/` 等运行产物保持排除。
 - **`local/segment`、`local/cutout`、`local/clean-paper`、`local/material-palette` 是已受 Git 管理的可执行文件。** `.gitignore` 中同名且带尾随 `/` 的规则匹配目录，不代表这些文件可以删除或忽略。

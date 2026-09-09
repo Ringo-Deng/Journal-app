@@ -105,13 +105,14 @@ test('local layout preserves source text without invented events', () => {
   const raw = '下雨。';
   assert.equal(localResult([{ raw }]).days[0].text, raw);
 });
-test('paper style and color persist independently of AI and default to white blank pages', async () => {
+test('paper style and color persist independently of AI and default to cream blank pages', async () => {
   const { paperSettings, applyPaper } = await import('../lib/journal.ts');
+  const paperAppearance=(book,spread)=>{const {style,color}=paperSettings(book,spread);return {style,color};};
   let b = newBook('2026-09');
-  assert.deepEqual(paperSettings(b), { style: 'blank', color: '#ffffff' });
+  assert.deepEqual(paperAppearance(b), { style: 'blank', color: '#f3ecd9' });
   b = applyPaper(b, 'dots', '#e8eef5');
   b = appendDay(b, day('2026-09-01'), localResult([day('2026-09-01')]), assets);
-  assert.deepEqual(paperSettings(b, b.spreads[0]), {
+  assert.deepEqual(paperAppearance(b, b.spreads[0]), {
     style: 'dots',
     color: '#e8eef5',
   });
@@ -121,10 +122,10 @@ test('paper style and color persist independently of AI and default to white bla
     localResult(b.spreads[0].days, 'rose'),
     assets,
   );
-  assert.deepEqual(paperSettings(b, s), { style: 'grid', color: '#fffdf4' });
+  assert.deepEqual(paperAppearance(b, s), { style: 'grid', color: '#fffdf4' });
   assert.ok(!s.elements.some((p) => p.role === 'date'));
   b = applyPaper(b, 'blank', '#ffffff');
-  assert.deepEqual(paperSettings(b, b.spreads[0]), {
+  assert.deepEqual(paperAppearance(b, b.spreads[0]), {
     style: 'blank',
     color: '#ffffff',
   });

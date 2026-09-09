@@ -84,7 +84,7 @@ export function configIssue(config) {
   const apiKey = normalizeApiKey(config?.apiKey);
   if (!model) return '请选择 DeepSeek 模型。';
   if (!apiKey) return '请填写服务商后台生成的 API 密钥。';
-  if (isModelName(apiKey))
+  if (apiKey === model || isModelName(apiKey))
     return '密钥栏填的是模型名称。请到 DeepSeek 开放平台复制真正的 API Key，再粘贴到密钥栏。';
   if (/^https?:\/\//i.test(apiKey))
     return '密钥栏填的是网址。API 地址和 API Key 是两项不同的设置，请粘贴真正的 API Key。';

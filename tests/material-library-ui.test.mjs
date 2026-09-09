@@ -34,16 +34,21 @@ test('every material can reopen from its current image instead of requiring its 
 test('single-material AI classification is available for every material and is not confused with image editing',()=>{
   assert.match(source,/aria-label={`AI分类\$\{a\.name\}`}/);
   assert.match(source,/重新判断这个素材的分类与标签/);
-  assert.match(source,/onClick=\{\(\)=>void classify\(\[a\.id\]\)\}/);
+  assert.match(source,/onClick=\{\(\)=>void classify\(\[a\.id\],a\.id\)\}/);
   assert.doesNotMatch(source,/再次识别\$\{a\.name\}/);
 });
 
-test('every material card keeps the same four actions',()=>{
-  assert.match(source,/className="library-card-actions has-delete"/);
-  assert.match(source,/>编辑标签<\/button>/);
-  assert.match(source,/>AI分类<\/button>/);
-  assert.match(source,/>再次编辑<\/button>/);
-  assert.match(source,/>删除<\/button>/);
+test('each material card groups all four actions in its more menu',()=>{
+  assert.match(source,/<DropdownMenuTrigger[^>]+aria-label=\{`更多操作：\$\{a\.name\}`\}/);
+  const menu=source.match(/<DropdownMenuContent className="library-more-menu"[\s\S]*?<\/DropdownMenuContent>/)?.[0];
+  assert.ok(menu);
+  assert.equal([...menu.matchAll(/<DropdownMenuItem\b/g)].length,4);
+  assert.match(menu,/>编辑标签<\/DropdownMenuItem>/);
+  assert.match(menu,/classifyingId===a\.id\?'识别中…':'AI分类'/);
+  assert.match(menu,/>再次编辑<\/DropdownMenuItem>/);
+  assert.match(menu,/variant="destructive"[^>]+onClick=\{\(\)=>void removeAsset\(a\)\}/);
+  assert.match(menu,/>删除<\/DropdownMenuItem>/);
+  assert.match(source,/window\.confirm\(/);
   assert.match(source,/journal-hidden-materials-v1/);
   assert.match(source,/window\.localStorage\.setItem\(hiddenKey/);
 });

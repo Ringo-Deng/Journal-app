@@ -26,7 +26,7 @@ test('page item rows show stable group parents with indented selectable members'
   assert.match(page,/const pageElementRows=\(\(\)=>\{/);
   assert.match(page,/groupNumber\+=1/);
   assert.match(page,/const members=decorative\.filter\(q=>q\.groupId===p\.groupId\)/);
-  assert.match(page,/const groupLabel=`组合\$\{groupNumber\}`/);
+  assert.match(page,/const groupLabel=pieceGroupName\(p\)\|\|`组合\$\{groupNumber\}`/);
   assert.match(page,/className="page-element-children"/);
   assert.match(page,/onClick=\{\(\)=>toggleSidebarSelection\(members\)\}/);
   assert.match(page,/onClick=\{\(\)=>toggleSidebarMember\(member\)\}/);

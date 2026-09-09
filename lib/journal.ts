@@ -252,11 +252,17 @@ export const headerDateFormats = [
   { id: 'md', name: '09.06' },
   { id: 'mdslash', name: '09/06' },
   { id: 'monthday', name: '9月6日' },
+  { id: 'custom', name: '自定义格式' },
 ] as const;
-export function formatHeaderDate(date?: string, format='dot'){
+export function formatHeaderDate(date?: string, format='dot', customFormat?:string){
   if(!date)return '';
   const d=new Date(date+'T00:00:00');if(Number.isNaN(d.getTime()))return date;
   const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  if(format==='custom'){
+    const pattern=typeof customFormat==='string'&&customFormat?customFormat:'yyyy.MM.dd';
+    const tokens:Record<string,string>={yyyy:String(y),MM:m,dd:day,M:String(d.getMonth()+1),d:String(d.getDate())};
+    return pattern.replace(/yyyy|MM|dd|M|d/g,token=>tokens[token]);
+  }
   if(format==='dash')return `${y}-${m}-${day}`;
   if(format==='slash')return `${y}/${m}/${day}`;
   if(format==='cn')return `${y}年${d.getMonth()+1}月${d.getDate()}日`;
@@ -269,7 +275,7 @@ export const WEEKDAYS=['星期日','星期一','星期二','星期三','星期�
 export function pageHeaderText(header:HeaderConfig|undefined,date?:string,pageNumber?:number){
   const h=header||defaultHeader();
   const d=date?new Date(date+'T00:00:00'):null;
-  const formatted=formatHeaderDate(date,h.dateFormat);
+  const formatted=formatHeaderDate(date,h.dateFormat,h.customFormat);
   return (h.text||'{日期}')
     .replaceAll('{日期}',formatted)
     .replaceAll('{date}',formatted)

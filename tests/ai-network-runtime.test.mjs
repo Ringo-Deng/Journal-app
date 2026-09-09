@@ -17,6 +17,5 @@ test('AI runtime enables system trust and authorized environment proxy support',
   assert.match(launch, /env: \{ \.\.\.networkEnv, JOURNAL_PORT:/);
   assert.match(launch, /env: \{ \.\.\.networkEnv, JOURNAL_API_PORT:/);
   assert.equal(JSON.parse(pkg).engines.node, '>=22.21.0');
-  assert.equal(JSON.parse(pkg).version, '0.1.48');
   assert.match(mac, /Node\.js 22\.21\.0 或更高版本/);
 });

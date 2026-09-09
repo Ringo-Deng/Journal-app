@@ -1,0 +1,27 @@
+/* The shared journal dialog caps width with !important; this is its scoped override. */
+.journal-dialog.journal-history-dialog {
+  width: min(820px, 94vw);
+  max-width: 820px !important;
+}
+.journal-history-layout { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(220px, 1.3fr); gap: 20px; min-height: 180px; }
+.journal-history-list, .journal-history-preview { max-height: 46vh; overflow-y: auto; min-width: 0; }
+.journal-history-list { display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+.journal-history-dialog .history-entry { display: flex; flex-direction: column; gap: 5px; flex: none; text-align: left; padding: 12px; border: 1px solid #d9decd; border-radius: 8px; background: #fffefa; color: #37432f; }
+.journal-history-dialog .history-entry.active { background: #eef2e5; border-color: #74825f; }
+.journal-history-dialog .history-entry span { font-size: 12px; line-height: 1.5; }
+.journal-history-dialog .history-entry:focus-visible { outline: 2px solid #74825f; outline-offset: 2px; }
+.journal-history-dialog .history-book { display: flex; align-items: center; gap: 20px; padding: 12px 8px 20px; }
+.journal-history-dialog .history-book > div:last-child { min-width: 0; }
+.journal-history-dialog .history-book strong { overflow-wrap: anywhere; }
+.journal-history-dialog .history-book p { font-size: 12px; margin-top: 6px; color: #65705b; }
+.journal-history-dialog .history-cover { width: 62px; height: 86px; transform: none; pointer-events: none; }
+.journal-history-dialog .history-cover.format-tn-regular { width: 49px; height: 86px; }
+.journal-history-dialog .history-cover .cover-title-stamp { font-size: 9px; padding: 4px; }
+.journal-history-dialog .history-cover .cover-title-stamp i { font-size: 4px; }
+.journal-history-dialog .history-error { color: #9b4239; font-size: 13px; line-height: 1.6; }
+.journal-history-actions { display: flex; justify-content: flex-end; gap: 10px; }
+@media (max-width: 600px) {
+  .journal-history-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .journal-history-list { max-height: 180px; }
+  .journal-history-preview { max-height: 220px; }
+}

@@ -1,10 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import { registerHooks } from 'node:module';
+import { stackSequence } from '../lib/stack-order.ts';
+
+// The app bundler resolves extensionless TypeScript imports. Match that one
+// dependency in this native Node test without changing production imports.
+const transformUrl = new URL('../lib/piece-transform.ts', import.meta.url).href;
+const hooks = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    return nextResolve(specifier === './stack-order' && context.parentURL === transformUrl
+      ? './stack-order.ts' : specifier, context);
+  },
+});
+const {
   resizeBox,
   reorderPiece,
   normalizeAngle,
-} from '../lib/piece-transform.ts';
+} = await import(transformUrl).finally(() => hooks.deregister());
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 const box = { x: 100, y: 80, w: 200, h: 100, rotation: 0 };
 test('each edge stretches one axis and keeps the opposite edge fixed', () => {
@@ -59,18 +71,23 @@ test('proportional scaling preserves the ratio and cannot invert the shape', () 
       assert.ok(b.w >= 12 && b.h >= 12);
     }
 });
-test('layer moves preserve unrelated elements and no-op at an edge', () => {
+test('layer moves change canvas order while preserving sidebar order and no-op at an edge', () => {
   const a = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const move=(id,action)=>{
+    const updated=reorderPiece(a,id,action);
+    assert.deepEqual(updated.map(p=>p.id),a.map(p=>p.id));
+    return stackSequence(updated).map(p=>p.id);
+  };
   assert.deepEqual(
-    reorderPiece(a, 'b', 'bottom').map((p) => p.id),
+    move('b', 'bottom'),
     ['b', 'a', 'c'],
   );
   assert.deepEqual(
-    reorderPiece(a, 'a', 'up').map((p) => p.id),
+    move('a', 'up'),
     ['b', 'a', 'c'],
   );
   assert.deepEqual(
-    reorderPiece(a, 'b', 'top').map((p) => p.id),
+    move('b', 'top'),
     ['a', 'c', 'b'],
   );
   assert.equal(reorderPiece(a, 'c', 'top'), a);

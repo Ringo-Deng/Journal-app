@@ -11,6 +11,7 @@ import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
 import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
+import { createJournalHistory } from './journal-history.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -63,6 +64,7 @@ const readConfigJSON = async (file, fallback) => {
   }
 };
 let state = await readJSON('journal.json', { revision: 0, books: [] });
+const journalHistory = createJournalHistory({ data, atomicAt, validate: validateState });
 function consolidatedJobs(jobs){
   const sources=[...new Set(jobs.map(j=>j.source))];
   return sources.map(source=>{const group=jobs.filter(j=>j.source===source);const base=group.find(j=>!j.rect)||group[0];const retained=group.flatMap(j=>j.items.filter(i=>i.imported||j.rect).map(i=>({...i,manual:!!j.rect||i.manual})));return {...base,items:[...new Map([...base.items,...retained].map(i=>[i.id,i])).values()]};});
@@ -535,6 +537,8 @@ const server = http.createServer(async (req, res) => {
       }else imported.push(await persistFont(buffer,filename));
       return json(res,{fonts:[...new Map(imported.map(font=>[font.id,fontPublic(font)])).values()]});
     }
+    if (path === '/api/history' && req.method === 'GET') return json(res, await journalHistory.list());
+    if (path.startsWith('/api/history/') && req.method === 'GET') return json(res, await journalHistory.read(path.slice('/api/history/'.length)));
     if (path === '/api/state' && req.method === 'GET') return json(res, state);
     if (path === '/api/state' && req.method === 'PUT') {
       const next = await body(req);
@@ -545,6 +549,9 @@ const server = http.createServer(async (req, res) => {
             '其他窗口更新了手帐。请先导出当前记录，再刷新页面。',
             409,
           );
+        let historyWarning;
+        try { await journalHistory.captureBeforeSave(state, next); }
+        catch { historyWarning = '本次手帐已保存，但历史备份未能完成。请检查磁盘空间或数据目录权限，并导出备份。'; }
         try {
           await copyFile(
             resolve(data, 'journal.json'),
@@ -556,10 +563,10 @@ const server = http.createServer(async (req, res) => {
         const saved = { books: next.books, revision: state.revision + 1 };
         await atomic('journal.json', saved);
         state = saved;
-        return saved.revision;
+        return { revision: saved.revision, ...(historyWarning ? { historyWarning } : {}) };
       });
       writeQueue = task.catch(() => {});
-      return json(res, { revision: await task });
+      return json(res, await task);
     }
     if (path === '/api/validate' && req.method === 'POST') {
       const candidate = await body(req);

@@ -1,20 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, readFile, stat} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import {readFile, stat} from 'node:fs/promises';
 import {join} from 'node:path';
-import {spawn} from 'node:child_process';
-
-const root=new URL('../',import.meta.url);
-const dir=await mkdtemp(join(tmpdir(),'shiguang-fonts-'));
-const port=4369,base=`http://127.0.0.1:${port}`;
-const child=spawn(process.execPath,['local/server.mjs'],{
-  cwd:new URL('..',import.meta.url),
-  env:{...process.env,JOURNAL_DATA_DIR:dir,JOURNAL_PORT:String(port),JOURNAL_WEB_PORT:'4370'},
-  stdio:'pipe',
-});
-await new Promise((ok,fail)=>{child.stdout.once('data',ok);child.once('error',fail);child.once('exit',code=>fail(Error('server exited '+code)));});
-test.after(()=>child.kill());
+import {startTestServer} from './test-server.mjs';
+const {dir,base}=await startTestServer(test);
 
 function storedZip(name,data){
   const filename=Buffer.from(name);

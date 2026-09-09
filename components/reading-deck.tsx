@@ -119,21 +119,20 @@ export default function ReadingDeck({
         } as CSSProperties
       }
     >
-      <fieldset className="deck-view-switch" aria-label="欣赏方式">
-        <button aria-label="连续翻阅" aria-pressed={!grid} onClick={() => setGrid(false)}>
-          <BookOpen />
-        </button>
-        <button
-          aria-label="全部跨页"
-          aria-pressed={grid}
-          disabled={!opened}
-          onClick={() => setGrid(true)}
-        >
-          <LayoutGrid />
-        </button>
-      </fieldset>
-
       <header className="deck-heading">
+        <fieldset className="deck-view-switch" aria-label="欣赏方式">
+          <button aria-label="连续翻阅" aria-pressed={!grid} onClick={() => setGrid(false)}>
+            <BookOpen />
+          </button>
+          <button
+            aria-label="全部跨页"
+            aria-pressed={grid}
+            disabled={!opened}
+            onClick={() => setGrid(true)}
+          >
+            <LayoutGrid />
+          </button>
+        </fieldset>
         <h1>{book.title || "拾光集"}</h1>
         {!grid && !engineFailed && <div className="reading-toolbar" ref={setToolbar} />}
         <p>

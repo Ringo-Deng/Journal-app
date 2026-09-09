@@ -6,11 +6,13 @@ import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} fr
 import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate} from '@/lib/collage';
 import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
 import type {CollageTemplate} from '@/lib/journal';
-import { restorePosition, type WorkspacePosition } from '@/lib/workspace-view';
+import { restorePosition, restoreHistoryPosition, type WorkspacePosition } from '@/lib/workspace-view';
+import { JournalApiError, saveJournalSnapshot } from '@/lib/journal-save';
+import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
 import { pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
-import { notebookUploads, remapNotebookUploads } from '@/lib/journal-backup';
+import { notebookUploads, remapNotebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
 import {resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
@@ -18,6 +20,7 @@ import {addBlankSpread} from '@/lib/journal';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye } from 'lucide-react';
 import ReadingDeck from '@/components/reading-deck';
+import ReadingJpgImage from '@/components/reading-jpg-image';
 import PageTurn, {SpreadPreview} from '@/components/page-turn';
 import type { CSSProperties } from 'react';
 import { paperSettings, applyPaper, type PaperStyle } from '@/lib/journal';
@@ -144,7 +147,7 @@ async function api<T = unknown>(
     throw Error('本机服务未响应，请重新打开“启动手帐”。');
   }
   if (!res.ok)
-    throw Error((result as { error?: string }).error || '操作失败，请重试。');
+    throw new JournalApiError((result as { error?: string }).error || '操作失败，请重试。', res.status);
   return result as T;
 }
 const send = (method: string, data: unknown) => ({
@@ -208,7 +211,7 @@ export default function Home() {
   const [panel, setPanel] = useState<'write' | 'edit' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'settings' | 'covers' | 'index' | 'studio' | 'paper' | 'date' | 'header' | null
+      'settings' | 'covers' | 'index' | 'studio' | 'paper' | 'date' | 'header' | 'history' | null
     >(null);
   const [date, setDate] = useState(today()),
     [raw, setRaw] = useState(''),
@@ -287,6 +290,11 @@ export default function Home() {
     [notice, setNotice] = useState(''),
     [recording, setRecording] = useState(false),
     [, setSpeechSupported] = useState(false);
+  const [recoveringSave, setRecoveringSave] = useState(false);
+  const saveBlocked = useRef(false);
+  const historyGroup = useRef<string | null>(null);
+  const bookAnimation = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if(bookAnimation.current)clearTimeout(bookAnimation.current); }, []);
   const [editingBookId,setEditingBookId]=useState<string|null>(null),
     [coverTitle, setCoverTitle] = useState('拾光集'),
     [coverType, setCoverType] = useState('linen-oat'),
@@ -339,6 +347,7 @@ export default function Home() {
   const cluster=activePieces.length>1;
   const selectionLocked=activePieces.some(p=>p.locked);
   function setSelected(value:string|null){
+    if(value!==selected)historyGroup.current=null;
     if(value!==selected)setCropping(false);
     if(value===null){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
     _setSelected(value);
@@ -405,27 +414,31 @@ export default function Home() {
     return ()=>area?.removeEventListener('scroll',persist);
   },[ready,bookId,page,opened,zoom,selected,reading,libraryOpen,view,opening,closing]);
   const flush = useCallback(async () => {
-    if (writing.current || !pending.current) return;
+    if (writing.current || !pending.current || saveBlocked.current) return;
     writing.current = true;
     setSaved('正在保存…');
+    let historyWarning = '';
     try {
       while (pending.current) {
         const next = pending.current;
         pending.current = null;
         try {
-          const result = await api<{ revision: number }>(
-            '/state',
-            send('PUT', { books: next, revision: revision.current }),
+          const result = await saveJournalSnapshot(
+            { books: next, revision: revision.current },
+            { write: snapshot => api('/state', send('PUT', snapshot)), read: () => api('/state') },
           );
           revision.current = result.revision;
+          if(result.historyWarning)historyWarning=result.historyWarning;
         } catch (e) {
           if (!pending.current) pending.current = next;
           throw e;
         }
       }
-      setSaved('已保存到本机');
+      setSaved(historyWarning ? '已保存 · 历史备份未完成' : '已保存到本机');
+      if(historyWarning)toast(historyWarning);
     } catch (e) {
-      setSaved('保存失败 · 点击重试');
+      saveBlocked.current = e instanceof JournalApiError && e.status === 409;
+      setSaved(saveBlocked.current ? '保存冲突 · 本窗口内容已保留' : '保存失败 · 点击重试');
       toast((e as Error).message);
     } finally {
       writing.current = false;
@@ -434,7 +447,7 @@ export default function Home() {
   useEffect(() => {
     if (!ready || !dirty.current) return;
     pending.current = books;
-    setSaved('等待保存…');
+    if(!saveBlocked.current)setSaved('等待保存…');
     const t = setTimeout(() => void flush(), 550);
     return () => clearTimeout(t);
   }, [books, ready, flush]);
@@ -448,6 +461,7 @@ export default function Home() {
     return () => window.removeEventListener('beforeunload', before);
   }, []);
   const remember = () => {
+    historyGroup.current=null;
     history.current.push(structuredClone(booksRef.current));
     if (history.current.length > 30) history.current.shift();
     future.current = [];
@@ -499,6 +513,12 @@ export default function Home() {
       }),
       withHistory,
     );
+  const patchContinuous = (id: string, patch: Partial<Piece>) => {
+    const key=`${book?.id}/${spread?.id}/${id}/${Object.keys(patch).sort().join(',')}`;
+    patchPiece(id,patch,historyGroup.current!==key);
+    historyGroup.current=key;
+  };
+  const finishContinuous = () => { historyGroup.current=null; };
   function finishEditing(){
     if(inlineId){const p=spread?.elements.find(p=>p.id===inlineId);if(p&&p.text!==inlineText)patchPiece(inlineId,{text:inlineText});setInlineId(null);}
     setSelected(null);setMultiIds([]);setEditingGroup(null);setCropping(false);if(panel==='edit')setPanel(null);
@@ -681,15 +701,29 @@ export default function Home() {
       return {...s,elements:[...rest.slice(0,at),...members,...rest.slice(at)]};
     });
   }
+  function restoreHistorySnapshot(snapshot: Book[]) {
+    cancelAnimationFrame(turnAnimation.current);
+    if(bookAnimation.current)clearTimeout(bookAnimation.current);
+    turnRef.current=null;
+    drag.current=null;
+    setFlipping('');setTurnProgress(0);setTurnSettling(false);
+    setOpening(false);setClosing(false);setSnapGuides({});
+    const position=restoreHistoryPosition(snapshot,bookId,page,opened);
+    setBookId(position.bookId);setPage(position.page);setOpened(position.opened);
+    if(!position.bookId)setView('library');
+    setInlineId(null);setTextRange(null);setSelected(null);
+    setDesignPreview(null);historyGroup.current=null;
+    editingPosition.current=null;scrollRestore.current=null;
+    dirty.current=true;
+    booksRef.current=snapshot;
+    setBooks(snapshot);
+  }
   const undo = () => {
     const previous = history.current.pop();
     if (previous) {
       future.current.push(structuredClone(booksRef.current));
       if(future.current.length>30)future.current.shift();
-      dirty.current = true;
-      booksRef.current=previous;
-      setBooks(previous);
-      setSelected(null);
+      restoreHistorySnapshot(previous);
       toast('已撤销上一步');
     } else toast('还没有可以撤销的修改');
   };
@@ -698,10 +732,7 @@ export default function Home() {
     if(next){
       history.current.push(structuredClone(booksRef.current));
       if(history.current.length>30)history.current.shift();
-      dirty.current=true;
-      booksRef.current=next;
-      setBooks(next);
-      setSelected(null);
+      restoreHistorySnapshot(next);
       toast('已重做上一步');
     }else toast('还没有可以重做的修改');
   };
@@ -723,7 +754,7 @@ export default function Home() {
     if (opened || opening || closing || !book) return;
     change(all=>all.map(b=>b.id===book.id?ensureFlyleaf(b.spreads.length?b:addBlankSpread(b)):b));
     setOpening(true);
-    setTimeout(() => {
+    bookAnimation.current=setTimeout(() => {
       setOpened(true);
       setOpening(false);
     }, 720);
@@ -732,7 +763,7 @@ export default function Home() {
     setSelected(null);
     setOpened(false);
     setClosing(true);
-    setTimeout(() => setClosing(false), 720);
+    bookAnimation.current=setTimeout(() => setClosing(false), 720);
   };
   function startTurn(direction: number, x = 0) {
     if (turnRef.current || busy) return false;
@@ -930,7 +961,8 @@ export default function Home() {
             }),
           )
         : localResult(days, currentTheme);
-      if (regen && JSON.stringify(booksRef.current.find(b=>b.id===book.id)?.spreads[page]) !== JSON.stringify(spread)) throw Error('设计期间页面发生了修改，请重新设计以包含最新内容。');
+      const currentBook=booksRef.current.find(b=>b.id===book.id);
+      if (regen && JSON.stringify(currentBook?sheetAt(currentBook,page):undefined) !== JSON.stringify(spread)) throw Error('设计期间页面发生了修改，请重新设计以包含最新内容。');
       if (regen) {
         if(result.elements)result.elements=reserveHeaderSpace(result.elements,headerSpace,spread!.elements.filter(p=>isPieceHidden(p)||(preserveLocks&&p.locked)).map(p=>p.id));
         const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId||preserveLocks&&p.locked}))};
@@ -1409,6 +1441,34 @@ export default function Home() {
       toast((e as Error).message);
     }
   }
+  async function restoreNotebookCopies(source: Book[]) {
+    if(saveBlocked.current)throw Error('请先处理保存冲突，再恢复历史备份。');
+    const copies=copyNotebooks(source,'恢复副本');
+    const before=booksRef.current;
+    await api('/validate',send('POST',{books:[...before,...copies]}));
+    if(booksRef.current!==before)throw Error('恢复准备期间手帐发生了修改，请重试；现有内容没有被覆盖。');
+    change(all=>[...all,...copies]);
+    toast(`已添加 ${copies.length} 本恢复副本，正在保存。`);
+  }
+  async function resolveSaveConflict() {
+    if(recoveringSave||writing.current)return;
+    setRecoveringSave(true);
+    try {
+      const current=await api<{books:Book[];revision:number}>('/state');
+      const local=booksRef.current;
+      const copies=copyNotebooks(local,'本窗口副本');
+      const merged=[...current.books,...copies];
+      await api('/validate',send('POST',{books:merged}));
+      if(booksRef.current!==local)throw Error('准备副本期间手帐发生了修改，请重试；本窗口内容仍保留。');
+      // Undo may remove the new copies, but must never restore an obsolete server snapshot.
+      history.current=[structuredClone(current.books)];future.current=[];
+      revision.current=current.revision;saveBlocked.current=false;pending.current=merged;
+      restoreHistorySnapshot(merged);
+      setView('library');setLibraryOpen(false);setReading(false);setPanel(null);
+      await flush();
+    }catch(e){toast((e as Error).message);}
+    finally{setRecoveringSave(false);}
+  }
   async function importBackup(file?: File) {
     if (!file) return;
     try {
@@ -1607,7 +1667,7 @@ export default function Home() {
             <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
-        {!reading&&!libraryOpen&&view!=='library'&&opened&&spread&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true">
+        {!reading&&!libraryOpen&&view!=='library'&&opened&&spread&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个素材`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'⌘/Ctrl 或 Shift 点击可多选'}</span>
@@ -1623,7 +1683,15 @@ export default function Home() {
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
 
-        {saved.startsWith('保存失败')&&<button className="save-error" onClick={()=>void flush()}>保存失败，点击重试</button>}
+        {ready&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
+          <span role="status" aria-live="polite">{saved}</span>
+          {saved.startsWith('保存失败')&&<button className="quiet" onClick={()=>void flush()}>重试保存</button>}
+          {saved.startsWith('保存冲突')&&<>
+            <span>本机已有更新，本窗口的笔记本可保留为副本。</span>
+            <button className="outline" disabled={recoveringSave} onClick={()=>void exportBackup()}>导出本窗口内容</button>
+            <button className="outline" disabled={recoveringSave} onClick={()=>void resolveSaveConflict()}>{recoveringSave?'正在保留副本…':'保留副本并载入最新版本'}</button>
+          </>}
+        </div>}
 
         {view==='library'?(
           <section className="library-page">
@@ -1633,7 +1701,7 @@ export default function Home() {
                 <h1>笔记库<span className="library-count">{books.length} 本</span></h1>
                 
               </div>
-<div className="library-head-actions">              <button className="outline" onClick={() => importInput.current?.click()}>
+<div className="library-head-actions"><button className="outline" onClick={()=>setModal('history')}>历史备份</button>              <button className="outline" onClick={() => importInput.current?.click()}>
                 <FolderOpen />
                 导入备份
               </button>              <button
@@ -2192,8 +2260,9 @@ export default function Home() {
                                 rows={6}
                                 value={piece.text || ''}
                                 maxLength={8000}
+                                onBlur={finishContinuous}
                                 onChange={(e) =>
-                                  patchPiece(piece.id, { text: e.target.value })
+                                  patchContinuous(piece.id, { text: e.target.value })
                                 }
                               />
                             </label>
@@ -2207,8 +2276,9 @@ export default function Home() {
                               value={[piece.w]}
                               min={5}
                               max={70}
+                              onValueCommitted={finishContinuous}
                               onValueChange={(v) =>
-                                patchPiece(piece.id, {
+                                patchContinuous(piece.id, {
                                   w: Array.isArray(v) ? v[0] : v,
                                 })
                               }
@@ -2223,8 +2293,9 @@ export default function Home() {
                               value={[piece.rotation]}
                               min={-180}
                               max={180}
+                              onValueCommitted={finishContinuous}
                               onValueChange={(v) =>
-                                patchPiece(piece.id, {
+                                patchContinuous(piece.id, {
                                   rotation: Array.isArray(v) ? v[0] : v,
                                 })
                               }
@@ -2238,8 +2309,9 @@ export default function Home() {
                                 value={[piece.fontSize || 18]}
                                 min={12}
                                 max={48}
-                                onValueChange={(v) =>
-                                  patchPiece(piece.id, {
+                                onValueCommitted={finishContinuous}
+                              onValueChange={(v) =>
+                                  patchContinuous(piece.id, {
                                     fontSize: Array.isArray(v) ? v[0] : v,
                                   })
                                 }
@@ -2272,8 +2344,9 @@ export default function Home() {
                                     value={[piece.crop ?? 50]}
                                     min={0}
                                     max={100}
-                                    onValueChange={(v) =>
-                                      patchPiece(piece.id, {
+                                    onValueCommitted={finishContinuous}
+                              onValueChange={(v) =>
+                                      patchContinuous(piece.id, {
                                         crop: Array.isArray(v) ? v[0] : v,
                                       })
                                     }
@@ -3276,33 +3349,24 @@ export default function Home() {
         open={modal === 'index'}
         onOpenChange={(v) => !v && setModal(null)}
       >
-        <DialogContent className="journal-dialog">
-          <DialogTitle>记录索引</DialogTitle>
+        <DialogContent className="journal-dialog page-index-dialog">
+          <DialogTitle>页面与记录索引</DialogTitle>
           <DialogDescription>
-            {book?.title || '当前笔记本'} · 按日期跳转到对应跨页。
+            {book?.title || '当前笔记本'} · 包含扉页、手工拼贴与空白跨页，点击预览直接跳转。
           </DialogDescription>
-          {book && book.spreads.some((s) => s.days.length) ? (
-            <div className="date-index">
-              <div>
-                {book.spreads.flatMap((s, i) =>
-                  s.days.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => {
-                        setSelected(null);
-                        setPage(i);
-                        setOpened(true);
-                        setModal(null);
-                      }}
-                    >
-                      {d.date.slice(5)} · {d.title}
-                    </button>
-                  )),
-                )}
-              </div>
+          {book && (book.flyleaf || book.spreads.length) ? (
+            <div className="page-index-grid">
+              {[...(book.flyleaf?[{sheet:book.flyleaf,index:-1}]:[]),...book.spreads.map((sheet,index)=>({sheet,index}))].map(({sheet,index})=><button
+                className="page-index-item" key={sheet.id} aria-label={index===-1?'跳转到扉页':`跳转到第 ${index+1} 跨页`} aria-current={index===page?'page':undefined}
+                onClick={()=>{setSelected(null);setPage(index);setOpened(true);setModal(null);}}
+              >
+                <div className="page-index-preview" style={{aspectRatio:bookFormat(book).ratio}} aria-hidden="true"><ReadingJpgImage book={book} assets={assets} index={index===-1?0:index+(book.flyleaf?1:0)} alt=""/></div>
+                <strong>{index===-1?'扉页':`第 ${index+1} 跨页`}</strong>
+                <small>{sheet.days.length?sheet.days.map(d=>`${d.date} · ${d.title}`).join(' / '):`${sheet.date?sheet.date+' · ':''}${sheet.elements.length?`手工排版 · ${sheet.elements.length} 个元素`:'空白页'}`}</small>
+              </button>)}
             </div>
           ) : (
-            <p className="microcopy">这本笔记本还没有记录。</p>
+            <p className="microcopy">这本笔记本还没有内页。</p>
           )}
           <div className="row">
             {book && (
@@ -3314,6 +3378,7 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+      <JournalHistory open={modal==='history'} onClose={()=>setModal(null)} onRestore={restoreNotebookCopies}/>
       {notice && (
         <output className="toast">
           <Leaf />

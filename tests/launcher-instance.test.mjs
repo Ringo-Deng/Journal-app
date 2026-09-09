@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -61,14 +61,16 @@ test('real process inspection and termination work on the current host', async (
   const { spawn } = await import('node:child_process');
   const { inspectLocalProcess } = await import('../local/launcher-instance.mjs');
   const dir = await mkdtemp(join(tmpdir(), 'shiguang-real-'));
-  const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', 'local/launch.mjs'], { stdio: 'ignore' });
+  const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', 'local/launch.mjs'], { cwd: dir, stdio: 'ignore' });
   try {
     await new Promise(r => setTimeout(r, 80));
     const info = await inspectLocalProcess(child.pid);
     assert.equal(info.alive, true);
     assert.equal(looksLikeShiguangLauncher(info.command), true);
     await writeLauncherLease(dir, '0.1.36', child.pid);
-    const result = await stopPreviousLauncher({ configDir: dir, currentPid: process.pid });
+    const result = await stopPreviousLauncher({ configDir: dir, currentPid: process.pid,
+      killProcess: (pid, signal) => { assert.equal(pid, child.pid); child.kill(signal); },
+    });
     assert.equal(result.stopped, true);
     await new Promise(r => setTimeout(r, 80));
     assert.equal((await inspectLocalProcess(child.pid)).alive, false);
@@ -101,12 +103,14 @@ test('legacy launcher scan kills only launchers from the same project root', asy
 test('real legacy scan terminates a same-root launcher without touching this process', async () => {
   const { spawn } = await import('node:child_process');
   const { stopLegacyShiguangProcesses, inspectLocalProcess } = await import('../local/launcher-instance.mjs');
-  const root = await mkdtemp(join(tmpdir(), 'shiguang-root-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'shiguang-root-')));
   const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', 'local/launch.mjs'], { cwd: root, stdio: 'ignore' });
   try {
     await new Promise(r => setTimeout(r, 100));
     assert.equal((await inspectLocalProcess(child.pid)).alive, true);
-    const stopped = await stopLegacyShiguangProcesses({ root, currentPid: process.pid });
+    const stopped = await stopLegacyShiguangProcesses({ root, currentPid: process.pid,
+      killProcess: (pid, signal) => { assert.equal(pid, child.pid); child.kill(signal); },
+    });
     assert.ok(stopped.includes(child.pid));
     await new Promise(r => setTimeout(r, 100));
     assert.equal((await inspectLocalProcess(child.pid)).alive, false);
@@ -118,12 +122,14 @@ test('real legacy scan terminates a same-root launcher without touching this pro
 test('legacy scan also terminates an orphaned same-root server process', async () => {
   const { spawn } = await import('node:child_process');
   const { stopLegacyShiguangProcesses, inspectLocalProcess } = await import('../local/launcher-instance.mjs');
-  const root = await mkdtemp(join(tmpdir(), 'shiguang-server-root-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'shiguang-server-root-')));
   const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', 'local/server.mjs'], { cwd: root, stdio: 'ignore' });
   try {
     await new Promise(r => setTimeout(r, 100));
     assert.equal((await inspectLocalProcess(child.pid)).alive, true);
-    const stopped = await stopLegacyShiguangProcesses({ root, currentPid: process.pid });
+    const stopped = await stopLegacyShiguangProcesses({ root, currentPid: process.pid,
+      killProcess: (pid, signal) => { assert.equal(pid, child.pid); child.kill(signal); },
+    });
     assert.ok(stopped.includes(child.pid));
     await new Promise(r => setTimeout(r, 100));
     assert.equal((await inspectLocalProcess(child.pid)).alive, false);

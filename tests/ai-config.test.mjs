@@ -60,9 +60,12 @@ test('model names and URLs cannot silently be saved as credentials', () => {
     /网址/,
   );
   assert.equal(configIssue({ model: 'model', apiKey: 'sk-test-key' }), '');
+  for(const apiKey of ['custom-model',' Bearer custom-model ','"custom-model"']){
+    assert.match(configIssue({model:' custom-model ',apiKey}),/模型名称/);
+  }
   assert.match(providerError(401), /401/);
-  assert.match(providerError(401), /API Key/);
-  assert.match(providerError(401), /本机已保存的密钥/);
+  assert.match(providerError(401), /认证未通过/);
+  assert.doesNotMatch(providerError(401), /已保存的密钥/);
   assert.match(providerError(402), /余额不足/);
 });
 

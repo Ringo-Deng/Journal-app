@@ -1,5 +1,10 @@
 import type { Book } from './journal';
 
+/** Keep page and image references intact while giving restored notebooks new identities. */
+export function copyNotebooks(books: Book[], suffix: string): Book[] {
+  return books.map(book => ({ ...structuredClone(book), id: crypto.randomUUID(), title: `${book.title || '未命名笔记本'} · ${suffix}` }));
+}
+
 /** Include every uploaded image in the notebook, including non-body pages. */
 export function notebookUploads(books: Book[]): string[] {
   const paths = new Set<string>();
