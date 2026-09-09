@@ -1742,7 +1742,7 @@ export default function Home() {
             <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
-        {!reading&&!libraryOpen&&view!=='library'&&opened&&spread&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
+        {!reading&&!libraryOpen&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个素材`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'⌘/Ctrl 或 Shift 点击可多选'}</span>
