@@ -48,6 +48,41 @@
   display: block !important;
 }
 
+/* Editor only: fill the physical face without exposing the old photo texture
+   beside the 2:3 SVG. Clip at the board, so every notebook format keeps one edge. */
+.cover-stage .rigid-cover {
+  appearance: none;
+  padding: 0;
+}
+/* The board's straight cross sections stop before the rounded face corners. */
+.cover-stage .rigid-cover::before,
+.cover-stage .rigid-cover::after {
+  left: 8px !important;
+  width: calc(100% - 24px) !important;
+}
+.cover-stage .rigid-edge {
+  top: 16px !important;
+  height: calc(100% - 32px) !important;
+}
+.cover-stage .rigid-front:has(.stationery-cover-art) {
+  background-image: none !important;
+}
+.cover-stage .rigid-front .stationery-cover-art {
+  object-fit: cover !important;
+  pointer-events: none;
+}
+
+/* The old closure supplied width:25%. The physical rim must span the whole
+   face; otherwise it draws a second rounded rectangle down the left quarter. */
+.cover-stage .rigid-front::after {
+  width: auto !important;
+}
+.cover-stage .rigid-front::before {
+  width: 5% !important;
+  border-radius: 0 !important;
+  background: linear-gradient(90deg, #0e090733, #0e090712 35%, transparent) !important;
+}
+
 /* The settings live preview uses the same three approved full-book images.
    The selectors intentionally bind to the existing linen colors so no new cover state is introduced. */
 .settings-cover.format-standard.texture-linen {
