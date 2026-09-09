@@ -1,3 +1,5 @@
+import {reorderStack,type StackAction} from './stack-order';
+
 export type Box = {
   x: number;
   y: number;
@@ -55,25 +57,10 @@ export function resizeBox(
 export function normalizeAngle(angle: number) {
   return ((((angle + 180) % 360) + 360) % 360) - 180;
 }
-export function reorderPiece<T extends { id: string }>(
+export function reorderPiece<T extends { id: string; stackOrder?: number }>(
   items: T[],
   id: string,
-  action: 'top' | 'bottom' | 'up' | 'down',
+  action: StackAction,
 ) {
-  const index = items.findIndex((p) => p.id === id);
-  if (index < 0) return items;
-  const target =
-    action === 'top'
-      ? items.length - 1
-      : action === 'bottom'
-        ? 0
-        : Math.max(
-            0,
-            Math.min(items.length - 1, index + (action === 'up' ? 1 : -1)),
-          );
-  if (target === index) return items;
-  const next = [...items],
-    [piece] = next.splice(index, 1);
-  next.splice(target, 0, piece);
-  return next;
+  return reorderStack(items, [id], action);
 }

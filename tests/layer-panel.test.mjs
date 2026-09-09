@@ -5,7 +5,9 @@ import {readFile} from 'node:fs/promises';
 const pagePath=new URL('../app/page.tsx',import.meta.url);
 const previewPath=new URL('../components/page-turn.tsx',import.meta.url);
 const actionPath=new URL('../components/layer-row-actions.tsx',import.meta.url);
+const appearancePath=new URL('../components/piece-appearance.tsx',import.meta.url);
 const metaPath=new URL('../lib/layer-meta.ts',import.meta.url);
+const stackPath=new URL('../lib/stack-order.ts',import.meta.url);
 
 test('page items panel is promoted to a real layer panel',async()=>{
   const source=await readFile(pagePath,'utf8');
@@ -20,9 +22,10 @@ test('page items panel is promoted to a real layer panel',async()=>{
   assert.match(source,/moveLayer/);
 });
 
-test('layer row actions stay compact and send layers to stack edges',async()=>{
+test('layer row actions stay compact and target the journal canvas stack',async()=>{
   const page=await readFile(pagePath,'utf8');
   const actions=await readFile(actionPath,'utf8');
+  const appearance=await readFile(appearancePath,'utf8');
   const meta=await readFile(metaPath,'utf8');
   assert.match(actions,/ArrowDownToLine,ArrowUpToLine/);
   assert.match(actions,/width:22,height:22,padding:3,minWidth:22/);
@@ -31,7 +34,9 @@ test('layer row actions stay compact and send layers to stack edges',async()=>{
   assert.match(actions,/aria-label="置底图层"/);
   assert.match(page,/onUp=\{\(\)=>moveLayer\(members,'up'\)\}/);
   assert.match(page,/onDown=\{\(\)=>moveLayer\(members,'down'\)\}/);
-  assert.match(meta,/action === 'top' \|\| action === 'up' \? blocks\.length : 0/);
+  assert.match(meta,/canvasAction = action === 'up' \? 'top' : action === 'down' \? 'bottom' : action/);
+  assert.match(meta,/return reorderStack\(items, memberIds, canvasAction\)/);
+  assert.match(appearance,/zIndex:Number\.isFinite\(stackOrder\)\?stackOrder:19/);
 });
 
 test('hidden layers stay in data but disappear from editor and previews',async()=>{
@@ -42,11 +47,12 @@ test('hidden layers stay in data but disappear from editor and previews',async()
   assert.match(preview,/spread\.elements\.filter\(\(p\)=>!isPieceHidden\(p\)\)\.map/);
 });
 
-test('layer ordering treats groups as blocks',async()=>{
-  const source=await readFile(metaPath,'utf8');
-  assert.match(source,/reorderLayerBlock/);
-  assert.match(source,/seenGroups/);
-  assert.match(source,/blocks\.slice\(0, target\)\.flat\(\)/);
+test('canvas stack metadata keeps the layer panel data order stable',async()=>{
+  const source=await readFile(stackPath,'utf8');
+  assert.match(source,/export function reorderStack/);
+  assert.match(source,/return items\.map\(\(item\) => \(\{ \.\.\.item, stackOrder:/);
+  assert.match(source,/selected\.forEach\(\(item\) => ranks\.set\(item\.id, STACK_MAX\)\)/);
+  assert.match(source,/selected\.forEach\(\(item\) => ranks\.set\(item\.id, STACK_MIN\)\)/);
 });
 
 test('undo has a matching redo stack and standard shortcuts',async()=>{

@@ -5,6 +5,7 @@ import type { Piece } from '@/lib/journal';
 import {journalFontFamily} from '@/lib/collage';
 
 export function pieceAppearance(p:Piece): CSSProperties {
+  const stackOrder=(p as Piece & {stackOrder?:number}).stackOrder;
   return {
     '--piece-font':journalFontFamily(p.fontFamily),
     '--piece-leading':p.lineHeight,
@@ -14,6 +15,7 @@ export function pieceAppearance(p:Piece): CSSProperties {
     '--photo-border':p.photoBorder!==undefined?`${p.photoBorder}cqw`:undefined,
     '--piece-shadow':p.shadow===undefined?undefined:`0.15cqw 0.3cqw ${.2+p.shadow*.55}cqw rgb(65 48 27 / ${p.shadow*.32})`,
     '--cutout-edge':`${p.cutoutOutline??.18}cqw`,
+    zIndex:Number.isFinite(stackOrder)?stackOrder:19,
   } as CSSProperties;
 }
 export function pieceClasses(p:Piece) {
