@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 const source=await readFile(new URL('../components/material-library.tsx',import.meta.url),'utf8');
+const css=await readFile(new URL('../app/material-library-refresh.css',import.meta.url),'utf8');
 
 test('material library keeps AI organize in the top bar and removes the right action sidebar',()=>{
   assert.match(source,/className="primary ai-organize-top"/);
@@ -38,7 +39,7 @@ test('single-material AI classification is available for every material and is n
   assert.doesNotMatch(source,/再次识别\$\{a\.name\}/);
 });
 
-test('each material card shows all four actions directly below the material',()=>{
+test('each material card shows all four actions in a stable two-by-two grid',()=>{
   const actions=source.match(/<div className="library-card-actions">[\s\S]*?<\/div><\/div>\}\)\}/)?.[0];
   assert.ok(actions);
   assert.equal([...actions.matchAll(/<button\b/g)].length,4);
@@ -48,7 +49,15 @@ test('each material card shows all four actions directly below the material',()=
   assert.match(actions,/onClick=\{\(\)=>void removeAsset\(a\)\}/);
   assert.match(actions,/>删除<\/button>/);
   assert.doesNotMatch(source,/DropdownMenu/);
-  assert.match(source,/window\.confirm\(/);
+  assert.match(css,/\.library-card-actions \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(css,/\.library-card-actions \.library-edit,[\s\S]*?width: 100%;[\s\S]*?min-width: 0;[\s\S]*?margin: 0;/);
   assert.match(source,/journal-hidden-materials-v1/);
   assert.match(source,/window\.localStorage\.setItem\(hiddenKey/);
+});
+
+test('material deletion runs directly without a browser confirmation dialog',()=>{
+  const removeAsset=source.match(/async function removeAsset\(a:Asset\)\{[\s\S]*?\n \}/)?.[0];
+  assert.ok(removeAsset);
+  assert.doesNotMatch(removeAsset,/window\.confirm\(/);
+  assert.match(removeAsset,/request<\{assets:Asset\[\]\}>\('\/remove',\{id:a\.id\}\)/);
 });

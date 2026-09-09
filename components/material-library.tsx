@@ -75,7 +75,6 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onImpo
  }
  function hideBuiltIn(a:Asset){const next=new Set(hiddenIds);next.add(a.id);setHiddenIds(next);try{window.localStorage.setItem(hiddenKey,JSON.stringify([...next]))}catch{/* The item can still disappear for this session. */}setSelected(old=>{const n=new Set(old);n.delete(a.id);return n})}
  async function removeAsset(a:Asset){
-  if(!window.confirm(`删除素材「${a.name}」？`))return;
   if(!isUserAsset(a)){hideBuiltIn(a);return}
   setSaving(true);setError('');try{const result=await request<{assets:Asset[]}>('/remove',{id:a.id});onUpdated(result.assets);setSelected(old=>{const n=new Set(old);n.delete(a.id);return n})}catch(e){setError((e as Error).message)}finally{setSaving(false)}
  }
