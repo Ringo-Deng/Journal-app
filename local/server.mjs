@@ -278,6 +278,25 @@ function validateState(s) {
           throw error('页面元素格式不正确。');
         if (el.src && !/^\/(materials|uploads)\/[a-zA-Z0-9._-]+$/.test(el.src))
           throw error('图片路径不正确。');
+        if (
+          el.highlightRuns !== undefined &&
+          (
+            el.kind !== 'text' ||
+            typeof el.text !== 'string' ||
+            !Array.isArray(el.highlightRuns) ||
+            el.highlightRuns.length > 100 ||
+            el.highlightRuns.some((run) =>
+              !run ||
+              !Number.isInteger(run.start) ||
+              !Number.isInteger(run.end) ||
+              run.start < 0 ||
+              run.end <= run.start ||
+              run.end > el.text.length ||
+              !/^#[a-f0-9]{6}$/i.test(run.color || '')
+            )
+          )
+        )
+          throw error('文字荧光标记格式不正确。');
       }
     };
     if(book.collageTemplates!==undefined){

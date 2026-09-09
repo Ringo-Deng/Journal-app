@@ -19,7 +19,7 @@ function fontResponse(value:unknown):{fonts:UserFont[];error?:string}{
  return {fonts,error:typeof data.error==='string'?data.error:undefined};
 }
 
-export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,cropping,onCrop,busy,hasTextRange,onTextColor}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void}) {
+export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,cropping,onCrop,busy,hasTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
  const [userFonts,setUserFonts]=useState<UserFont[]>([]);
  const [fontMessage,setFontMessage]=useState('');
  const [fontError,setFontError]=useState(false);
@@ -68,11 +68,19 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
        <label>粗细<select aria-label="文字粗细" value={p.fontWeight||400} onChange={e=>onPatch({fontWeight:Number(e.target.value)})}><option value={400}>常规</option><option value={600}>加粗</option></select></label>
        <label>对齐<select aria-label="文字对齐" value={p.textAlign||'left'} onChange={e=>onPatch({textAlign:e.target.value as Piece['textAlign']})}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
      </div>
-     <div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">局部文字颜色</span><div className="toolbar-popover-actions">
-       <label title="双击文字，选中要着色的字句">选区颜色<input type="color" aria-label="选中文字颜色" disabled={!hasTextRange} defaultValue="#af7856" onInput={e=>onTextColor(e.currentTarget.value)}/></label>
-       {hasTextRange&&<div className="text-color-swatches">{[['#b36742','赭色'],['#587a91','湖蓝'],['#608060','苔绿']].map(([color,name])=><button key={color} className="text-color-swatch" style={{background:color}} aria-label={`选中文字设为${name}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextColor(color)}/>)}</div>}
-       {!!p.colorRuns?.length&&<button className="quiet" onClick={()=>onTextColor(null)}>清除局部颜色</button>}
-     </div></div>
+     <div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">局部文字样式</span>
+       <div className="text-run-control"><span>文字颜色</span><div className="toolbar-popover-actions">
+         <label title="双击文字，选中要着色的字句">自定义<input type="color" aria-label="选中文字颜色" disabled={!hasTextRange} defaultValue="#af7856" onInput={e=>onTextColor(e.currentTarget.value)}/></label>
+         {hasTextRange&&<div className="text-color-swatches">{[['#b36742','赭色'],['#587a91','湖蓝'],['#608060','苔绿']].map(([color,name])=><button key={color} className="text-color-swatch" style={{background:color}} aria-label={`选中文字设为${name}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextColor(color)}/>)}</div>}
+         {!!p.colorRuns?.length&&<button className="quiet" onClick={()=>onTextColor(null)}>清除局部颜色</button>}
+       </div></div>
+       <div className="text-run-control"><span>荧光笔</span><div className="toolbar-popover-actions">
+         <label title="双击文字，选中要标记的字句">自定义<input type="color" aria-label="自定义荧光笔颜色" disabled={!hasTextRange} defaultValue="#f2d45c" onChange={e=>onTextHighlight(e.currentTarget.value)}/></label>
+         <div className="text-color-swatches">{[['#f2d45c','柔黄'],['#ee9aa2','柔粉'],['#82bdd5','湖蓝'],['#9bc58a','苔绿'],['#b79ad0','柔紫']].map(([color,name])=><button key={color} className="text-color-swatch" disabled={!hasTextRange} style={{background:color}} aria-label={`选中文字添加${name}荧光标记`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextHighlight(color)}/>)}</div>
+         {!!p.highlightRuns?.length&&<button className="quiet" onClick={()=>onTextHighlight(null)}>清除本框高亮</button>}
+       </div></div>
+       <small className="text-highlight-hint">双击文字并选择字句，添加标记；完成编辑后显示。</small>
+     </div>
      <div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">字体管理</span><button type="button" className="quiet font-import-button" disabled={fontBusy} onClick={()=>fontInput.current?.click()}>{fontBusy?'导入中…':'导入字体'}</button><input ref={fontInput} hidden type="file" multiple accept=".ttf,.otf,.woff,.woff2,.zip" onChange={e=>void importFonts(e.currentTarget.files)}/>{!!fontMessage&&<small className={`font-import-status${fontError?' is-error':''}`}>{fontMessage}</small>}</div>
    </ToolbarPopover>
  </div>;

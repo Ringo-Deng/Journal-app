@@ -1,11 +1,11 @@
 import { Shape } from "three";
 
-/** Straight binding edge; only the two fore-edge corners are rounded. */
+/** Cover boards keep a straight binding edge; pass null for a four-corner lining. */
 export function coverOutline(
   width: number,
   height: number,
   radius: number,
-  spineSide: "left" | "right" = "left",
+  spineSide: "left" | "right" | null = "left",
 ) {
   const left = -width / 2;
   const right = width / 2;

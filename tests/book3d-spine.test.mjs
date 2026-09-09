@@ -71,3 +71,23 @@ test("cover boards and mirrored faces keep square binding corners and rounded ou
     }
   }
 });
+
+test("front and back cover linings round all four corners", () => {
+  for (const [width, height, radius] of [
+    [3.64, 4.96, 0.11],
+    [2.48, 4.96, 0.11],
+  ]) {
+    const points = coverOutline(width, height, radius, null).getPoints(10);
+    for (const x of [-width / 2, width / 2])
+      for (const y of [-height / 2, height / 2])
+        assert.ok(
+          !points.some(p => Math.abs(p.x - x) < 1e-8 && Math.abs(p.y - y) < 1e-8),
+          "a rounded lining must not retain a square corner",
+        );
+    assert.ok(
+      points.every(
+        p => Math.abs(p.x) <= width / 2 + 1e-8 && Math.abs(p.y) <= height / 2 + 1e-8,
+      ),
+    );
+  }
+});

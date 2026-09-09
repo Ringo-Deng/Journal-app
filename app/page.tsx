@@ -495,7 +495,7 @@ export default function Home() {
       (s) => ({
         ...s,
         elements: s.elements.map((e) =>
-          e.id === id ? { ...e, ...patch, ...(patch.text!==undefined&&patch.text!==e.text?{colorRuns:undefined}:{}), locked: patch.locked ?? e.locked } : e,
+          e.id === id ? { ...e, ...patch, ...(patch.text!==undefined&&patch.text!==e.text?{colorRuns:undefined,highlightRuns:undefined}:{}), locked: patch.locked ?? e.locked } : e,
         ),
         days: s.days.map((d) => {
           const p = s.elements.find((e) => e.id === id);
@@ -649,6 +649,12 @@ export default function Home() {
     if(color===null){patchPiece(piece.id,{colorRuns:undefined});return;}
     if(!textRange||textRange.id!==piece.id||textRange.text!==piece.text){toast('请重新选中文字后设置颜色。');return;}
     patchPiece(piece.id,{colorRuns:[...(piece.colorRuns||[]),{start:textRange.start,end:textRange.end,color}].slice(-100)});
+  }
+  function highlightText(color:string|null){
+    if(!piece)return;
+    if(color===null){patchPiece(piece.id,{highlightRuns:undefined});return;}
+    if(!textRange||textRange.id!==piece.id||textRange.text!==piece.text){toast('请重新选中文字后添加荧光标记。');return;}
+    patchPiece(piece.id,{highlightRuns:[...(piece.highlightRuns||[]),{start:textRange.start,end:textRange.end,color}].slice(-100)});
   }
   function saveCluster(){
     if(!book||!cluster||!clusterBox||!templateName.trim())return;
@@ -1692,7 +1698,7 @@ export default function Home() {
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
           {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onMore={()=>setPanel('edit')} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
-          <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText}/></fieldset>}
+          <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">选择素材后可在这里调整</span>}
         </div>}
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster}/>}

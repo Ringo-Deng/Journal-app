@@ -3492,6 +3492,7 @@ fieldset.book-tools{border-top:0;}
 .collage-context-tools .material-details{width:auto;margin:0;}
 @media(max-width:720px){.compact-shell .work-area .book-scene{width:calc(min(100cqw - 24px,max(180px,100cqh - 88px)*var(--spread-ratio,1.43))*var(--page-zoom,1));}}
 .text-color-swatches{display:flex;gap:5px;}.text-color-swatch{width:17px;height:17px;min-width:17px;border-radius:50%;border:2px solid #fffcf5;padding:0;box-shadow:0 0 0 1px #c8cbbf;}
+.text-run-control{display:grid;grid-template-columns:58px minmax(0,1fr);align-items:center;gap:8px;font-size:12px}.text-run-control+.text-run-control{margin-top:8px}.text-run-control>.toolbar-popover-actions{justify-content:flex-start}.text-highlight-hint{display:block;margin-top:7px;color:#778071}.text-highlight{--text-highlight:#f2d45c;padding:0 .04em;border-radius:.16em .08em .18em .1em;background:linear-gradient(177deg,transparent 10%,color-mix(in srgb,var(--text-highlight) 44%,transparent) 10% 88%,transparent 88%);box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .collage-paper-fibers{background-size:20cqw 20cqw;}
 .washi-tape{background-size:12cqw 12cqw,auto;}
 

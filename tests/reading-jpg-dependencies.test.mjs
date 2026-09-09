@@ -114,7 +114,7 @@ test("per-side paper backgrounds, dates, headers and all piece rendering propert
   changed((s) => { s.paperBg = { src: "/spread.png", x: 5, y: 6, scale: 130 }; });
   changed((s) => { s.days = [{ id: "day", date: "2026-09-10", text: "", title: "", raw: "", photos: [] }]; });
   for (const patch of [
-    { fontFamily: "user:custom", colorRuns: [{ start: 0, end: 1, color: "#abcdef" }] },
+    { fontFamily: "user:custom", colorRuns: [{ start: 0, end: 1, color: "#abcdef" }], highlightRuns: [{ start: 0, end: 1, color: "#f2d45c" }] },
     { cropY: 12, cropZoom: 1.5, flipX: true },
     { drawing: [{ path: "M0 0L10 10", stroke: "#123456", width: 2 }] },
     { hidden: true }, { stackOrder: 35 }, { x: 42, h: 20, rotation: 60 },

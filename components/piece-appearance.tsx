@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react';
 import type { Piece } from '@/lib/journal';
 import {journalFontFamily} from '@/lib/collage';
+import {decoratedTextSegments} from '@/lib/text-runs';
 
 export function pieceAppearance(p:Piece): CSSProperties {
   const stackOrder=(p as Piece & {stackOrder?:number}).stackOrder;
@@ -31,8 +32,7 @@ export function TapeArtwork({piece:p}:{piece:Piece}) {
 }
 
 export function ColoredWriting({piece:p}:{piece:Piece}) {
-  const text=p.text||'',runs=(p.colorRuns||[]).filter(r=>r.start>=0&&r.end<=text.length&&r.end>r.start&&/^#[a-f0-9]{6}$/i.test(r.color));
-  if(!runs.length)return text;
-  const stops=[...new Set([0,text.length,...runs.flatMap(r=>[r.start,r.end])])].sort((a,b)=>a-b);
-  return stops.slice(0,-1).map((start,i)=>{const end=stops[i+1],run=runs.findLast(r=>r.start<=start&&r.end>=end);return <span key={start} style={{color:run?.color}}>{text.slice(start,end)}</span>;});
+  const text=p.text||'',segments=decoratedTextSegments(text,p.colorRuns,p.highlightRuns);
+  if(!p.colorRuns?.length&&!p.highlightRuns?.length)return text;
+  return segments.map(segment=><span key={segment.start} className={segment.highlight?'text-highlight':''} style={{color:segment.color,'--text-highlight':segment.highlight} as CSSProperties}>{segment.text}</span>);
 }

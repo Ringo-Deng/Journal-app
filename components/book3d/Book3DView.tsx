@@ -387,7 +387,15 @@ function RoundedCoverFace({ lining = false, flipped = false }: { lining?: boolea
   const width = BOOK.width + (lining ? -0.08 : 0.1);
   const height = BOOK.height + (lining ? -0.08 : 0.14);
   const geometry = useMemo(() => {
-    const result = new ShapeGeometry(coverOutline(width, height, lining ? 0.11 : 0.15, flipped ? "right" : "left"), 10);
+    const result = new ShapeGeometry(
+      coverOutline(
+        width,
+        height,
+        lining ? 0.11 : 0.15,
+        lining ? null : flipped ? "right" : "left",
+      ),
+      10,
+    );
     const position = result.attributes.position;
     const uv = new Float32Array(position.count * 2);
     for (let i = 0; i < position.count; i += 1) {

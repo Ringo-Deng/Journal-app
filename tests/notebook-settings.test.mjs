@@ -75,7 +75,7 @@ test('restoring notebook copies preserves all pages and image references with in
  spread.days=[{id:'day-a',date:'2026-09-09',raw:'原文',title:'旅行',text:'海边散步',photos:['/uploads/day-original.jpg']}];
  spread.elements=[
   {id:'photo-a',kind:'photo',dayId:'day-a',src:'/uploads/crop.png',photoOriginal:'/uploads/day-original.jpg',x:5,y:10,w:30,rotation:5,locked:true,groupId:'group-a'},
-  {id:'caption-a',kind:'text',dayId:'day-a',text:'海边散步',x:8,y:42,w:25,rotation:0,locked:false,groupId:'group-a',attachedTo:'photo-a',colorRuns:[{start:0,end:2,color:'#336699'}]},
+  {id:'caption-a',kind:'text',dayId:'day-a',text:'海边散步',x:8,y:42,w:25,rotation:0,locked:false,groupId:'group-a',attachedTo:'photo-a',colorRuns:[{start:0,end:2,color:'#336699'}],highlightRuns:[{start:2,end:4,color:'#f2d45c'}]},
  ];
  source.collageTemplates=[{id:'collage-a',name:'照片组合',ratio:1.43,elements:structuredClone(spread.elements)}];
  const another=newBook('2026-08');
@@ -92,7 +92,8 @@ test('restoring notebook copies preserves all pages and image references with in
  }
  assert.deepEqual(notebookUploads(copies),notebookUploads(originals));
  copies[0].flyleaf.elements[0].src='/uploads/copy-only.png';
- copies[0].spreads[0].elements[1].colorRuns[0].color='#ff0000';
+  copies[0].spreads[0].elements[1].colorRuns[0].color='#ff0000';
+  copies[0].spreads[0].elements[1].highlightRuns[0].color='#82bdd5';
  copies[0].spreads[0].days[0].photos.push('/uploads/extra.png');
  copies[0].spreads[0].pages.left.paperBg.x=40;
  copies[0].collageTemplates[0].elements[0].photoOriginal='/uploads/changed.jpg';
