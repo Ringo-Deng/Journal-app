@@ -3590,20 +3590,20 @@ fieldset.book-tools{border-top:0;}
 
 .font-picker-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}.font-picker-row>label{flex:1 1 150px}.font-import-button{white-space:nowrap}.font-import-status{display:block;max-width:260px;color:var(--muted,#746d63);font-size:11px;line-height:1.45;margin-top:-2px}.font-import-status.is-error{color:#9b4b3d}
 
-/* v0.1.18 Pinterest import */
-.pinterest-toggle.active{background:#eef0e4;border-color:#8b9d78;color:#4f6442;}
-.pinterest-import-panel{display:grid;grid-template-columns:minmax(280px,1.4fr) minmax(220px,.9fr) auto;align-items:stretch;gap:10px;flex:none;padding:10px;border:1px solid #d8dccf;border-radius:8px;background:#f8f8f2;}
-.pinterest-input-wrap{display:flex;flex-direction:column;gap:5px;min-width:0;}
-.pinterest-input-wrap textarea{width:100%;height:72px;resize:vertical;min-height:58px;max-height:140px;border:1px solid #cfd5c6;border-radius:6px;background:#fffef9;padding:8px 10px;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#46513f;}
-.pinterest-input-wrap textarea:focus{outline:2px solid #aab99a55;border-color:#879b73;}
+/* Pinterest preview shared by the dedicated material importer. */
 .pinterest-state{font-size:10px;color:#8a755e;overflow-wrap:anywhere;}.pinterest-state.ready{color:#526943;}
 .pinterest-preview{min-height:72px;display:flex;align-items:center;gap:9px;border:1px dashed #cfd5c6;border-radius:6px;background:#fffef9;padding:6px;min-width:0;}
 .pinterest-preview img{width:58px;height:58px;object-fit:contain;border-radius:4px;background:#f2f1eb;flex:none;}
 .pinterest-preview>div:not(.pinterest-placeholder){min-width:0;display:flex;flex-direction:column;gap:4px;}.pinterest-preview strong{font-size:11px;color:#47583e;overflow-wrap:anywhere;}.pinterest-preview small{font-size:10px;line-height:1.45;color:#88917e;}
 .pinterest-placeholder{width:100%;text-align:center;color:#a0a496;font-size:10px;line-height:1.5;padding:8px;}
-.pinterest-import-panel>.primary{align-self:center;white-space:nowrap;font-size:12px;padding:8px 12px;}
-@media(max-width:900px){.pinterest-import-panel{grid-template-columns:1fr auto;}.pinterest-preview{grid-column:1 / -1;order:3;}.pinterest-import-panel>.primary{grid-column:2;grid-row:1;}}
-@media(max-width:600px){.pinterest-import-panel{grid-template-columns:1fr;}.pinterest-import-panel>.primary{grid-column:1;grid-row:auto;}.pinterest-preview{grid-column:1;}}
+
+/* Material acquisition is a dedicated main-rail action; processing remains in Material Studio. */
+.material-import-dialog{width:min(760px,calc(100vw - 32px))!important;max-width:760px!important;gap:14px!important;}
+.material-import-local{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px;border:1px solid #d8dccf;border-radius:9px;background:#f8f8f2;}
+.material-import-local>svg{width:28px;height:28px;color:#687d59;stroke-width:1.5;}.material-import-local>div{display:flex;flex-direction:column;gap:3px;min-width:0;}.material-import-local strong,.material-import-pinterest>label{font-size:13px;font-weight:500;color:#46513f;}.material-import-local small{font-size:11px;line-height:1.5;color:#818a78;}
+.material-import-pinterest{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;padding:14px;border:1px solid #d8dccf;border-radius:9px;background:#f8f8f2;}.material-import-pinterest>label,.material-import-pinterest>textarea,.material-import-pinterest>.pinterest-state{grid-column:1 / -1;}.material-import-pinterest>textarea{width:100%;height:76px;resize:vertical;min-height:64px;max-height:150px;border:1px solid #cfd5c6;border-radius:6px;background:#fffef9;padding:8px 10px;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#46513f;}.material-import-pinterest>textarea:focus{outline:2px solid #aab99a55;border-color:#879b73;}.material-import-pinterest>.primary{align-self:center;white-space:nowrap;}
+.material-import-status{display:block;min-height:18px;font-size:11px;line-height:1.5;color:#66765a;overflow-wrap:anywhere;}
+@media(max-width:600px){.material-import-local{grid-template-columns:auto minmax(0,1fr);}.material-import-local>.primary{grid-column:1 / -1;}.material-import-pinterest{grid-template-columns:1fr;}.material-import-pinterest>.pinterest-preview,.material-import-pinterest>.primary{grid-column:1;}}
 
 /* v0.1.20 — soft plaid cloth cover art, inspired by a sewn stationery notebook. */
 .texture-linen{

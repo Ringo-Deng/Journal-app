@@ -25,6 +25,7 @@ import PageTurn, {SpreadPreview} from '@/components/page-turn';
 import type { CSSProperties } from 'react';
 import { paperSettings, applyPaper, type PaperStyle } from '@/lib/journal';
 import MaterialStudio from '@/components/material-studio';
+import MaterialImporter from '@/components/material-importer';
 import MaterialLibrary from '@/components/material-library';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
@@ -211,8 +212,9 @@ export default function Home() {
   const [panel, setPanel] = useState<'write' | 'edit' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'settings' | 'covers' | 'index' | 'studio' | 'paper' | 'date' | 'header' | 'history' | null
+      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | null
     >(null);
+  const [materialStudioNotice,setMaterialStudioNotice]=useState('');
   const [date, setDate] = useState(today()),
     [raw, setRaw] = useState(''),
     [photos, setPhotos] = useState<string[]>([]),
@@ -1610,6 +1612,7 @@ export default function Home() {
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
         <button className={libraryOpen?'active':''} aria-label="素材库" disabled={!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null);}}><Layers/><span>素材</span></button>
+        <button className={modal==='material-import'?'active':''} aria-label="导入素材" onClick={()=>setModal('material-import')}><ImagePlus/><span>导入</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
@@ -1782,7 +1785,7 @@ export default function Home() {
               </p>
             )}
           </section>
-        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onImport={()=>setModal('studio')} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
+        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onImport={()=>setModal('material-import')} onOpenStudio={()=>{setMaterialStudioNotice('');setModal('studio')}} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
           {loadError ? (
             <div className="error-box">
               <h2>暂时读不到手帐</h2>
@@ -2961,10 +2964,16 @@ export default function Home() {
           </button>
         </DialogContent>
       </Dialog>
+      <MaterialImporter
+        open={modal === 'material-import'}
+        onClose={() => setModal(null)}
+        onReady={(message) => {setMaterialStudioNotice(message);setModal('studio')}}
+      />
       <MaterialStudio
         open={modal === 'studio'}
         onClose={() => setModal(null)}
         onImported={setAssets}
+        notice={materialStudioNotice}
       />
       <Dialog
         open={modal === 'settings'}

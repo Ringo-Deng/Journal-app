@@ -17,22 +17,9 @@ async function request<T>(path:string,data?:unknown):Promise<T>{
  if(!r.ok)throw Error(result.error||'素材处理失败');
  return result;
 }
-function localPinterestPinId(value:string){
- const raw=value.trim();
- if(/^\d{6,30}$/.test(raw))return raw;
- const iframe=/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i.exec(raw);
- const candidate=iframe?iframe[1]:raw;
- try{
-  const url=new URL(candidate.replace(/&amp;/gi,'&'));
-  if(url.hostname==='assets.pinterest.com')return /^\d{6,30}$/.test(url.searchParams.get('id')||'')?url.searchParams.get('id')||'':'';
-  if(!(url.hostname==='pinterest.com'||url.hostname.endsWith('.pinterest.com')))return '';
-  return /\/pin\/(?:[^/]*--)?(\d{6,30})(?:\/|$)/i.exec(url.pathname)?.[1]||'';
- }catch{return '';}
-}
-
-export default function MaterialStudio({open,onClose,onImported}:{open:boolean;onClose:()=>void;onImported:(a:Asset[])=>void}){
- const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[progress,setProgress]=useState(''),[pinterestOpen,setPinterestOpen]=useState(false),[pinterestInput,setPinterestInput]=useState(''),[pinterestPreview,setPinterestPreview]=useState<{pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]}|null>(null),[pinterestSelected,setPinterestSelected]=useState(''),[pinterestStatus,setPinterestStatus]=useState('等待粘贴'),[pinterestResolving,setPinterestResolving]=useState(false);
- const file=useRef<HTMLInputElement>(null),imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null),pinterestSeq=useRef(0);
+export default function MaterialStudio({open,onClose,onImported,notice}:{open:boolean;onClose:()=>void;onImported:(a:Asset[])=>void;notice?:string}){
+ const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[progress,setProgress]=useState('');
+ const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
  const job=jobs.find(j=>j.id===active);
 
  function choose(j:Job){
@@ -41,16 +28,17 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
  useEffect(()=>{
   if(!open)return;
   let cancelled=false;
-  setMessage('');
+  setMessage(notice||'');
   request<Job[]>('/jobs').then(list=>{
    if(cancelled)return;
    setJobs(list);
    // /source is created before this dialog opens when the user chooses “再次编辑”.
    // Always select the newest job so a stale active id cannot make two sources fight on screen.
    if(list[0])choose(list[0]);
+   if(notice)setMessage(notice);
   }).catch(e=>{if(!cancelled)setMessage(e.message)});
   return()=>{cancelled=true};
- },[open]);
+ },[open,notice]);
  useEffect(()=>{
   const el=imageViewport.current;if(!open||!el)return;
   let frame=0;
@@ -73,23 +61,6 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
   if(rect){setSelected(next.items.filter(i=>!job?.items.some(old=>old.id===i.id)).map(i=>i.id));setNames(Object.fromEntries(next.items.map(i=>[i.id,i.name])));setCrop(null)}else choose(next);
   return next;
  }
- async function recognizePinterest(value:string){
-  setPinterestInput(value);const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
-  if(!value.trim()){setPinterestPreview(null);setPinterestStatus('等待粘贴');setPinterestResolving(false);return}
-  if(!pinId){setPinterestPreview(null);setPinterestStatus('未识别到 Pinterest Pin');setPinterestResolving(false);return}
-  setPinterestPreview(null);setPinterestStatus(`已识别 Pin ${pinId} · 正在读取预览…`);setPinterestResolving(true);
-  try{const result=await request<{pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]}>('/pinterest/resolve',{input:value});if(seq!==pinterestSeq.current)return;setPinterestPreview(result);setPinterestSelected(result.images[0]?.downloadUrl||'');setPinterestStatus(result.images.length>1?`已识别 Pin ${result.pinId} · 请选择 1 张图片`:`已识别 Pin ${result.pinId}`)}catch(e){if(seq===pinterestSeq.current){setPinterestPreview(null);setPinterestStatus((e as Error).message)}}finally{if(seq===pinterestSeq.current)setPinterestResolving(false)}
- }
- async function importPinterest(){
-  if(!pinterestPreview||!pinterestInput.trim())return;setBusy(true);setProgress('正在下载 Pinterest 最高质量素材图…');setMessage('');
-  try{
-   const imported=await request<{src:string;name:string;duplicate:boolean;autoSegment:boolean;pinId:string}>('/pinterest/import',{input:pinterestInput,imageUrl:pinterestSelected});
-   setProgress(imported.duplicate?'已找到现有素材，正在打开处理记录…':imported.autoSegment?'下载完成，正在自动拆分素材…':'下载完成，正在打开手动裁切工作台…');
-   let next=(await request<Job[]>('/jobs')).find(item=>item.source===imported.src);
-   if(!next)next=imported.autoSegment?await processImage(imported.src,imported.name):await request<Job>('/source',{src:imported.src,name:imported.name});
-   setJobs(old=>[next!,...old.filter(item=>item.source!==next!.source)]);choose(next);setPinterestOpen(false);setPinterestStatus(`已识别 Pin ${imported.pinId}`);setMessage(imported.duplicate?'这个 Pinterest 素材已经导入过，已打开现有处理记录，可继续处理。':imported.autoSegment?'Pinterest 原图已保存，并进入自动拆素材流程。':'Pinterest 原图已保存。当前系统使用手动框选裁切，不会调用 Mac 自动拆图。');
-  }catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
- }
  async function browserCrop(rect?:number[]){
   if(!job||!rect)return;setBusy(true);setProgress('正在裁出框选区域…');
   try{
@@ -99,10 +70,6 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
    const response=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:canvas.toDataURL('image/png')})});const uploaded=await response.json() as {src:string;error?:string};if(!response.ok)throw Error(uploaded.error||'裁切图片保存失败');
    const next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh});setJobs(old=>old.map(item=>item.id===next.id?next:item));choose(next);setMessage('已保留框选区域，可继续框选其他素材或直接加入素材库。');
   }catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
- }
- async function upload(files:FileList|null){
-  if(!files?.length)return;setBusy(true);setMessage('');const list=Array.from(files);let completed=0,total=0;const errors:string[]=[];
-  try{for(const f of list){setProgress(`正在处理 ${completed+1} / ${list.length}：${f.name}`);try{if(!['image/png','image/jpeg','image/webp'].includes(f.type)||f.size>10*1024*1024)throw Error('请选择 10 MB 以内的 JPG、PNG 或 WebP');const data=await new Promise<string>((ok,fail)=>{const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'?ok(reader.result):fail(Error('图片读取失败'));reader.onerror=()=>fail(Error('图片读取失败'));reader.readAsDataURL(f)});const res=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data})});const uploaded=await res.json() as {src:string;error?:string};if(!res.ok)throw Error(uploaded.error||'上传失败');const next=await processImage(uploaded.src,f.name);total+=next.items.length}catch(e){errors.push(`${f.name}：${(e as Error).message}`)}completed++}setMessage(`已处理 ${completed-errors.length} 张图片，拆出 ${total} 个素材。${errors.join('；')}`)}finally{setBusy(false);setProgress('');if(file.current)file.current.value=''}
  }
  async function rerun(rect?:number[],overrideMode?:string,adaptive=false){
   if(!job)return;if(job.manualOnly&&overrideMode==='crop')return void browserCrop(rect);if(job.manualOnly&&overrideMode==='single'){setMessage('当前系统暂不支持自动去底；可使用“保留原底裁出”。');return}
@@ -123,8 +90,6 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
   <DialogDescription className="studio-accessible-description">导入原图，按纸底或纹样分区拆分；支持缩放、拖动与手动框选。</DialogDescription>
   <div className="studio-topline">
    <DialogTitle>素材工作台</DialogTitle>
-   <button className="primary" disabled={busy} onClick={()=>file.current?.click()}><ImagePlus/>导入图片</button>
-   <button className={`outline pinterest-toggle ${pinterestOpen?'active':''}`} disabled={busy} onClick={()=>setPinterestOpen(v=>!v)}>Pinterest 导入</button>
    <select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}><option value="auto">自动分离</option><option value="panels">底色 / 纹样分区</option><option value="paper">带色纸底分离</option><option value="dense">密集贴纸细分</option><option value="ai">本机 AI 主体识别</option></select>
    <label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label>
    <button className="outline" disabled={busy||!job||!!job.manualOnly} title="按当前选择的模式和去底强度重新识别，保留已入库及手动框选的素材" onClick={()=>void rerun()}><RotateCcw/>按当前设置识别</button>
@@ -133,7 +98,6 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
    <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setCrop(null)}}><Scissors/>{cropping?'退出框选':'框选单个素材'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}
   </div>
-  {pinterestOpen&&<section className="pinterest-import-panel" aria-label="Pinterest 素材导入"><div className="pinterest-input-wrap"><textarea aria-label="Pinterest 链接、Pin ID 或嵌入代码" placeholder={'粘贴 Pinterest 链接、Pin ID 或嵌入代码\n例如：<iframe src="https://assets.pinterest.com/ext/embed.html?id=…"></iframe>'} value={pinterestInput} disabled={busy} onChange={e=>void recognizePinterest(e.target.value)}/><span className={`pinterest-state ${pinterestPreview?'ready':''}`}>{pinterestResolving?'正在读取…':pinterestStatus}</span></div><div className="pinterest-preview">{pinterestPreview?<><div className="pinterest-image-choices">{pinterestPreview.images.map(image=><button type="button" key={image.id} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>setPinterestSelected(image.downloadUrl)}><img src={image.previewUrl} alt={`Pinterest 图片 ${image.id}`}/><span>{pinterestSelected===image.downloadUrl?'已选择':'选择这张'}</span></button>)}</div><div><strong>Pin {pinterestPreview.pinId}</strong><small>{pinterestPreview.images.length>1?'这个 Pin 有多张图，请先选择其中 1 张。':'已准备好进入素材处理台。'}</small></div></>:<div className="pinterest-placeholder">粘贴后会自动识别 Pin 并显示预览</div>}</div><button className="primary" disabled={busy||pinterestResolving||!pinterestPreview||!pinterestSelected} onClick={()=>void importPinterest()}>{busy?'正在导入…':'进入处理台'}</button></section>}
   <div className="studio-body">
    <aside className="studio-history"><h3>导入记录</h3>{jobs.map(j=><button key={j.id} disabled={busy} className={active===j.id?'active':''} onClick={()=>choose(j)}><img src={j.source} alt="导入原图缩略图"/><span>{j.name}<small>{j.items.length} 个结果 · {j.engine}{j.attempt&&j.attempt>1?` · 已识别 ${j.attempt} 次`:''}</small></span></button>)}{!jobs.length&&<p>导入的原图和切分结果<br/>会保存在这里。</p>}</aside>
    <main className="studio-main">{job?<div className="studio-columns">
@@ -145,9 +109,8 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
      </div>
     </section>
     <section className="studio-results"><div className="row"><h3>分离结果 <small>{job.items.length} 个</small></h3><button className="quiet" disabled={busy} onClick={()=>setSelected(job.items.filter(i=>!i.imported).map(i=>i.id))}><CheckCheck/>全选</button><button className="quiet" disabled={busy} onClick={()=>setSelected([])}>清空选择</button></div><div className="sticker-grid">{job.items.map(item=><article className={selected.includes(item.id)?'chosen':''} key={item.id}><label className="transparent-preview material-select-preview" htmlFor={`material-select-${item.id}`} data-disabled={busy||item.imported?'':undefined} title={item.imported?'已入库':busy?'正在处理…':selected.includes(item.id)?'点击取消选择':'点击选择素材'}><img src={item.src} alt={names[item.id]||item.name} draggable={false}/><Checkbox id={`material-select-${item.id}`} aria-label={`选择${item.name}`} disabled={busy||item.imported} checked={item.imported||selected.includes(item.id)} onCheckedChange={v=>setSelected(ids=>v?[...ids.filter(id=>id!==item.id),item.id]:ids.filter(id=>id!==item.id))}/>{item.imported&&<span className="imported-label"><Check/>已入库</span>}</label><input aria-label="素材名称" value={names[item.id]??item.name} disabled={item.imported||busy} maxLength={80} onChange={e=>setNames(old=>({...old,[item.id]:e.target.value}))}/><small>{item.width} × {item.height} · PNG</small></article>)}</div>{!job.items.length&&<p className="studio-empty-result">没有检测到可分离素材。尝试降低去底强度、切换模式，或框选单个素材。</p>}</section>
-   </div>:<div className="studio-empty"><ImagePlus/><h2>一张素材纸，变成一整盒贴纸。</h2><p>支持 JPG、PNG、WebP，可一次选择多张。<br/>透明或浅色底、素材之间有间隔的图片，通常更容易完整拆分。</p><button className="primary" disabled={busy} onClick={()=>file.current?.click()}><Plus/>选择素材图片</button></div>}</main>
+   </div>:<div className="studio-empty"><ImagePlus/><h2>还没有可处理的素材。</h2><p>请从主面板左侧的“导入”进入，添加本机图片或 Pinterest 素材。</p></div>}</main>
   </div>
   <footer className="studio-footer"><span className="studio-status" role="status">{busy?(progress||'正在保存…'):(message||'原图保留在本机；分类和标签可在素材库中整理。')}</span><button className="primary" disabled={busy||!selected.length} onClick={()=>void importItems()}>{busy?<Loader2 className="spinning"/>:<Plus/>}将选中的 {selected.length} 个素材入库</button></footer>
-  <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={e=>void upload(e.target.files)}/>
  </DialogContent></Dialog>;
 }
