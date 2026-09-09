@@ -41,6 +41,7 @@ import {
 import "./book3d.css";
 import BookSpine from "./BookSpine";
 import { coverOutline } from "./cover-geometry";
+import { createPaperGeometry, createPaperStackGeometry, paperCurveSample } from "./paper-geometry";
 import { createPortal } from "react-dom";
 import {
   BookSceneContext,
@@ -171,36 +172,28 @@ function PageSurface({
 }) {
   const { BOOK } = useBookScene();
   const map = usePaperTexture(page);
+  const geometry = useMemo(() => createPaperGeometry(BOOK, side), [BOOK, side]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh position={[(side * BOOK.width) / 2, 0, z]} receiveShadow onPointerDown={onPointerDown}>
-      <planeGeometry args={[BOOK.width, BOOK.height]} />
+    <mesh geometry={geometry} position={[0, 0, z]} receiveShadow onPointerDown={onPointerDown}>
       <meshStandardMaterial map={map} roughness={0.93} />
     </mesh>
   );
 }
 
 function PaperStack({ side, count }: { side: -1 | 1; count: number }) {
-  const { BOOK, stackTop } = useBookScene();
-  if (!count) return null;
-  const depth = count * BOOK.sheet;
+  const { BOOK } = useBookScene();
+  const geometry = useMemo(() => count ? createPaperStackGeometry(BOOK, count, side) : null, [BOOK, count, side]);
+  useEffect(() => () => { geometry?.body.dispose(); geometry?.edges.dispose(); }, [geometry]);
+  if (!geometry) return null;
   return (
-    <group>
-      <mesh position={[(side * BOOK.width) / 2, 0, BOOK.base + depth / 2]} castShadow receiveShadow>
-        <boxGeometry args={[BOOK.width, BOOK.height, depth]} />
+    <group position={[0, 0, BOOK.base]}>
+      <mesh geometry={geometry.body} castShadow receiveShadow>
         <meshStandardMaterial color="#f1eadb" roughness={0.96} />
       </mesh>
-      {Array.from({ length: count }, (_, i) => (
-        <group key={i}>
-          <mesh position={[side * BOOK.width, 0, stackTop(i) + 0.008]}>
-            <boxGeometry args={[0.006, BOOK.height, 0.003]} />
-            <meshStandardMaterial color="#c9bea9" roughness={1} />
-          </mesh>
-          <mesh position={[(side * BOOK.width) / 2, -BOOK.height / 2 - 0.001, stackTop(i) + 0.008]}>
-            <boxGeometry args={[BOOK.width, 0.006, 0.003]} />
-            <meshStandardMaterial color="#d2c7b2" roughness={1} />
-          </mesh>
-        </group>
-      ))}
+      <lineSegments geometry={geometry.edges} raycast={() => {}}>
+        <lineBasicMaterial color="#d2c7b2" />
+      </lineSegments>
     </group>
   );
 }
@@ -222,14 +215,13 @@ function TurningPage({
   const front = usePaperTexture(leaf * 2);
   const back = usePaperTexture(leaf * 2 + 1, true);
   const geometry = useMemo(() => {
-    const result = new PlaneGeometry(BOOK.width, BOOK.height, BOOK.segments, 8);
-    result.translate(BOOK.width / 2, 0, 0);
+    const result = createPaperGeometry(BOOK);
     result.setAttribute(
       "color",
       new Float32BufferAttribute(new Float32Array(result.attributes.position.count * 3).fill(1), 3),
     );
     return result;
-  }, []);
+  }, [BOOK]);
   const lastProgress = useRef(-1);
   const twist = useRef(0);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -249,19 +241,14 @@ function TurningPage({
         : [samplePaper(progress.current, leaf, BOOK, paperStyle)];
     const positions = geometry.attributes.position;
     for (let i = 0; i < positions.count; i++) {
-      const points = rows.length === 1 ? rows[0] : rows[Math.floor(i / (BOOK.segments + 1))];
-      const point = points[i % (BOOK.segments + 1)];
+      const points = rows.length === 1 ? rows[0] : rows[Math.floor(i / (geometry.parameters.widthSegments + 1))];
+      const point = paperCurveSample(points, geometry.attributes.uv.getX(i));
       positions.setX(i, point.x);
       positions.setZ(i, point.z);
       // A restrained tone change follows each strip's orientation, on both faces.
-      const next = points[Math.min(points.length - 1, (i % (BOOK.segments + 1)) + 1)];
-      const prev = points[Math.max(0, (i % (BOOK.segments + 1)) - 1)];
-      const facing = Math.abs(
-        (next.x - prev.x) / Math.max(1e-6, Math.hypot(next.x - prev.x, next.z - prev.z)),
-      );
       const tone =
         paperStyle !== "original"
-          ? 1 - 0.16 * Math.sin(Math.PI * progress.current) * (1 - facing)
+          ? 1 - 0.16 * Math.sin(Math.PI * progress.current) * (1 - point.facing)
           : 1;
       geometry.attributes.color.setXYZ(i, tone, tone, tone);
     }
