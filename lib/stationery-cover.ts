@@ -1,92 +1,62 @@
 /** Original stationery artwork inspired by the supplied notebook reference. */
-const safeText = (value: string) =>
-  value.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!,
-  );
+export function stationeryCoverSvg(title: string, color: string) {
+  const safe = (value: string) =>
+    value.replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!,
+    );
+  const base = /^#[0-9a-f]{6}$/i.test(color) ? color : "#f4ce75";
+  const creamPlaid = base.toLowerCase() === "#f4ce75";
 
-function paletteFor(color: string) {
-  const base = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : "#f4ce75";
-  if (base === "#f4ce75") return { base: "#f8e99b", band: "#edd36c", light: "#fffbe4", ribbon: "#dfa72f" };
-  if (base === "#e8b9ba") return { base: "#efc9cb", band: "#dfaeb0", light: "#fff3f3", ribbon: "#cf8f98" };
-  if (base === "#91a9b5") return { base: "#bfd1da", band: "#9fb9c5", light: "#eef7fa", ribbon: "#7698aa" };
-  return { base, band: "#ffffff", light: "#ffffff", ribbon: base };
-}
-
-function plaidDefs(color: string) {
-  const p = paletteFor(color);
-  return `<pattern id="plaid" width="112" height="112" patternUnits="userSpaceOnUse">
-    <rect width="112" height="112" fill="${p.base}"/>
-    <path d="M28 0V112M0 28H112" stroke="${p.band}" stroke-width="56" opacity=".24"/>
-    <path d="M0 0H112M0 56H112M0 112H112M0 0V112M56 0V112M112 0V112" stroke="${p.light}" stroke-width="16" opacity=".78"/>
-  </pattern>`;
-}
-
-/** Front-face artwork used by the real 3D reading cover. */
-export function stationeryCoverSvg(_title: string, color: string) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
+  // The奶黄格纹款 keeps only the clean gingham board artwork here.
+  // Its brown binding is rendered separately by the real 3D BookSpine geometry,
+  // so no flat spine strip is baked into the front-cover image.
+  if (creamPlaid) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
   <defs>
-    <clipPath id="cover"><rect width="600" height="900" rx="22"/></clipPath>
-    ${plaidDefs(color)}
+    <clipPath id="cover"><rect width="600" height="900" rx="18"/></clipPath>
+    <pattern id="plaid" width="112" height="112" patternUnits="userSpaceOnUse">
+      <rect width="112" height="112" fill="#f8e99b"/>
+      <path d="M28 0V112M0 28H112" stroke="#edd36c" stroke-width="56" opacity=".26"/>
+      <path d="M0 0H112M0 56H112M0 112H112M0 0V112M56 0V112M112 0V112" stroke="#fffbe4" stroke-width="16" opacity=".85"/>
+    </pattern>
   </defs>
   <g clip-path="url(#cover)">
     <rect width="600" height="900" fill="url(#plaid)"/>
-    <rect x="170" y="165" width="260" height="112" rx="18" fill="#fffaf0" opacity=".97"/>
-    <rect x="178" y="173" width="244" height="96" rx="14" fill="none" stroke="#8f8171" stroke-width="2.5" opacity=".48"/>
-    <text x="300" y="235" text-anchor="middle" fill="#6d6258" font-family="Georgia, Times New Roman, serif" font-size="38" letter-spacing="8">NOTES</text>
   </g>
   </svg>`;
-}
+  }
 
-/** Complete regular-notebook preview used in the library and cover picker. */
-export function stationeryBookPreviewSvg(color: string) {
-  const p = paletteFor(color);
+  const label = safe(title || "拾光集");
+  const size = Math.min(29, 230 / Math.max(1, [...title].length));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
   <defs>
-    ${plaidDefs(color)}
-    <filter id="shadow" x="-20%" y="-20%" width="150%" height="160%"><feDropShadow dx="8" dy="14" stdDeviation="14" flood-color="#3f3328" flood-opacity=".18"/></filter>
-    <linearGradient id="spine" x2="1"><stop stop-color="#453528"/><stop offset=".48" stop-color="#5b4433"/><stop offset="1" stop-color="#3d2f25"/></linearGradient>
+    <pattern id="plaid" width="96" height="96" patternUnits="userSpaceOnUse"><rect width="96" height="96" fill="${base}"/><path d="M24 0V96M0 24H96" stroke="#fff4d2" stroke-width="17" opacity=".52"/><path d="M67 0V96M0 67H96" stroke="#ba8b42" stroke-width="2" opacity=".2"/><path d="M76 0V96M0 76H96" stroke="#fff9df" stroke-width="4" opacity=".5"/></pattern>
+    <pattern id="weave" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M0 1H5M1 0V5" stroke="#fff" stroke-width=".5" opacity=".16"/></pattern>
+    <linearGradient id="snap" x2=".8" y2="1"><stop stop-color="#fffff4"/><stop offset="1" stop-color="#d9d9c7"/></linearGradient>
+    <clipPath id="cloth"><rect x="64" y="10" width="510" height="822" rx="43"/></clipPath>
   </defs>
-  <g filter="url(#shadow)">
-    <rect x="67" y="43" width="462" height="794" rx="38" fill="#fffaf0"/>
-    <rect x="67" y="43" width="72" height="794" rx="35" fill="url(#spine)"/>
-    <path d="M106 63V817" stroke="#aa9278" stroke-width="3" stroke-dasharray="11 9" opacity=".65"/>
-    <path d="M139 45H496Q527 45 527 76V768H139Z" fill="url(#plaid)"/>
-    <rect x="139" y="756" width="388" height="80" fill="#fffaf0"/>
-    <path d="M151 774H515M151 788H511M151 802H508M151 816H503" stroke="#ddd5c7" stroke-width="2" opacity=".95"/>
-    <path d="M176 791H220V856L198 844L176 856Z" fill="${p.ribbon}"/>
-    <rect x="229" y="174" width="220" height="102" rx="17" fill="#fffaf0" opacity=".98"/>
-    <rect x="237" y="182" width="204" height="86" rx="13" fill="none" stroke="#8f8171" stroke-width="2.5" opacity=".5"/>
-    <text x="339" y="239" text-anchor="middle" fill="#6d6258" font-family="Georgia, Times New Roman, serif" font-size="36" letter-spacing="8">NOTES</text>
-    <rect x="469" y="384" width="94" height="142" rx="22" fill="${p.base}"/>
-    <path d="M482 397H550V513H482" fill="none" stroke="${p.light}" stroke-width="3" stroke-dasharray="6 6" opacity=".9"/>
-    <circle cx="509" cy="455" r="25" fill="#fffaf0" stroke="#ded8ca" stroke-width="3"/>
-    <circle cx="509" cy="455" r="9" fill="#d9d1c3" opacity=".55"/>
-  </g>
+  <rect x="14" y="12" width="562" height="878" rx="48" fill="#51402e"/>
+  <rect x="23" y="19" width="552" height="860" rx="42" fill="#654c34"/>
+  <g clip-path="url(#cloth)"><rect x="64" y="10" width="510" height="822" fill="url(#plaid)"/><rect x="64" y="10" width="510" height="822" fill="url(#weave)"/></g>
+  <rect x="30" y="811" width="530" height="60" rx="28" fill="#fffbed"/>
+  <path d="M49 826H547M47 837H541M52 848H531M65 858H514" stroke="#dbd5c5" stroke-width="2"/>
+  <path d="M93 838H144V899L118 889L93 899Z" fill="#e9ad5a"/>
+  <path d="M69 16V829" stroke="#b89959" stroke-width="3" stroke-dasharray="14 9" opacity=".8"/>
+  <ellipse cx="329" cy="232" rx="152" ry="86" fill="#8c763b" opacity=".13"/>
+  <ellipse cx="325" cy="224" rx="151" ry="84" fill="#fff6dc"/>
+  <ellipse cx="325" cy="224" rx="142" ry="75" fill="none" stroke="#71838a" stroke-width="2.5"/>
+  <text x="325" y="216" text-anchor="middle" fill="#506c78" font-family="Kaiti SC, KaiTi, cursive" font-size="${size}" letter-spacing="3">${label}</text>
+  <path d="M225 243H425M259 266H391" stroke="#829092" stroke-width="2"/>
+  <rect x="446" y="388" width="150" height="147" rx="25" fill="#8f6829" opacity=".16"/>
+  <rect x="440" y="380" width="150" height="147" rx="25" fill="url(#plaid)"/>
+  <rect x="440" y="380" width="150" height="147" rx="25" fill="url(#weave)"/>
+  <path d="M454 390H578V515H454" fill="none" stroke="#fff2c8" stroke-width="2" stroke-dasharray="5 5" opacity=".8"/>
+  <ellipse cx="504" cy="463" rx="33" ry="31" fill="#685537" opacity=".16"/>
+  <circle cx="501" cy="452" r="31" fill="url(#snap)" stroke="#e6e3cb" stroke-width="2"/>
+  <text x="324" y="752" text-anchor="middle" fill="#66512f" font-family="cursive" font-size="19" letter-spacing="2">shiguang</text>
   </svg>`;
 }
-
-/** Travel Notes keeps its previous title-based preview until its own artwork is designed. */
-export function stationeryTravelPreviewSvg(title: string, color: string) {
-  const label = safeText(title || "拾光集");
-  const size = Math.min(29, 230 / Math.max(1, [...(title || "拾光集")].length));
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
-  <defs>${plaidDefs(color)}</defs>
-  <rect width="600" height="900" rx="22" fill="url(#plaid)"/>
-  <ellipse cx="300" cy="230" rx="151" ry="84" fill="#fff6dc"/>
-  <ellipse cx="300" cy="230" rx="142" ry="75" fill="none" stroke="#71838a" stroke-width="2.5"/>
-  <text x="300" y="222" text-anchor="middle" fill="#506c78" font-family="Kaiti SC, KaiTi, cursive" font-size="${size}" letter-spacing="3">${label}</text>
-  <path d="M200 249H400M234 272H366" stroke="#829092" stroke-width="2"/>
-  </svg>`;
-}
-
-const dataUrl = (svg: string) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 export function stationeryCoverUrl(title: string, color: string) {
-  return dataUrl(stationeryCoverSvg(title, color));
-}
-export function stationeryBookPreviewUrl(color: string) {
-  return dataUrl(stationeryBookPreviewSvg(color));
-}
-export function stationeryTravelPreviewUrl(title: string, color: string) {
-  return dataUrl(stationeryTravelPreviewSvg(title, color));
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(stationeryCoverSvg(title, color));
 }
