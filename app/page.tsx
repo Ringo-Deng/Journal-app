@@ -241,12 +241,13 @@ export default function Home() {
   const [dateLabel, setDateLabel] = useState(today()),
     [dateFormat, setDateFormat] = useState('simple'),
     [dateSide, setDateSide] = useState('left');
-  const [turnTarget, setTurnTarget] = useState(0),
-    [turnProgress, setTurnProgress] = useState(0),
+  const [turnProgress, setTurnProgress] = useState(0),
     [turnSettling, setTurnSettling] = useState(false);
   const turnRef = useRef<{
       direction: number;
       target: number;
+      source: Spread;
+      sourceIndex: number;
       progress: number;
       settling: boolean;
     } | null>(null),
@@ -340,7 +341,8 @@ export default function Home() {
   }, [books]);
   const book = books.find((b) => b.id === bookId) || books[0],
     spread = book ? (page === -1 ? book.flyleaf : book.spreads[page]) : undefined,
-    piece = spread?.elements.find((e) => e.id === selected);
+    piece = spread?.elements.find((e) => e.id === selected),
+    activeTurn = turnRef.current;
   const activePieces=spread?.elements.filter(p=>multiIds.length?multiIds.includes(p.id):p.id===selected||!!piece?.groupId&&piece.groupId!==editingGroup&&p.groupId===piece.groupId)||[];
   const activeUnitCount=new Set(activePieces.map(p=>p.groupId?`group:${p.groupId}`:`piece:${p.id}`)).size;
   const multiSelection=activeUnitCount>1;
@@ -783,12 +785,13 @@ export default function Home() {
     turnRef.current = {
       direction,
       target,
+      source: spread,
+      sourceIndex: page,
       progress: 0,
       settling: false,
     };
     setSelected(null);
     setFlipping(direction > 0 ? 'next' : 'previous');
-    setTurnTarget(target);
     setTurnProgress(0);
     setTurnSettling(false);
     return true;
@@ -819,19 +822,22 @@ export default function Home() {
     setFlipping('');setTurnProgress(0);setTurnSettling(false);turnRef.current=null;
   }
   function finishTurn(t:NonNullable<typeof turnRef.current>){
-    setPage(t.target);
-    requestAnimationFrame(()=>{
-      const images=Array.from(canvas.current?.querySelectorAll<HTMLImageElement>(':scope > .notebook-page-layer img, :scope > .piece img')||[]);
-      const ready=images.map(img=>img.complete?img.decode().catch(()=>{}):new Promise<void>(resolve=>{
-        const done=()=>resolve();
-        img.addEventListener('load',done,{once:true});
-        img.addEventListener('error',done,{once:true});
-      }));
-      void Promise.race([
-        Promise.all(ready),
-        new Promise<void>(resolve=>setTimeout(resolve,1200)),
-      ]).then(()=>requestAnimationFrame(()=>clearTurn(t)));
-    });
+    const images=Array.from(canvas.current?.querySelectorAll<HTMLImageElement>('.page-turn-layer .turn-reveal img')||[]);
+    const ready=images.map(img=>new Promise<void>(resolve=>{
+      const cleanup=()=>{img.removeEventListener('load',done);img.removeEventListener('error',done);};
+      const done=()=>{cleanup();void img.decode().catch(()=>{}).then(()=>resolve());};
+      img.addEventListener('load',done,{once:true});
+      img.addEventListener('error',done,{once:true});
+      if(img.complete)done();
+    }));
+    void Promise.race([
+      Promise.all(ready),
+      new Promise<void>(resolve=>setTimeout(resolve,1200)),
+    ]).then(()=>requestAnimationFrame(()=>{
+      if(turnRef.current!==t)return;
+      setPage(t.target);
+      clearTurn(t);
+    }));
   }
   function settleTurn(complete: boolean) {
     const t = turnRef.current;
@@ -2033,17 +2039,17 @@ export default function Home() {
                         onClick={() => flip(1)}
                       />
                       {flipping &&
+                        activeTurn &&
                         book &&
-                        spread &&
-                        sheetAt(book, turnTarget) && (
+                        sheetAt(book, activeTurn.target) && (
                           <PageTurn
                             book={book}
-                            from={spread}
-                            to={sheetAt(book, turnTarget)!}
-                            fromFlyleaf={page === -1}
-                            toFlyleaf={turnTarget === -1}
-                            fromIndex={page}
-                            toIndex={turnTarget}
+                            from={activeTurn.source}
+                            to={sheetAt(book, activeTurn.target)!}
+                            fromFlyleaf={activeTurn.sourceIndex === -1}
+                            toFlyleaf={activeTurn.target === -1}
+                            fromIndex={activeTurn.sourceIndex}
+                            toIndex={activeTurn.target}
                             assets={assets}
                             direction={flipping}
                             progress={turnProgress}

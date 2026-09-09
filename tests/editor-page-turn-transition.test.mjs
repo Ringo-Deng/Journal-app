@@ -14,11 +14,20 @@ test('editor page turns paint the complete segmented leaf frame without rerender
   assert.match(leaf, /data-leaf-index=\{i\}/);
 });
 
-test('the completed snapshot stays mounted until the live target page has painted', () => {
+test('the turn keeps an immutable source snapshot while the live page is unchanged', () => {
+  assert.match(page, /source: spread/);
+  assert.match(page, /sourceIndex: page/);
+  assert.match(page, /from=\{activeTurn\.source\}/);
+  assert.match(page, /fromIndex=\{activeTurn\.sourceIndex\}/);
+  assert.doesNotMatch(page, /from=\{spread\}/);
+});
+
+test('the target snapshot decodes before the live page and overlay swap atomically', () => {
   assert.match(page, /function finishTurn\(/);
-  assert.match(page, /setPage\(t\.target\);[\s\S]*requestAnimationFrame/);
-  assert.match(page, /:scope > \.notebook-page-layer img, :scope > \.piece img/);
+  assert.match(page, /\.page-turn-layer \.turn-reveal img/);
+  assert.match(page, /addEventListener\('load',done[\s\S]*if\(img\.complete\)done\(\)/);
   assert.match(page, /Promise\.all\(ready\)/);
-  assert.match(page, /requestAnimationFrame\(\(\)=>clearTurn\(t\)\)/);
+  assert.match(page, /Promise\.race\([\s\S]*requestAnimationFrame\(\(\)=>\{[\s\S]*setPage\(t\.target\);[\s\S]*clearTurn\(t\)/);
+  assert.doesNotMatch(page, /function finishTurn[\s\S]*?setPage\(t\.target\);[\s\S]*?Promise\.race/);
   assert.doesNotMatch(page, /if\(complete\)setPage\(t\.target\);setFlipping\(''\)/);
 });
