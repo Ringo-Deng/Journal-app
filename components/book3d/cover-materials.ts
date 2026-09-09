@@ -1,4 +1,5 @@
 import { CanvasTexture, SRGBColorSpace } from "three";
+import { stationeryPaletteForColor } from "@/lib/stationery-cover";
 
 export type CoverMaterial = "leather" | "fabric";
 export const COVER_MATERIALS = {
@@ -58,31 +59,33 @@ function grain(x: number, y: number, kind: CoverMaterial) {
 
 export function createCoverTextures(kind: CoverMaterial, color?: string) {
   const settings = { ...COVER_MATERIALS[kind], ...(color ? { color } : {}) };
-  // The clean stationery edition may deliberately use the smooth renderer path;
-  // identify its artwork by palette rather than the generic material label.
-  const cleanYellowPlaid = settings.color.toLowerCase() === "#f4ce75";
+  // All built-in stationery colours share one clean physical-cover treatment.
+  const stationeryPalette = stationeryPaletteForColor(settings.color);
   const canvas = document.createElement("canvas");
   canvas.width = 768;
-  canvas.height = cleanYellowPlaid ? 1152 : 1024;
+  canvas.height = stationeryPalette ? 1152 : 1024;
   const ctx = canvas.getContext("2d")!;
   const bumpCanvas = document.createElement("canvas");
   bumpCanvas.width = canvas.width;
   bumpCanvas.height = canvas.height;
   const bumpCtx = bumpCanvas.getContext("2d")!;
 
-  if (cleanYellowPlaid) {
-    // Same check proportions and warm palette as the stationery SVG front.
+  if (stationeryPalette) {
+    // Match the plaid proportions used by the stationery face in every colourway.
     const scale = canvas.width / 600;
     const step = 56 * scale;
     const stripe = 16 * scale;
-    ctx.fillStyle = "#f8e99b";
+    ctx.fillStyle = stationeryPalette.base;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(237,211,108,.26)";
+    ctx.globalAlpha = 0.26;
+    ctx.fillStyle = stationeryPalette.band;
     for (let x = 0; x < canvas.width; x += step * 2) ctx.fillRect(x, 0, step, canvas.height);
     for (let y = 0; y < canvas.height; y += step * 2) ctx.fillRect(0, y, canvas.width, step);
-    ctx.fillStyle = "rgba(255,251,228,.85)";
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = stationeryPalette.light;
     for (let x = 0; x < canvas.width; x += step) ctx.fillRect(x - stripe / 2, 0, stripe, canvas.height);
     for (let y = 0; y < canvas.height; y += step) ctx.fillRect(0, y - stripe / 2, canvas.width, stripe);
+    ctx.globalAlpha = 1;
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, bumpCanvas.width, bumpCanvas.height);
   } else {
@@ -105,14 +108,14 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
     bumpCtx.putImageData(bumps, 0, 0);
   }
 
-  // Back cover follows the same material. The clean yellow stationery edition
-  // has the same gingham on the final back cover and intentionally no maker mark.
+  // Back cover follows the same material. Stationery editions use the same
+  // clean plaid on both boards and intentionally carry no maker mark.
   const backCanvas = document.createElement("canvas");
   backCanvas.width = canvas.width;
   backCanvas.height = canvas.height;
   const backCtx = backCanvas.getContext("2d")!;
   backCtx.drawImage(canvas, 0, 0);
-  if (!cleanYellowPlaid) {
+  if (!stationeryPalette) {
     backCtx.textAlign = "center";
     backCtx.fillStyle = settings.ink;
     backCtx.font = "14px Georgia";

@@ -7,12 +7,12 @@ import { createCoverTextures } from "./cover-materials";
 export function createReadingTextures(book: Book, assets: Asset[]) {
   const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
   const coverInfoValue = coverInfo(book.cover);
-  const yellowPlaid = !book.coverAsset && coverInfoValue.colorway.id === "linen-oat";
-  // The clean yellow edition must use exactly the same generated gingham on both boards.
+  const stationery = !book.coverAsset && coverInfoValue.material.id === "linen";
+  // Every built-in stationery edition uses the same physical construction on both boards.
   // Copy the real back-cover canvas once and hand that copy to the 3D front-cover path,
   // instead of feeding it the separately rendered cover JPG.
-  const sharedYellowPlaidCover = (() => {
-    if (!yellowPlaid) return undefined;
+  const sharedStationeryCover = (() => {
+    if (!stationery) return undefined;
     const textures = createCoverTextures("leather", coverInfoValue.colorway.color);
     const source = textures.back.image as HTMLCanvasElement;
     const canvas = document.createElement("canvas");
@@ -62,7 +62,7 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
       })();
       await preload;
       if (disposed) return;
-      if (!front && !sharedYellowPlaidCover) {
+      if (!front && !sharedStationeryCover) {
         const image = await decode(null);
         if (disposed) return;
         front = crop(image, false, true);
@@ -116,7 +116,7 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
       return pair[face.side === "left" ? 0 : 1];
     },
     cover() {
-      if (sharedYellowPlaidCover) return sharedYellowPlaidCover;
+      if (sharedStationeryCover) return sharedStationeryCover;
       if (!front) throw Error("Cover texture is not ready");
       return front;
     },

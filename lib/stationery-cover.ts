@@ -5,14 +5,43 @@ const safeText = (value: string) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!,
   );
 
+const STATIONERY_PALETTES = {
+  '#f4ce75': {
+    base: '#f4ce75',
+    band: '#e7bb55',
+    light: '#fff8dc',
+    label: '#fffaf0',
+    spine: '#684631',
+  },
+  '#e8b9ba': {
+    base: '#e8b9ba',
+    band: '#d99ea2',
+    light: '#fff2f2',
+    label: '#fffaf0',
+    spine: '#6c596b',
+  },
+  '#91a9b5': {
+    base: '#91a9b5',
+    band: '#7898a8',
+    light: '#f2f7f7',
+    label: '#fffaf0',
+    spine: '#3c5b6a',
+  },
+} as const;
+
+export function stationeryPaletteForColor(color: string) {
+  const key = color.trim().toLowerCase() as keyof typeof STATIONERY_PALETTES;
+  return STATIONERY_PALETTES[key];
+}
+
+export function stationerySpineColor(color: string) {
+  return stationeryPaletteForColor(color)?.spine;
+}
+
 function paletteFor(color: string) {
   const base = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : '#f4ce75';
-  if (base === '#f4ce75')
-    return { base: '#f4ce75', band: '#e7bb55', light: '#fff8dc', label: '#fffaf0' };
-  if (base === '#e8b9ba')
-    return { base: '#e8b9ba', band: '#d99ea2', light: '#fff2f2', label: '#fffaf0' };
-  if (base === '#91a9b5')
-    return { base: '#91a9b5', band: '#7898a8', light: '#f2f7f7', label: '#fffaf0' };
+  const stationery = stationeryPaletteForColor(base);
+  if (stationery) return stationery;
   return { base, band: base, light: '#fff8e8', label: '#fffaf0' };
 }
 

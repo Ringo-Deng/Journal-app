@@ -19,6 +19,7 @@ export default function BookSpine({
   material,
   bump,
   color,
+  plain = false,
   title = "拾光手帐",
   edition = "VOL. 01",
 }: {
@@ -27,14 +28,11 @@ export default function BookSpine({
   material: CoverMaterial;
   bump: Texture;
   color?: string;
+  plain?: boolean;
   title?: string;
   edition?: string;
 }) {
-  const cleanYellowPlaid = color?.toLowerCase() === "#f4ce75";
-  // The yellow stationery edition has a distinct brown binding, while the rest
-  // of the hard-cover board remains yellow. Keep this decision local to spine geometry.
-  const spineColor = cleanYellowPlaid ? "#684631" : color;
-  const surface = { ...COVER_MATERIALS[material], ...(spineColor ? { color: spineColor } : {}) };
+  const surface = { ...COVER_MATERIALS[material], ...(color ? { color } : {}) };
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -42,7 +40,7 @@ export default function BookSpine({
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = surface.color;
     ctx.fillRect(0, 0, 256, 1536);
-    if (cleanYellowPlaid) {
+    if (plain) {
       // Barely visible fresh-cloth weave: no noise, wear, border lines or branding.
       ctx.strokeStyle = "#f3e3cf";
       ctx.globalAlpha = 0.035;
@@ -89,7 +87,7 @@ export default function BookSpine({
     result.colorSpace = SRGBColorSpace;
     result.anisotropy = 8;
     return result;
-  }, [surface.color, material, title, edition, cleanYellowPlaid]);
+  }, [surface.color, material, title, edition, plain]);
   const geometry = useMemo(() => {
     const result = new BufferGeometry();
     const positions = new Float32Array(4 * 33 * 3),

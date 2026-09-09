@@ -16,6 +16,7 @@ export type Book3DContent = {
   title: string;
   color: string;
   spineColor?: string;
+  plainSpine?: boolean;
   material: CoverMaterial;
   ratio: number;
   leaves: number;

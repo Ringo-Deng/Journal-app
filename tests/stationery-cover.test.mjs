@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stationeryCoverSvg,stationeryCoverUrl} from '../lib/stationery-cover.ts';
+import {stationeryCoverSvg,stationeryCoverUrl,stationeryPaletteForColor,stationerySpineColor} from '../lib/stationery-cover.ts';
 import {readingJpgInput} from '../lib/reading-jpg.ts';
 
 test('cover title is escaped as text and invalid palette cannot inject SVG',()=>{
@@ -17,6 +17,14 @@ test('regular stationery face is clean NOTES artwork without old branding or bak
  assert.ok(!svg.includes('shiguang'));
  assert.ok(!svg.includes('ellipse'));
  assert.ok(!svg.includes('linearGradient id="snap"'));
+});
+
+test('all regular stationery colours have a matching physical spine palette',()=>{
+ assert.equal(stationerySpineColor('#f4ce75'),'#684631');
+ assert.equal(stationerySpineColor('#E8B9BA'),'#6c596b');
+ assert.equal(stationerySpineColor(' #91a9b5 '),'#3c5b6a');
+ assert.equal(stationerySpineColor('#000000'),undefined);
+ assert.equal(stationeryPaletteForColor('#e8b9ba')?.base,'#e8b9ba');
 });
 
 test('cover cache changes without invalidating saved inner pages or editing the book',()=>{

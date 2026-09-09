@@ -56,7 +56,7 @@ test("standard and tall books keep page proportions, bounded thickness and conne
       assert.ok(coverPose(0, "front", g).z - g.cover / 2 > stackTop(leaves, g));
     }
 });
-test("stationery editions keep their own physical spine colors without a bookmark or bottom hint", async () => {
+test("all stationery editions share the clean physical cover model without a bookmark or bottom hint", async () => {
   const reader = await readFile(
     new URL("../components/reading-book3d.tsx", import.meta.url),
     "utf8",
@@ -65,9 +65,18 @@ test("stationery editions keep their own physical spine colors without a bookmar
     new URL("../components/book3d/Book3DView.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(reader, /linen-forest[\s\S]*#6c596b/);
-  assert.match(reader, /linen-blue[\s\S]*#3c5b6a/);
+  const textures = await readFile(
+    new URL("../components/book3d/reading-textures.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(reader, /material\.material\.id === "linen"/);
+  assert.match(reader, /plainSpine: stationery/);
+  assert.doesNotMatch(reader, /yellowPlaid|linen-oat/);
+  assert.match(textures, /coverInfoValue\.material\.id === "linen"/);
+  assert.doesNotMatch(textures, /yellowPlaid|linen-oat/);
   assert.match(view, /function RoundedCoverFace/);
+  assert.match(view, /plain=\{content\?\.plainSpine\}/);
+  assert.doesNotMatch(view, /yellowPlaid|#f4ce75/);
   assert.doesNotMatch(view, /function Bookmark|<Bookmark|book3d-status/);
   assert.doesNotMatch(view, /function (?:Clasp|Snap|Closure)/);
 });

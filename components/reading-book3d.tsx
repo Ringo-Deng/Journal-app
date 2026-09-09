@@ -12,6 +12,7 @@ import Book3DView from "./book3d/Book3DView";
 import { createReadingTextures } from "./book3d/reading-textures";
 import { type Book3DContent, type Book3DHandle } from "./book3d/book-scene-context";
 import { bookFormat, coverInfo, type Book, type Asset } from "@/lib/journal";
+import { stationerySpineColor } from "@/lib/stationery-cover";
 import { readingBookPlan } from "@/lib/reading-book-plan";
 import type { BookPosition } from "@/lib/book3d-motion";
 export type ReadingBook3DHandle = Book3DHandle;
@@ -51,23 +52,16 @@ export default forwardRef<
     const source = createReadingTextures(book, assets);
     const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
     const material = coverInfo(book.cover);
-    const yellowPlaid = !book.coverAsset && material.colorway.id === "linen-oat";
-    const stationerySpine =
-      !book.coverAsset && material.colorway.id === "linen-forest"
-        ? "#6c596b"
-        : !book.coverAsset && material.colorway.id === "linen-blue"
-          ? "#3c5b6a"
-          : undefined;
+    const stationery = !book.coverAsset && material.material.id === "linen";
     setContent({
       id: crypto.randomUUID(),
       title: book.title || "拾光集",
       color: material.colorway.color,
-      // The clean yellow edition keeps the board edge yellow. BookSpine detects
-      // the edition from the cover colour and owns the separate brown binding.
-      spineColor: stationerySpine,
-      // Use the smooth physical-material path for this pristine edition so the
+      spineColor: stationery ? stationerySpineColor(material.colorway.color) : undefined,
+      plainSpine: stationery,
+      // Use the smooth physical-material path for the stationery editions so the
       // generic cloth normal/roughness maps cannot make the checks look dirty.
-      material: yellowPlaid
+      material: stationery
         ? "leather"
         : ["linen", "canvas"].includes(material.material.id)
           ? "fabric"
