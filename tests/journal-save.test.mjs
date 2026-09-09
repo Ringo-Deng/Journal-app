@@ -1,8 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { JournalApiError, saveJournalSnapshot } from '../lib/journal-save.ts';
+import { JournalApiError, saveJournalSnapshot, shouldShowSaveStatus } from '../lib/journal-save.ts';
 
 const snapshot={books:[{id:'one',title:'my edit'}],revision:1};
+test('the save bar stays out of the layout unless the user needs to act',()=>{
+ assert.equal(shouldShowSaveStatus('已保存到本机'),false);
+ assert.equal(shouldShowSaveStatus('等待保存…'),false);
+ assert.equal(shouldShowSaveStatus('正在保存…'),false);
+ assert.equal(shouldShowSaveStatus('已保存 · 历史备份未完成'),true);
+ assert.equal(shouldShowSaveStatus('保存失败 · 点击重试'),true);
+ assert.equal(shouldShowSaveStatus('保存冲突 · 本窗口内容已保留'),true);
+});
 test('normal save returns revision and backup warning without an extra read',async()=>{
  const result=await saveJournalSnapshot(snapshot,{write:async()=>({revision:2,historyWarning:'disk full'}),read:async()=>{throw Error('unexpected read');}});
  assert.deepEqual(result,{revision:2,historyWarning:'disk full'});

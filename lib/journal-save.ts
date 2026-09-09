@@ -12,6 +12,10 @@ export class JournalApiError extends Error {
 export type JournalState = { books: Book[]; revision: number };
 export type SaveResult = { revision: number; historyWarning?: string };
 
+export function shouldShowSaveStatus(status: string): boolean {
+  return status.includes('历史备份未完成') || status.startsWith('保存失败') || status.startsWith('保存冲突');
+}
+
 /** Reconcile an uncertain response without overwriting another window's work. */
 export async function saveJournalSnapshot(
   snapshot: JournalState,

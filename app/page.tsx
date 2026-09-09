@@ -7,7 +7,7 @@ import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate
 import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
 import type {CollageTemplate} from '@/lib/journal';
 import { restorePosition, restoreHistoryPosition, type WorkspacePosition } from '@/lib/workspace-view';
-import { JournalApiError, saveJournalSnapshot } from '@/lib/journal-save';
+import { JournalApiError, saveJournalSnapshot, shouldShowSaveStatus } from '@/lib/journal-save';
 import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
@@ -295,6 +295,7 @@ export default function Home() {
     [notice, setNotice] = useState(''),
     [recording, setRecording] = useState(false),
     [, setSpeechSupported] = useState(false);
+  const saveStatusNeedsAttention = shouldShowSaveStatus(saved);
   const [recoveringSave, setRecoveringSave] = useState(false);
   const saveBlocked = useRef(false);
   const historyGroup = useRef<string | null>(null);
@@ -1767,7 +1768,7 @@ export default function Home() {
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
 
-        {ready&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
+        {ready&&saveStatusNeedsAttention&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
           <span role="status" aria-live="polite">{saved}</span>
           {saved.startsWith('保存失败')&&<button className="quiet" onClick={()=>void flush()}>重试保存</button>}
           {saved.startsWith('保存冲突')&&<>
