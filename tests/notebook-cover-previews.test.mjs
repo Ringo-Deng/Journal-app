@@ -24,10 +24,12 @@ test('approved regular preview assets exist and stay unbranded by filename', asy
   }
 });
 
-test('preview CSS is scoped to standard notebooks and leaves Travel Notes on its existing path', async () => {
+test('library full-book previews support both formats while physical cover renderers keep face artwork', async () => {
   const css = await readFile(new URL('../app/notebook-cover-previews.css', import.meta.url), 'utf8');
-  assert.ok(css.includes('.library-cover.format-standard'));
-  assert.ok(css.includes('.library-cover.format-tn-regular .stationery-cover-preview'));
+  assert.ok(css.includes('.library-cover:has(.stationery-cover-preview)'));
+  assert.ok(css.includes('.library-cover .stationery-cover-preview'));
+  assert.ok(css.includes('.rigid-front .stationery-cover-preview'));
+  assert.ok(css.includes('.deck-cover-front .stationery-cover-preview'));
   assert.ok(css.includes('regular-yellow-notes.svg'));
   assert.ok(css.includes('regular-pink-notes.svg'));
   assert.ok(css.includes('regular-blue-notes.svg'));

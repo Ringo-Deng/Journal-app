@@ -1,31 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="900" viewBox="0 0 640 900" role="img" aria-label="Notes notebook preview">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="900" viewBox="0 0 640 900" preserveAspectRatio="none" role="img" aria-label="Notes notebook preview">
 <defs>
-  <filter id="shadow" x="-30%" y="-30%" width="170%" height="180%"><feDropShadow dx="8" dy="16" stdDeviation="14" flood-color="#3b2d22" flood-opacity=".18"/></filter>
-  <linearGradient id="spine" x1="0" x2="1"><stop stop-color="#4c382a"/><stop offset=".55" stop-color="#6b513c"/><stop offset="1" stop-color="#3f2d22"/></linearGradient>
-  <linearGradient id="pages" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fffdf2"/><stop offset="1" stop-color="#eee7d5"/></linearGradient>
-  <linearGradient id="snap" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffef6"/><stop offset="1" stop-color="#ddd8c9"/></linearGradient>
-  <pattern id="plaid" width="78" height="78" patternUnits="userSpaceOnUse">
-    <rect width="78" height="78" fill="#91aabd"/>
-    <rect x="0" y="26" width="78" height="18" fill="#f8f2df" opacity=".72"/>
-    <rect x="25" y="0" width="18" height="78" fill="#f8f2df" opacity=".72"/>
-    <path d="M0 7H78M7 0V78M0 62H78M62 0V78" stroke="#6f8fa8" stroke-width="2" opacity=".28"/>
+  <filter id="shadow" x="-25%" y="-20%" width="160%" height="160%"><feDropShadow dx="5" dy="12" stdDeviation="11" flood-color="#3b2d22" flood-opacity=".14"/></filter>
+  <filter id="tab-shadow" x="-25%" y="-30%" width="160%" height="175%"><feDropShadow dx="2" dy="5" stdDeviation="5" flood-color="#5a4733" flood-opacity=".19"/></filter>
+  <linearGradient id="spine" x1="0" x2="1"><stop stop-color="#284653"/><stop offset=".48" stop-color="#3c5b6a"/><stop offset="1" stop-color="#213b48"/></linearGradient>
+  <linearGradient id="pages" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fffef5"/><stop offset="1" stop-color="#eee8d9"/></linearGradient>
+  <linearGradient id="snap" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#fffef2"/><stop offset=".6" stop-color="#f4f1e4"/><stop offset="1" stop-color="#d6d6c9"/></linearGradient>
+  <pattern id="fabric" width="80" height="80" patternUnits="userSpaceOnUse">
+    <rect width="80" height="80" fill="#849dad"/>
+    <path d="M0 29H80M29 0V80" stroke="#fff1d7" stroke-width="13" opacity=".73"/>
+    <path d="M0 9H80M9 0V80M0 67H80M67 0V80" stroke="#617f92" stroke-width="1.5" opacity=".22"/>
+    <path d="M0 37H80M37 0V80" stroke="#fff1d7" stroke-width="2" opacity=".35"/>
   </pattern>
+  <pattern id="weave" width="6" height="6" patternUnits="userSpaceOnUse">
+    <path d="M0 .5H6M.5 0V6" stroke="#fffdf0" stroke-width=".7" opacity=".19"/>
+    <path d="M0 3.5H6M3.5 0V6" stroke="#617f92" stroke-width=".55" opacity=".13"/>
+  </pattern>
+  <path id="cover" d="M124 64H501Q540 64 540 103V741H124Z"/>
 </defs>
 <g filter="url(#shadow)">
-  <path d="M104 64H150V744H538V804H118Q79 804 79 765V105Q79 64 104 64Z" fill="url(#spine)"/>
-  <rect x="112" y="64" width="428" height="683" rx="38" fill="url(#plaid)"/>
-  <path d="M112 91V720" stroke="#fff" stroke-width="2" opacity=".18"/>
-  <path d="M95 88V718" stroke="#efd18b" stroke-width="5" stroke-linecap="round" stroke-dasharray="14 17"/>
-  <rect x="95" y="716" width="424" height="62" rx="29" fill="url(#pages)" stroke="#d8cfbb" stroke-width="2"/>
-  <path d="M124 734H493M120 746H489M126 758H482" stroke="#d8cfbb" stroke-width="2" opacity=".9"/>
-  <path d="M145 755H186V831L165.5 819L145 831Z" fill="#6f9abe"/>
-  <rect x="232" y="190" width="208" height="105" rx="14" fill="#fffaf0" stroke="#d6d2c7" stroke-width="8"/>
-  <rect x="242" y="200" width="188" height="85" rx="10" fill="none" stroke="#6e7b7c" stroke-width="2.5"/>
-  <text x="336" y="244" text-anchor="middle" fill="#687579" font-family="Georgia, serif" font-size="25" letter-spacing="9">NOTES</text>
-  <path d="M286 264H386" stroke="#788588" stroke-width="2"/>
-  <rect x="495" y="357" width="95" height="138" rx="28" fill="url(#plaid)"/>
-  <path d="M507 369H578V483H507" fill="none" stroke="#fff5dd" stroke-width="2" stroke-dasharray="6 6" opacity=".72"/>
-  <circle cx="542" cy="426" r="29" fill="#6b5842" opacity=".14"/>
-  <circle cx="539" cy="420" r="27" fill="url(#snap)" stroke="#ded9ca" stroke-width="2"/>
+  <rect x="79" y="64" width="461" height="740" rx="42" fill="url(#spine)"/>
+  <path d="M87 773Q93 796 121 796H498Q523 796 533 779" fill="none" stroke="#a28c73" stroke-width="2" opacity=".3"/>
+  <use href="#cover" fill="url(#fabric)"/>
+  <use href="#cover" fill="url(#weave)"/>
+  <path d="M126 65V739" stroke="#fff7df" stroke-width="3" opacity=".5"/>
+  <path d="M114 82V736" stroke="#a9a181" stroke-width="2" stroke-linecap="round" stroke-dasharray="12 9" opacity=".78"/>
+  <path d="M116 747H526Q523 779 493 779H116Q94 779 94 765Q94 747 116 747Z" fill="url(#pages)" stroke="#d9d1bd" stroke-width="1.5"/>
+  <path d="M111 753H514M108 760H510M110 767H504M120 774H493" fill="none" stroke="#d2cbb9" stroke-width="1" opacity=".74"/>
+  <path d="M149 766H189V815L169 808L149 815Z" fill="#9ec5d2"/>
+  <path d="M151 768H187" stroke="#fff5de" stroke-width="1" opacity=".5"/>
+  <rect x="244" y="192" width="190" height="107" rx="8" fill="#fbf3df" stroke="#d5cdb7" stroke-width="3"/>
+  <rect x="252" y="200" width="174" height="91" rx="5" fill="none" stroke="#536f79" stroke-width="2"/>
+  <text x="342" y="239" text-anchor="middle" fill="#4c6672" font-family="Georgia, serif" font-size="23" letter-spacing="6">NOTES</text>
+  <path d="M266 260H413M281 277H398" fill="none" stroke="#82908c" stroke-width="1.6"/>
+  <g filter="url(#tab-shadow)">
+    <rect x="418" y="375" width="143" height="122" rx="27" fill="url(#fabric)"/>
+    <rect x="418" y="375" width="143" height="122" rx="27" fill="url(#weave)"/>
+    <path d="M438 385H535Q550 385 550 401V472Q550 487 535 487H438" fill="none" stroke="#fff1d7" stroke-width="1.5" stroke-dasharray="5 5" opacity=".6"/>
+    <circle cx="468" cy="439" r="26" fill="#4f4a3e" opacity=".16"/>
+    <circle cx="466" cy="434" r="25" fill="url(#snap)" stroke="#d6d4c6" stroke-width="1.5"/>
+    <path d="M450 424Q456 414 469 414" fill="none" stroke="#fffdf5" stroke-width="2" stroke-linecap="round" opacity=".85"/>
+  </g>
 </g>
 </svg>
