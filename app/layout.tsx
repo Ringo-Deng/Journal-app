@@ -11,6 +11,7 @@ import './reading-back-cover-fixes.css';
 import './reading-format-fit.css';
 import './material-library-refresh.css';
 import './material-studio-stability.css';
+import './notebook-cover-previews.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',

@@ -1,0 +1,94 @@
+/* Regular notebook previews: the full-book artwork is only a library/settings preview.
+   Travel Notes and the real 3D cover surface keep their existing rendering path. */
+.stationery-cover-preview {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  pointer-events: none;
+  user-select: none;
+}
+
+.library-cover.format-standard:has(.stationery-cover-preview) {
+  overflow: visible !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.library-cover.format-standard .stationery-cover-art {
+  display: none !important;
+}
+.library-cover.format-standard .stationery-cover-preview {
+  display: block;
+  z-index: 8;
+  transform: scale(1.55);
+  transform-origin: 50% 51%;
+}
+.library-cover.format-tn-regular .stationery-cover-preview,
+.rigid-front .stationery-cover-preview,
+.deck-cover-front .stationery-cover-preview {
+  display: none !important;
+}
+
+/* The settings live preview uses the same three approved full-book images.
+   The selectors intentionally bind to the existing linen colors so no new cover state is introduced. */
+.settings-cover.format-standard.texture-linen {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.settings-cover.format-standard.texture-linen::after {
+  display: none !important;
+}
+.settings-cover.format-standard.texture-linen::before {
+  display: block !important;
+  inset: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-repeat: no-repeat !important;
+  background-position: center 51% !important;
+  background-size: 205% auto !important;
+}
+.settings-cover.format-standard.texture-linen[style*="#f4ce75"]::before {
+  background-image: url('/notebook-covers/regular-yellow-notes.svg') !important;
+}
+.settings-cover.format-standard.texture-linen[style*="#e8b9ba"]::before {
+  background-image: url('/notebook-covers/regular-pink-notes.svg') !important;
+}
+.settings-cover.format-standard.texture-linen[style*="#91a9b5"]::before {
+  background-image: url('/notebook-covers/regular-blue-notes.svg') !important;
+}
+
+/* Existing colorway controls remain the source of truth; only their standard/linen thumbnails change. */
+.colorway-cover.texture-linen.format-standard {
+  position: relative;
+  overflow: hidden;
+  background: transparent !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+}
+.notebook-settings-scroll .colorway-cover.texture-linen.format-standard {
+  width: 52px;
+  height: 66px;
+}
+.colorway-cover.texture-linen.format-standard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-position: center 51%;
+  background-size: 205% auto;
+}
+.colorway-cover.texture-linen.format-standard[style*="#f4ce75"]::before {
+  background-image: url('/notebook-covers/regular-yellow-notes.svg');
+}
+.colorway-cover.texture-linen.format-standard[style*="#e8b9ba"]::before {
+  background-image: url('/notebook-covers/regular-pink-notes.svg');
+}
+.colorway-cover.texture-linen.format-standard[style*="#91a9b5"]::before {
+  background-image: url('/notebook-covers/regular-blue-notes.svg');
+}
