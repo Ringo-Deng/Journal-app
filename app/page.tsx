@@ -244,11 +244,8 @@ export default function Home() {
   const turnRef = useRef<{
       direction: number;
       target: number;
-      startX: number;
       progress: number;
-      moved: boolean;
       settling: boolean;
-      width: number;
     } | null>(null),
     turnAnimation = useRef(0);
   useEffect(
@@ -765,7 +762,7 @@ export default function Home() {
     setClosing(true);
     bookAnimation.current=setTimeout(() => setClosing(false), 720);
   };
-  function startTurn(direction: number, x = 0) {
+  function startTurn(direction: number) {
     if (turnRef.current || busy) return false;
     const target = page + direction;
     if (target < -1) {
@@ -777,13 +774,8 @@ export default function Home() {
     turnRef.current = {
       direction,
       target,
-      startX: x,
       progress: 0,
-      moved: false,
       settling: false,
-      width: canvas.current
-        ? canvas.current.getBoundingClientRect().width * 0.85
-        : 1,
     };
     setSelected(null);
     setFlipping(direction > 0 ? 'next' : 'previous');
@@ -823,24 +815,6 @@ export default function Home() {
         requestAnimationFrame(() => settleTurn(true)),
       );
   };
-  function cornerDown(e: React.PointerEvent, direction: number) {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    if (startTurn(direction, e.clientX))
-      e.currentTarget.setPointerCapture(e.pointerId);
-  }
-  function cornerMove(e: React.PointerEvent) {
-    const t = turnRef.current;
-    if (!t || t.settling || !canvas.current) return;
-    const distance = (t.startX - e.clientX) * t.direction;
-    if (Math.abs(distance) > 4) t.moved = true;
-    t.progress = Math.max(0, Math.min(1, distance / t.width));
-    paintTurn(t.progress, t.direction);
-  }
-  function cornerUp() {
-    const t = turnRef.current;
-    if (t) settleTurn(!t.moved || t.progress > 0.23);
-  }
   const openWrite = () => {
     setReading(false);setLibraryOpen(false);openBook();
     setPanel('write');setSelected(null);setDate(today());
@@ -1992,27 +1966,22 @@ export default function Home() {
                       )}
                       <div className="book-gutter" />
                       <button
+                        type="button"
                         className="page-corner corner-left"
-                        aria-label="拖动页角向前翻页"
-                        onPointerDown={(e) => cornerDown(e, -1)}
-                        onPointerMove={cornerMove}
-                        onPointerUp={cornerUp}
-                        onPointerCancel={() => settleTurn(false)}
-                        onClick={(e) => {
-                          if (e.detail === 0) flip(-1);
-                        }}
+                        aria-label={isFlyleaf ? '点击页角合上手帐' : '点击页角向前翻页'}
+                        title={isFlyleaf ? '合上手帐' : '上一页'}
+                        style={{ '--corner-paper': isFlyleaf ? `color-mix(in srgb, ${cover.colorway.color} 12%, #f4f1e9)` : paperSettings(book, spread, 'left').color } as CSSProperties}
+                        disabled={busy || !!flipping}
+                        onClick={() => flip(-1)}
                       />
                       <button
+                        type="button"
                         className="page-corner corner-right"
-                        aria-label="拖动页角向后翻页"
-                        disabled={reading && page + 1 >= (book?.spreads.length || 0)}
-                        onPointerDown={(e) => cornerDown(e, 1)}
-                        onPointerMove={cornerMove}
-                        onPointerUp={cornerUp}
-                        onPointerCancel={() => settleTurn(false)}
-                        onClick={(e) => {
-                          if (e.detail === 0) flip(1);
-                        }}
+                        aria-label="点击页角向后翻页"
+                        title="下一页"
+                        style={{ '--corner-paper': isFlyleaf ? paper.color : paperSettings(book, spread, 'right').color } as CSSProperties}
+                        disabled={busy || !!flipping || (reading && page + 1 >= (book?.spreads.length || 0))}
+                        onClick={() => flip(1)}
                       />
                       {flipping &&
                         book &&

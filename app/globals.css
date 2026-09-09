@@ -865,39 +865,56 @@ button {
   border-color: #cdd3c4;
 }
 .page-corner {
+  /* A fixed, compact click target stays small even when the canvas is zoomed. */
+  --fold-size: 16px;
   position: absolute;
   bottom: 0;
-  width: 5%;
-  height: 8%;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   background: transparent;
-  z-index: 25;
+  border-radius: 4px;
+  z-index: 60;
+  touch-action: manipulation;
+  transition: none;
 }
 .corner-left {
   left: 0;
-  border-bottom-left-radius: 3px;
+  transform: scaleX(-1);
 }
 .corner-right {
   right: 0;
-  border-bottom-right-radius: 6px;
 }
-.corner-right:not(:disabled):hover {
+.page-corner::before,
+.page-corner::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--fold-size);
+  height: var(--fold-size);
+  pointer-events: none;
+  transition: width .18s ease, height .18s ease;
+}
+.page-corner::before {
+  background: linear-gradient(135deg, transparent 42%, #38332926 52%, transparent 68%);
+  filter: blur(1.5px);
+}
+.page-corner::after {
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+  border-radius: 0 0 3px 0;
   background: linear-gradient(
     135deg,
-    transparent 49%,
-    #ccc0a0 50%,
-    #f7f0dd 75%,
-    #d4c7a7
+    color-mix(in srgb, var(--corner-paper, var(--paper)) 78%, #756f62) 49%,
+    color-mix(in srgb, var(--corner-paper, var(--paper)) 95%, white) 64%,
+    var(--corner-paper, var(--paper)) 84%,
+    color-mix(in srgb, var(--corner-paper, var(--paper)) 88%, #827967)
   );
-  filter: drop-shadow(-2px -2px 3px #61543340);
 }
-.corner-left:hover {
-  background: linear-gradient(
-    225deg,
-    transparent 49%,
-    #ccc0a0 50%,
-    #f7f0dd 75%,
-    #d4c7a7
-  );
+.page-corner:not(:disabled):is(:hover, :focus-visible) { --fold-size: 26px; }
+.page-corner:disabled { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .page-corner::before, .page-corner::after { transition: none; }
 }
 .turning-sheet {
   position: absolute;
@@ -2464,12 +2481,6 @@ button {
 }
 .page-turn-layer.settling .fold-shade {
   animation: fold-light 850ms ease-in-out;
-}
-.page-corner {
-  z-index: 60;
-  width: 7%;
-  height: 12%;
-  touch-action: none;
 }
 .page-turn-layer .piece.body {
   scrollbar-width: none;
