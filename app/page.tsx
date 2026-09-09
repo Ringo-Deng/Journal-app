@@ -634,7 +634,7 @@ export default function Home() {
   function ungroupSelection(){
     const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta({...p,groupId:undefined,attachedTo:undefined},{groupName:undefined}):p)}));setMultiIds([]);setEditingGroup(null);toast('已解组。');
   }
-  function enterGroup(p:Piece){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setSelected(p.id);setEditingGroup(p.groupId||null);if(p.kind==='text'){setInlineId(p.id);setInlineText(p.text||'');}}
+  function enterGroup(p:Piece){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setSelected(p.id);setEditingGroup(p.groupId||null);if(p.kind==='text'){setTextRange(null);setInlineId(p.id);setInlineText(p.text||'');}}
   function addPhotoAttachment(kind:'caption'|'tape'){
     if(!piece||piece.kind!=='photo'||!spread)return;
     const existing=kind==='caption'?spread.elements.find(p=>p.attachedTo===piece.id&&p.kind==='text'):undefined;
@@ -1924,7 +1924,7 @@ export default function Home() {
                           onPointerCancel={endPointerDrag}
                         >
                           {p.kind === 'text' ? (
-                            inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>setInlineText(e.target.value)} onSelect={e=>{const t=e.currentTarget;setTextRange(t.selectionEnd>t.selectionStart?{id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value}:null);}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
+                            inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
                           ) : p.kind==='photo' ? <PhotoArtwork piece={p} alt="当天照片"/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (
                             <JournalDrawing piece={p}/>
                           ) : (

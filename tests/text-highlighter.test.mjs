@@ -68,3 +68,10 @@ test('editing wording clears both local colour and highlighter ranges', async ()
   const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /patch\.text!==undefined&&patch\.text!==e\.text\?\{colorRuns:undefined,highlightRuns:undefined\}/);
 });
+
+test('the last valid text selection survives toolbar focus while new editing clears stale ranges', async () => {
+  const source = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if\(t\.selectionEnd>t\.selectionStart\)setTextRange\(\{id:p\.id,start:t\.selectionStart,end:t\.selectionEnd,text:t\.value\}\)/);
+  assert.match(source, /onChange=\{e=>\{setInlineText\(e\.target\.value\);setTextRange\(null\)\}\}/);
+  assert.match(source, /if\(p\.kind==='text'\)\{setTextRange\(null\);setInlineId\(p\.id\)/);
+});
