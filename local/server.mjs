@@ -735,9 +735,13 @@ const server = http.createServer(async (req, res) => {
       const previous = consolidatedJobs(materialJobs).find((j) => j.source === input.src);
       if (previous) return json(res, previous);
       const pinRecord = pinterestBySrc(input.src);
+      const autoSegment = nativeCapabilities.segment;
       const job = {
         id: randomUUID(), source: input.src, name: String(input.name || '导入素材').slice(0, 80), createdAt: new Date().toISOString(),
-        engine: pinRecord ? 'Pinterest 原图 · 手动裁切' : '原图 · 手动裁切', mode: 'manual', manualOnly: true,
+        engine: pinRecord
+          ? `Pinterest 原图 · ${autoSegment ? '可自动分离' : '手动裁切'}`
+          : `原图 · ${autoSegment ? '可自动分离' : '手动裁切'}`,
+        mode: autoSegment ? 'auto' : 'manual', manualOnly: !autoSegment,
         sourceMeta: pinterestSourceMeta(pinRecord), items: [],
       };
       await materialWrite(async () => { materialJobs = [job, ...materialJobs.filter((j) => j.source !== input.src)]; await atomic('material-jobs.json', materialJobs); });

@@ -18,6 +18,14 @@ test('viewport measurement is frame-coalesced and idempotent',()=>{
   assert.match(studio,/setImageReady\(true\)/);
 });
 
+test('crop selection starts on the whole preview and clamps outside drags to the image',()=>{
+  assert.match(studio,/function beginPreviewPointer/);
+  assert.match(studio,/className=\{`studio-image-viewport \$\{cropping\?'cropping':''\}`\}/);
+  assert.match(studio,/onPointerDown=\{beginPreviewPointer\} onPointerMove=\{movePreviewPointer\}/);
+  assert.match(studio,/Math\.max\(0,Math\.min\(1,\(e\.clientX-r\.left\)\/r\.width\)\)/);
+  assert.doesNotMatch(studio,/aria-label="原图框选区域[^\n]+onPointerDown=/);
+});
+
 test('studio stability styles reserve scrollbar geometry and disable source-image animation',()=>{
   assert.match(css,/scrollbar-gutter: stable both-edges/);
   assert.match(css,/contain: layout paint/);

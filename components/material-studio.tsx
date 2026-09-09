@@ -84,7 +84,18 @@ export default function MaterialStudio({open,onClose,onImported,notice}:{open:bo
   if(!job||!selected.length)return;setBusy(true);
   try{const result=await request<{added:number;assets:Asset[];job:Job}>('/import',{jobId:job.id,itemIds:selected,names});onImported(result.assets);setJobs(old=>old.map(j=>j.id===job.id?result.job:j));setSelected([]);setMessage(`已将 ${result.added} 个独立素材加入素材库，之后排版时也可以使用。`)}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}
  }
- function position(e:ReactPointerEvent){const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
+ function position(e:ReactPointerEvent<HTMLDivElement>){const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
+ function beginPreviewPointer(e:ReactPointerEvent<HTMLDivElement>){
+  if(busy||e.button!==0)return;
+  e.currentTarget.setPointerCapture(e.pointerId);
+  if(cropping){if(!imageReady)return;e.preventDefault();start.current=position(e);setCrop(null);return}
+  pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};
+ }
+ function movePreviewPointer(e:ReactPointerEvent<HTMLDivElement>){
+  if(start.current){const p=position(e);setCrop([Math.min(start.current[0],p[0]),Math.min(start.current[1],p[1]),Math.abs(p[0]-start.current[0]),Math.abs(p[1]-start.current[1])]);return}
+  const d=pan.current;if(d){e.currentTarget.scrollLeft=d.left-e.clientX+d.x;e.currentTarget.scrollTop=d.top-e.clientY+d.y}
+ }
+ function finishPreviewPointer(){start.current=null;pan.current=null}
 
  return <Dialog open={open} onOpenChange={v=>!v&&!busy&&onClose()}><DialogContent className="material-studio">
   <DialogDescription className="studio-accessible-description">导入原图，按纸底或纹样分区拆分；支持缩放、拖动与手动框选。</DialogDescription>
@@ -102,8 +113,8 @@ export default function MaterialStudio({open,onClose,onImported,notice}:{open:bo
    <aside className="studio-history"><h3>导入记录</h3>{jobs.map(j=><button key={j.id} disabled={busy} className={active===j.id?'active':''} onClick={()=>choose(j)}><img src={j.source} alt="导入原图缩略图"/><span>{j.name}<small>{j.items.length} 个结果 · {j.engine}{j.attempt&&j.attempt>1?` · 已识别 ${j.attempt} 次`:''}</small></span></button>)}{!jobs.length&&<p>导入的原图和切分结果<br/>会保存在这里。</p>}</aside>
    <main className="studio-main">{job?<div className="studio-columns">
     <section className="studio-original"><div className="studio-source-tools"><h3>原图</h3><button className="quiet" aria-label="缩小原图" onClick={()=>setZoom(v=>Math.max(50,v-25))}>−</button><span>{zoom}%</span><button className="quiet" aria-label="放大原图" onClick={()=>setZoom(v=>Math.min(500,v+25))}>＋</button><button className="quiet" onClick={()=>setZoom(100)}>适合窗口</button><small>{cropping?'拖动框选 · 可滚动查看':'拖动平移 · 可滚动查看'}</small></div>
-     <div className="studio-image-viewport" ref={imageViewport} onPointerDown={e=>{if(cropping||busy||e.button!==0)return;const el=e.currentTarget;pan.current={x:e.clientX,y:e.clientY,left:el.scrollLeft,top:el.scrollTop};el.setPointerCapture(e.pointerId)}} onPointerMove={e=>{const d=pan.current;if(d){e.currentTarget.scrollLeft=d.left-e.clientX+d.x;e.currentTarget.scrollTop=d.top-e.clientY+d.y}}} onPointerUp={()=>{pan.current=null}} onPointerCancel={()=>{pan.current=null}}>
-      <div ref={imageArea} className={`studio-source ${cropping?'cropping':''} ${imageReady?'ready':'loading'}`} style={imageReady?{width:Math.max(1,dimensions.w*fit*zoom/100),height:Math.max(1,dimensions.h*fit*zoom/100)}:undefined} role="application" aria-label="原图框选区域，请拖动框选素材" onPointerDown={e=>{if(!cropping||busy)return;e.stopPropagation();start.current=position(e);setCrop(null);e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(!start.current)return;const p=position(e);setCrop([Math.min(start.current[0],p[0]),Math.min(start.current[1],p[1]),Math.abs(p[0]-start.current[0]),Math.abs(p[1]-start.current[1])])}} onPointerUp={()=>{start.current=null}} onPointerCancel={()=>{start.current=null}}>
+     <div className={`studio-image-viewport ${cropping?'cropping':''}`} ref={imageViewport} onPointerDown={beginPreviewPointer} onPointerMove={movePreviewPointer} onPointerUp={finishPreviewPointer} onPointerCancel={finishPreviewPointer}>
+      <div ref={imageArea} className={`studio-source ${cropping?'cropping':''} ${imageReady?'ready':'loading'}`} style={imageReady?{width:Math.max(1,dimensions.w*fit*zoom/100),height:Math.max(1,dimensions.h*fit*zoom/100)}:undefined} role="application" aria-label="原图框选区域，可从图片外侧拖动框选素材">
        <img src={job.source} alt="素材原图" draggable={false} onLoad={e=>{const next={w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight};setDimensions(old=>old.w===next.w&&old.h===next.h?old:next);setImageReady(true)}}/>{!imageReady&&<span className="studio-image-loading"><Loader2 className="spinning"/>正在打开素材…</span>}{crop&&<div className="crop-box" style={{left:crop[0]*100+'%',top:crop[1]*100+'%',width:crop[2]*100+'%',height:crop[3]*100+'%'}}/>}
       </div>
      </div>

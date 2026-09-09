@@ -216,7 +216,9 @@ test('material workbench splits a sheet, imports transparent pieces and persists
 
 
 test('saved user material can be reopened for editing and deleted again',async()=>{
+ const capabilities=(await call('/api/capabilities')).data;
  const source=await call('/api/materials/source',{src:uploaded,name:'可再次编辑素材'},'POST');assert.equal(source.status,200);
+ assert.equal(source.data.manualOnly,!capabilities.segment);assert.equal(source.data.mode,capabilities.segment?'auto':'manual');
  const withItem=await call('/api/materials/add-item',{jobId:source.data.id,src:uploaded,width:1,height:1,name:'可再次编辑素材'},'POST');assert.equal(withItem.status,200);
  const item=withItem.data.items.at(-1);
  const imported=await call('/api/materials/import',{jobId:source.data.id,itemIds:[item.id],names:{[item.id]:'可再次编辑素材'}},'POST');assert.equal(imported.status,200);
