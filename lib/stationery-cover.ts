@@ -4,16 +4,15 @@ export function stationeryCoverSvg(title: string, color: string) {
   const palette =
     base === "#f4ce75"
       ? { base: "#f8e99b", band: "#edd36c", light: "#fffbe4" }
-      : base === "#d7a8ad"
-        ? { base: "#edc6cb", band: "#dca9b0", light: "#fff2f3" }
-        : base === "#9db8c9"
-          ? { base: "#c5d8e5", band: "#9fbccd", light: "#eef7fb" }
+      : base === "#e8b9ba"
+        ? { base: "#efc9cb", band: "#dfaeb0", light: "#fff3f3" }
+        : base === "#91a9b5"
+          ? { base: "#bfd1da", band: "#9fb9c5", light: "#eef7fa" }
           : { base, band: "#ffffff", light: "#ffffff" };
 
-  // Standard notebook artwork is intentionally limited to a clean front-cover panel.
-  // The real spine, page block, clasp and book depth are rendered by the surrounding
-  // notebook geometry, so they must never be baked into this front image.
-  // The label is intentionally generic and unbranded for all built-in regular covers.
+  // Keep this image to the clean front-cover artwork only. The surrounding notebook
+  // geometry owns the real spine, page block, clasp and depth, so none of those parts
+  // are baked into this SVG. Built-in regular covers stay generic and unbranded.
   return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
   <defs>
     <clipPath id="cover"><rect width="600" height="900" rx="22"/></clipPath>
