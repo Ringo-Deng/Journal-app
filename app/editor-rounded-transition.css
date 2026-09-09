@@ -1,0 +1,76 @@
+/* Keep the live editor mounted beneath the physical cover throughout opening
+   and closing. Removing only the cover compositor layer avoids a white frame
+   when React switches from the cover preview to the editable flyleaf. */
+.compact-shell .work-area > .cover-transition-overlay {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 60;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cover-transition-overlay .rigid-underlay {
+  visibility: hidden;
+}
+
+.cover-transition-overlay .cover-navigation {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Match the 3D model: the binding edge stays square while only exposed cover
+   and paper corners are rounded. Compact screens use the smaller values below. */
+.is-editing {
+  --editor-cover-radius: 18px;
+  --editor-paper-radius: 14px;
+}
+
+.is-editing .cover-stage .rigid-front {
+  border-radius: 0 var(--editor-cover-radius) var(--editor-cover-radius) 0 !important;
+  overflow: hidden;
+}
+
+.is-editing .cover-stage .rigid-back {
+  border-radius: var(--editor-cover-radius) 0 0 var(--editor-cover-radius) !important;
+  overflow: hidden;
+}
+
+.is-editing .book-scene .open-book {
+  border-radius: var(--editor-paper-radius) !important;
+}
+
+.is-editing .book-scene .notebook-page-layer.left-paper,
+.is-editing .book-scene .cover-inside {
+  border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
+}
+
+.is-editing .book-scene .notebook-page-layer.right-paper,
+.is-editing .book-scene .paper-page.right-paper {
+  border-radius: 0 var(--editor-paper-radius) var(--editor-paper-radius) 0;
+}
+
+.is-editing .book-scene .turn-snapshot {
+  border-radius: var(--editor-paper-radius);
+}
+
+.is-editing .book-scene .page-turn-layer.next .turn-reveal {
+  border-radius: 0 var(--editor-paper-radius) var(--editor-paper-radius) 0;
+}
+
+.is-editing .book-scene .page-turn-layer.previous .turn-reveal {
+  border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-transition-overlay .rigid-cover {
+    animation-duration: .01s !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .is-editing {
+    --editor-cover-radius: 12px;
+    --editor-paper-radius: 9px;
+  }
+}

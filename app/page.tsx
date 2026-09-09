@@ -1811,34 +1811,37 @@ export default function Home() {
                       去笔记库新建
                     </button>
                   </div>
-                ) : !opened ? (
-                  <div className={`book-scene cover-stage notebook-${cover.material.id}`} style={{'--spread-ratio':format.ratio,'--book-scale':format.scale} as CSSProperties}>
-                    <div className={`rigid-cover-scene ${opening || closing ? 'is-turning' : ''}`} style={{'--closed-ratio':format.ratio/2} as CSSProperties}>
-                      {<div className="rigid-underlay"><SpreadPreview book={book} spread={ensureFlyleaf(book).flyleaf!} assets={assets} flyleaf/></div>}
-                      <button aria-label="打开手帐" disabled={opening || closing}
-                        className={`book-cover rigid-cover ${opening ? 'cover-opening' : ''} ${closing ? 'cover-closing' : ''}`}
-                        onClick={openBook}>
-                        <span className={`rigid-face rigid-front texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}>
-                          {!book.coverAsset && (cover.material.id === "linen" ? <StationeryCover title={book.title} color={cover.colorway.color}/> : <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>)}
-                          {book.coverAsset && <img className="cover-art" src={resolveMaterial(book.coverAsset)} alt="封面装饰"/>}
-                        </span>
-                        <span className={`rigid-face rigid-back texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}><span className="cover-inside-edge"/><span className="cover-binding"/></span>
-                        <span className="rigid-edge"/>
-                      </button>
-                    </div>
-                    <div className="page-navigation cover-navigation"><span>{book.title || '拾光集'}</span><button className="quiet" onClick={openBook}>翻开<ChevronRight/></button></div>
-                  </div>
                 ) : (
-                  <div
-                    className={`book-scene notebook-${cover.material.id}`}
-                    style={
-                      {
-                        '--cover-base': cover.colorway.color,
-                        '--spread-ratio': format.ratio,
-                        '--book-scale': format.scale,
-                      } as CSSProperties
-                    }
-                  >
+                  <>
+                    {(!opened || opening || closing) && (
+                      <div className={`book-scene cover-stage notebook-${cover.material.id} ${opening || closing ? 'cover-transition-overlay' : ''}`} style={{'--spread-ratio':format.ratio,'--book-scale':format.scale} as CSSProperties}>
+                        <div className={`rigid-cover-scene ${opening || closing ? 'is-turning' : ''}`} style={{'--closed-ratio':format.ratio/2} as CSSProperties}>
+                          {<div className="rigid-underlay"><SpreadPreview book={book} spread={ensureFlyleaf(book).flyleaf!} assets={assets} flyleaf/></div>}
+                          <button aria-label="打开手帐" disabled={opening || closing}
+                            className={`book-cover rigid-cover ${opening ? 'cover-opening' : ''} ${closing ? 'cover-closing' : ''}`}
+                            onClick={openBook}>
+                            <span className={`rigid-face rigid-front texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}>
+                              {!book.coverAsset && (cover.material.id === "linen" ? <StationeryCover title={book.title} color={cover.colorway.color}/> : <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>)}
+                              {book.coverAsset && <img className="cover-art" src={resolveMaterial(book.coverAsset)} alt="封面装饰"/>}
+                            </span>
+                            <span className={`rigid-face rigid-back texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}><span className="cover-inside-edge"/><span className="cover-binding"/></span>
+                            <span className="rigid-edge"/>
+                          </button>
+                        </div>
+                        <div className="page-navigation cover-navigation"><span>{book.title || '拾光集'}</span><button className="quiet" onClick={openBook}>翻开<ChevronRight/></button></div>
+                      </div>
+                    )}
+                    {(opened || opening || closing) && (
+                      <div
+                        className={`book-scene notebook-${cover.material.id}`}
+                        style={
+                          {
+                            '--cover-base': cover.colorway.color,
+                            '--spread-ratio': format.ratio,
+                            '--book-scale': format.scale,
+                          } as CSSProperties
+                        }
+                      >
                     <div
                       className={`open-book paper-${paper.style} ${isFlyleaf ? 'flyleaf-spread' : ''}`}
                       style={
@@ -2004,8 +2007,10 @@ export default function Home() {
                             settling={turnSettling}
                           />
                         )}
-                    </div>
-                  </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 <span className="canvas-tag">
                   <Leaf

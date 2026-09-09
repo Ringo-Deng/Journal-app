@@ -13,6 +13,7 @@ import './material-library-refresh.css';
 import './material-studio-stability.css';
 import './notebook-cover-previews.css';
 import './editor-reliability.css';
+import './editor-rounded-transition.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',
