@@ -20,16 +20,18 @@ test('page items panel is promoted to a real layer panel',async()=>{
   assert.match(source,/moveLayer/);
 });
 
-test('layer row actions stay compact and arrows change the journal stack',async()=>{
+test('layer row actions stay compact and send layers to stack edges',async()=>{
   const page=await readFile(pagePath,'utf8');
   const actions=await readFile(actionPath,'utf8');
+  const meta=await readFile(metaPath,'utf8');
+  assert.match(actions,/ArrowDownToLine,ArrowUpToLine/);
   assert.match(actions,/width:22,height:22,padding:3,minWidth:22/);
   assert.match(actions,/size:14,strokeWidth:1\.8/);
-  assert.match(actions,/aria-label="在手帐中上移一个图层"/);
-  assert.match(actions,/aria-label="在手帐中下移一个图层"/);
+  assert.match(actions,/aria-label="置顶图层"/);
+  assert.match(actions,/aria-label="置底图层"/);
   assert.match(page,/onUp=\{\(\)=>moveLayer\(members,'up'\)\}/);
   assert.match(page,/onDown=\{\(\)=>moveLayer\(members,'down'\)\}/);
-  assert.match(page,/elements:reorderLayerBlock\(s\.elements,ids,action\)/);
+  assert.match(meta,/action === 'top' \|\| action === 'up' \? blocks\.length : 0/);
 });
 
 test('hidden layers stay in data but disappear from editor and previews',async()=>{

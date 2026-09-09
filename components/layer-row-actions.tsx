@@ -1,5 +1,5 @@
 'use client';
-import {ArrowDown,ArrowUp,Eye,EyeOff,Lock,Unlock,Pencil} from 'lucide-react';
+import {ArrowDownToLine,ArrowUpToLine,Eye,EyeOff,Lock,Unlock,Pencil} from 'lucide-react';
 
 export default function LayerRowActions({
   hidden,
@@ -24,7 +24,7 @@ export default function LayerRowActions({
     <button type="button" className="quiet icon" style={buttonStyle} aria-label={hidden?'显示图层':'隐藏图层'} title={hidden?'显示':'隐藏'} onClick={onVisibility}>{hidden?<EyeOff {...iconProps}/>:<Eye {...iconProps}/>}</button>
     <button type="button" className="quiet icon" style={buttonStyle} aria-label={locked?'解锁图层':'锁定图层'} title={locked?'解锁':'锁定'} onClick={onLock}>{locked?<Lock {...iconProps}/>:<Unlock {...iconProps}/>}</button>
     <button type="button" className="quiet icon" style={buttonStyle} aria-label="重命名图层" title="重命名" onClick={onRename}><Pencil {...iconProps}/></button>
-    {onUp&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="在手帐中上移一个图层" title="在手帐中上移一个图层" onClick={onUp}><ArrowUp {...iconProps}/></button>}
-    {onDown&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="在手帐中下移一个图层" title="在手帐中下移一个图层" onClick={onDown}><ArrowDown {...iconProps}/></button>}
+    {onUp&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="置顶图层" title="置顶" onClick={onUp}><ArrowUpToLine {...iconProps}/></button>}
+    {onDown&&<button type="button" className="quiet icon" style={buttonStyle} disabled={locked} aria-label="置底图层" title="置底" onClick={onDown}><ArrowDownToLine {...iconProps}/></button>}
   </span>;
 }

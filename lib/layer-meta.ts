@@ -39,8 +39,6 @@ export function reorderLayerBlock<T extends { id: string; groupId?: string }>(
   const selected = items.filter((item) => ids.has(item.id));
   if (!selected.length || selected.length === items.length) return items;
 
-  const indexById = new Map(items.map((item, index) => [item.id, index]));
-  const firstSelected = Math.min(...selected.map((item) => indexById.get(item.id) ?? 0));
   const rest = items.filter((item) => !ids.has(item.id));
   const seenGroups = new Set<string>();
   const blocks: T[][] = [];
@@ -55,16 +53,7 @@ export function reorderLayerBlock<T extends { id: string; groupId?: string }>(
     }
   }
 
-  const beforeCount = blocks.filter((block) => {
-    const index = Math.min(...block.map((item) => indexById.get(item.id) ?? 0));
-    return index < firstSelected;
-  }).length;
-  const target =
-    action === 'top'
-      ? blocks.length
-      : action === 'bottom'
-        ? 0
-        : Math.max(0, Math.min(blocks.length, beforeCount + (action === 'up' ? 1 : -1)));
-
+  // The layer panel keeps the legacy up/down callback names, but those controls now mean top/bottom.
+  const target = action === 'top' || action === 'up' ? blocks.length : 0;
   return [...blocks.slice(0, target).flat(), ...selected, ...blocks.slice(target).flat()];
 }
