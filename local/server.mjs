@@ -431,6 +431,7 @@ async function generate(input) {
     paper:input.paper,
     editorialEdited:editorial.edited,
     requirements:editorial.requirements,
+    requiredSources:input.elements.filter(p=>!p.locked&&['text','photo'].includes(p.kind)).map(p=>({sourceId:p.id,kind:p.kind,role:p.role})),
     elements: (input.elements||[]).map(p=>p.locked?p:{id:p.id,kind:p.kind,role:p.role,text:p.text,dayId:p.dayId,paragraphIndex:p.paragraphIndex,stickerKeywords:p.stickerKeywords,src:p.src,w:p.w,h:p.h,frame:p.frame,groupId:p.groupId,attachedTo:p.attachedTo,fontFamily:p.fontFamily,lineHeight:p.lineHeight}),
     instruction: String(input.instruction || '').slice(0, 1000),
   });

@@ -1,13 +1,13 @@
 import {estimatedHeight} from '../lib/layout-safety.mjs';
 
-export const compositionGuide = `preset 选择 quiet（日记留白）、photo-led（大照片配文）、photo-story（多照片故事）、travel-notes（旅行票据）、long-read（长文双栏）或 free（明确指定的位置、特殊构图或锁定组合）。primarySide 为 left 或 right，指主要视觉所在页。density 为 sparse 或 balanced。不要为了用某种构图而新增文字、照片或装饰。`;
+export const compositionGuide = `preset 选择 quiet（日记留白）、photo-led（大照片配文）、photo-story（多照片故事）、travel-notes（旅行票据）、long-read（长文双栏）或 free（明确指定的位置、特殊构图或锁定组合）。primarySide 为 left 或 right，指主要视觉所在页。density 默认为 rich（丰富叠贴），也可为 balanced 或 sparse（仅用户明确要求极简时）。不要为了用某种构图而新增文字或照片。`;
 const presets = new Set(['quiet', 'photo-led', 'photo-story', 'travel-notes', 'long-read']);
 
 // Regions describe a composition, not fixed text boxes. Heights follow content.
 export function resolveComposition(brief = {}, input = {}) {
   const preset = (input.elements || []).some(p => p.locked || p.groupId) ? 'free' : presets.has(brief?.preset) ? brief.preset : 'free';
   const primarySide = brief?.primarySide === 'right' ? 'right' : 'left';
-  const density = brief?.density === 'balanced' ? 'balanced' : 'sparse';
+  const density = ['sparse', 'balanced', 'rich'].includes(brief?.density) ? brief.density : 'rich';
   const region = (id, x, y, w, h, accepts) => ({id, x: primarySide === 'right' ? 100 - x - w : x, y, w, h, accepts});
   const regions = {
     quiet: [region('writing', 9, 15, 32, 71, 'text'), region('continuation', 59, 34, 32, 52, 'text')],
@@ -21,8 +21,8 @@ export function resolveComposition(brief = {}, input = {}) {
 
 export function composeContent(elements, input, composition) {
   const result = elements.map(p => ({...p}));
-  if (!composition.regions.length) return result.map(({region: _region, ...p}) => p);
   const ratio = Number.isFinite(input.ratio) ? Math.max(.6, Math.min(2.5, input.ratio)) : 1.43;
+  if (!composition.regions.length) return result.map(({region: _region, ...p}) => p.kind === 'text' && Number.isFinite(p.h) ? {...p, h: estimatedHeight({...p, h: 0}, ratio)} : p);
   const assignments = new Map(composition.regions.map(r => [r.id, []]));
   const content = result.filter(p => p.kind === 'photo' || p.kind === 'text');
   const eligible = p => composition.regions.filter(r => r.accepts === 'content' || r.accepts === p.kind);

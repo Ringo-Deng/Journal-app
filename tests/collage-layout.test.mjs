@@ -79,11 +79,11 @@ test('locked combinations bypass preset geometry and survive validation and appl
   assert.ok(applied.elements.every(p => p.region === undefined));
 });
 
-test('optional decorations yield to writing, obey density, and never recruit library filler', () => {
+test('selected decorations have no count cap and never recruit library filler', () => {
   const writing = body('不要遮住这段文字。');
   const flowers = assets.map((a, i) => ({kind: 'asset', assetId: a.id, src: a.src, x: 58 + i % 3 * 12, y: 15 + Math.floor(i / 3) * 17, w: 6, rotation: 0}));
   const out = finishCollage([writing, ...flowers], {elements: []}, assets, {density: 'sparse'});
-  assert.equal(out.filter(p => p.kind === 'asset').length, 2);
+  assert.equal(out.filter(p => p.kind === 'asset').length, flowers.length);
   assert.deepEqual(out[0], writing);
   assert.deepEqual(finishCollage([writing], {elements: []}, assets), [writing]);
   const blocked = {...flowers[0], x: writing.x, y: writing.y};
@@ -91,7 +91,7 @@ test('optional decorations yield to writing, obey density, and never recruit lib
   assert.deepEqual(finishCollage([writing, ...flowers], {elements: [], instruction: '不要贴纸'}, assets), [writing]);
 });
 
-test('required paragraph stickers stay associated even above the optional density limit', async () => {
+test('required paragraph stickers stay associated with their writing', async () => {
   const {checkParagraphDesign} = await import('../local/editorial.mjs');
   const paragraphs = Array.from({length: 3}, (_, i) => ({...body(`段落${i}。`, i), paragraphIndex: i}));
   const selected = paragraphs.map((p, i) => ({kind: 'asset', assetId: assets[i].id, src: assets[i].src, forParagraph: p.sourceId, x: 80, y: 80, w: 4, rotation: 0}));
@@ -108,4 +108,67 @@ test('a heading follows its paragraph to the next region rather than being stran
   assert.ok(result[1].x > 50);
   assert.equal(result[1].x, result[2].x);
   assert.ok(result[1].y + result[1].h < result[2].y);
+});
+
+test('dense overlapping clusters keep every selected layer while writing and photos remain protected', () => {
+  const writing = body('周末去海边。');
+  const photograph = {...photo(0), x: 55, y: 60, w: 30, h: 25};
+  const cluster = Array.from({length: 18}, (_, i) => ({kind: 'asset', assetId: assets[i % assets.length].id, src: assets[i % assets.length].src, x: 56 + i % 5 * 3, y: 15 + Math.floor(i / 5) * 3, w: 10, rotation: i % 2 ? -4 : 4}));
+  const input = [writing, photograph, ...cluster];
+  const out = finishCollage(input, {elements: []}, assets, {density: 'rich'});
+  assert.equal(out.length, input.length);
+  assert.deepEqual(out.slice(0, 2), input.slice(0, 2));
+  assert.deepEqual(out.slice(2).map(p => [p.x, p.y, p.w, p.rotation]), cluster.map(p => [p.x, p.y, p.w, p.rotation]));
+  assert.deepEqual(layoutIssues(out), []);
+  const unsafe = {...cluster[0], x: photograph.x, y: photograph.y};
+  assert.equal(finishCollage([writing, photograph, unsafe], {elements: []}, assets).length, 2);
+});
+
+test('backing paper is retained beneath text even when the model lists it last', () => {
+  const writing = {...body('叠贴不能遮住文字。'), stackOrder: 1};
+  const paper = {kind: 'asset', assetId: 'collage-paper', x: 3, y: 16, w: 40, h: 20, rotation: 0};
+  const out = finishCollage([writing, paper], {elements: []}, [{id: 'collage-paper'}]);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].assetId, 'collage-paper');
+  assert.equal(out[0].stackOrder, 1);
+  assert.deepEqual(out[1], writing);
+  assert.deepEqual(layoutIssues(out), []);
+});
+
+test('flowing a paragraph translates its decorative cluster without collapsing relative offsets', () => {
+  const writing = {...body('正文。'), region: 'writing'};
+  const cluster = [0, 1, 2].map(i => ({kind: 'asset', assetId: assets[i].id, forParagraph: writing.sourceId, x: 6 + i * 3, y: 34 + i, w: 5, rotation: 0}));
+  const out = finishCollage([writing, ...cluster], {elements: []}, assets, {preset: 'quiet', primarySide: 'right'});
+  const decorations = out.filter(p => p.kind === 'asset');
+  assert.equal(decorations.length, 3);
+  assert.equal(decorations[1].x - decorations[0].x, 3);
+  assert.equal(decorations[1].y - decorations[0].y, 1);
+  assert.ok(decorations.every(p => p.x > 50));
+});
+
+test('a visibly adjacent sticker can supply omitted paragraph metadata without moving or inventing material', async () => {
+  const {checkParagraphDesign} = await import('../local/editorial.mjs');
+  const writing = body('一段记录。');
+  const sticker = {kind: 'asset', assetId: assets[0].id, x: 8, y: 34, w: 5, rotation: 0};
+  const input = {elements: [], requirements: {stickers: true}};
+  const out = finishCollage([writing, sticker], input, assets);
+  assert.equal(out.length, 2);
+  assert.equal(out[1].forParagraph, writing.sourceId);
+  assert.deepEqual([out[1].x, out[1].y, out[1].w], [sticker.x, sticker.y, sticker.w]);
+  checkParagraphDesign(out, input, input.requirements, assets);
+  const far = finishCollage([writing, {...sticker, x: 60, y: 80}], input, assets);
+  assert.throws(() => checkParagraphDesign(far, input, input.requirements, assets), /配上贴纸/);
+});
+
+test('a guessed oversized text box does not reserve an empty half page and discard nearby collage layers', () => {
+  const writing = {...body('只是一行短文。'), x: 55, y: 10, h: 55};
+  const sticker = {kind: 'asset', assetId: assets[0].id, x: 58, y: 30, w: 8, rotation: 0};
+  const before = structuredClone(writing);
+  const out = finishCollage([writing, sticker], {elements: []}, assets, {preset: 'free'});
+  assert.equal(out.length, 2);
+  assert.ok(out[0].h < 10);
+  assert.equal(out[0].fontSize, writing.fontSize);
+  assert.equal(out[0].text, writing.text);
+  assert.deepEqual(writing, before);
+  assert.deepEqual(layoutIssues(out), []);
 });
