@@ -131,6 +131,7 @@ export type Book = {
 export type Journal = { books: Book[]; revision: number };
 export type DesignPiece = Omit<Piece, "id" | "locked"> & {sourceId?: string; dayIndex?: number};
 export type AIResult = {
+  headerReserved?: boolean;
   contentEdited?: boolean;
   designConcept?: string;
   elements?: DesignPiece[];
@@ -394,8 +395,8 @@ export function appendDay(book:Book,day:Day,result:AIResult,assets:Asset[],sprea
   if(!spread.days.length){spread.theme=result.theme;spread.layout=result.layout||'collage';spread.date=day.date}
   const content=result.days[0],complete={...day,title:content.title,text:content.text};
   const index=side??spread.days.length%2;const existing=spread.days.length;spread.days.push(complete);
-  const pieces=result.elements?reserveHeaderSpace(result.elements,topOffset).map(p=>({...p,id:uid(),dayId:complete.id,locked:false})):dayPieces(complete,index,assets,content.assetIds,0,spread.layout,topOffset);
-  const shift=result.elements?0:Math.min(35,Math.floor(existing/2)*22);spread.elements.push(...pieces.map(p=>({...p,y:Math.min(85,p.y+shift)})));
+  const pieces=result.elements?(result.headerReserved?result.elements:reserveHeaderSpace(result.elements,topOffset)).map(p=>({...p,id:uid(),dayId:complete.id,locked:false})):dayPieces(complete,index,assets,content.assetIds,0,spread.layout,topOffset);
+  const shift=result.elements?0:Math.min(35,Math.floor(existing/2)*22);spread.elements.push(...pieces.map(p=>({...p,y:result.headerReserved?p.y:Math.min(85,p.y+shift)})));
   return{...book,spreads};
 }
 export const pieceKey=(p:Piece)=>p.kind==='text'?`${p.dayId}:${p.paragraphIndex!==undefined?p.id:p.role||p.id}`:p.kind==='photo'?`${p.dayId}:${p.photoOriginal||p.src}`:p.assetId||p.id;

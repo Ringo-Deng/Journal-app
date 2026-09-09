@@ -1,6 +1,7 @@
 import {tidyLayout} from '../lib/layout-safety.mjs';
 import {nextMaterialStrategy} from '../lib/material-retry.mjs';
 import {finishCollage} from './collage-layout.mjs';
+import {generatePaperGroup} from './paper-group.mjs';
 import {resolveComposition} from './layout-composition.mjs';
 import {selectStickers} from './sticker-selection.mjs';
 import {layoutPrompt} from './layout-prompt.mjs';
@@ -406,6 +407,16 @@ async function generate(input) {
         await atomic('ai-last-editorial.json',{...diagnostic,attempts}).catch(()=>{});
       }
     }
+  }
+  const groupDiagnostic={at:new Date().toISOString(),model:settings.model};
+  try {
+    const grouped=await generatePaperGroup({...input,requirements:editorial.requirements},assets,{root,data,requestAI:designRequest,vision:!!settings.vision,diagnostic:groupDiagnostic});
+    if(grouped) return {...grouped,contentEdited:editorial.edited};
+  } catch(cause) {
+    Object.assign(groupDiagnostic,{ok:false,error:cause.message});
+    throw error(`${cause.message} 原有手帐未改动。`,502);
+  } finally {
+    if(groupDiagnostic.stage) await atomic('ai-last-result.json',groupDiagnostic).catch(()=>{});
   }
   let designBrief;
   const artMessages=[{role:'system',content:artPrompt},{role:'user',content:JSON.stringify({instruction:input.instruction,ratio:input.ratio,hasLocked:input.elements.some(p=>p.locked),photoCount:input.elements.length?input.elements.filter(p=>p.kind==='photo').length:input.days.reduce((n,d)=>n+(d.photos?.length||0),0),texts:input.elements.filter(p=>p.kind==='text').map(p=>p.text),days:input.elements.length?[]:input.days.map(d=>d.text||d.raw)})}];

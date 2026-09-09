@@ -987,6 +987,11 @@ export default function Home() {
               paper:paperSettings(book,spread),
               ratio:bookFormat(book).ratio,
               headerSpace,
+              entrySide,
+              occupiedElements: regen ? [] : ((page<0?book.spreads[0]:spread)?.elements||[]).filter(p=>!isPieceHidden(p)).map(p=>{
+                const node=page<0?null:selectedNode(p.id),ch=canvas.current?.clientHeight||700;
+                return {id:p.id,kind:p.kind,x:p.x,y:p.y,w:p.w,h:node?Math.max(node.offsetHeight,node.scrollHeight)/ch*100:p.h,rotation:p.rotation};
+              }),
               instruction: inst ?? instruction,
               elements: regen ? spread!.elements.map(p=>{
                 const node=p.kind==='photo'?selectedNode(p.id):null;
@@ -998,8 +1003,9 @@ export default function Home() {
         : localResult(days, currentTheme);
       const currentBook=booksRef.current.find(b=>b.id===book.id);
       if (regen && JSON.stringify(currentBook?sheetAt(currentBook,page):undefined) !== JSON.stringify(spread)) throw Error('设计期间页面发生了修改，请重新设计以包含最新内容。');
+      if (!regen && JSON.stringify(currentBook?.spreads[Math.max(0,page)]) !== JSON.stringify(book.spreads[Math.max(0,page)])) throw Error('生成期间页面发生了修改，请重新生成以保留最新内容。');
       if (regen) {
-        if(result.elements)result.elements=reserveHeaderSpace(result.elements,headerSpace,spread!.elements.filter(p=>isPieceHidden(p)||(preserveLocks&&p.locked)).map(p=>p.id));
+        if(result.elements&&!result.headerReserved)result.elements=reserveHeaderSpace(result.elements,headerSpace,spread!.elements.filter(p=>isPieceHidden(p)||(preserveLocks&&p.locked)).map(p=>p.id));
         const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId||preserveLocks&&p.locked}))};
         const designed=regenerateSpread(protectedSpread,result,assets);
         designed.elements=designed.elements.map(p=>{
@@ -1009,7 +1015,7 @@ export default function Home() {
         });
         setDesignPreview({book,spread:designed,before:JSON.stringify(spread),concept:result.designConcept});
       } else {
-        const updated = appendDay(book, day, result, assets, Math.max(0, page), entrySide==='left'?0:1, headerSpace);
+        const updated = appendDay(currentBook||book, day, result, assets, Math.max(0, page), entrySide==='left'?0:1, headerSpace);
         change((all) => all.map((b) => (b.id === book.id ? updated : b)));
         setPage(Math.min(page,updated.spreads.length-1));
         setRaw('');
