@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {unionBoxes,transformCluster,cloneCluster,creamTravel,instantiateTemplate} from '../lib/collage.ts';
+import {removePiecesFromSpread} from '../lib/journal.ts';
 import {tidyLayout,layoutIssues,estimatedHeight} from '../lib/layout-safety.mjs';
 import {validatePlan} from '../local/design-plan.mjs';
 import {notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
@@ -25,6 +26,15 @@ test('templates retain physical proportions across notebook ratios',()=>{
  let n=0;const t={id:'t',name:'组合',ratio:1.4,elements:[p('a',{kind:'photo',h:20,y:0}),p('b',{y:25,h:6,attachedTo:'a'})]};
  const copy=instantiateTemplate(t,()=>`c${++n}`,1);
  near(copy[0].h,20/1.4);near(copy[1].y,8+25/1.4);assert.equal(copy[1].attachedTo,copy[0].id);
+});
+test('cut removal records source pieces and detaches surviving attachments',()=>{
+ const photo=p('photo',{kind:'photo',dayId:'day',src:'/uploads/photo.png'}),caption=p('caption',{attachedTo:'photo'}),other=p('other');
+ const spread={id:'s',days:[],elements:[photo,caption,other],removed:['existing']};
+ const out=removePiecesFromSpread(spread,['photo']);
+ assert.deepEqual(out.elements.map(piece=>piece.id),['caption','other']);
+ assert.equal(out.elements[0].attachedTo,undefined);
+ assert.deepEqual(out.removed,['existing','day:/uploads/photo.png']);
+ assert.equal(removePiecesFromSpread(spread,['missing']),spread);
 });
 test('travel styling changes neither text nor locked pieces and reaches both page overrides',()=>{
  const fixed=p('fixed',{locked:true,fontFamily:'serif'}),s={id:'s',days:[],elements:[fixed,p('title',{role:'title'})],pages:{left:{paperColor:'#fff'},right:{paperStyle:'dots'}}};

@@ -6,6 +6,7 @@ import {
   ArrowUp,
   ArrowDown,
   Copy,
+  Scissors,
   Trash2,
   Check,
   Link,
@@ -89,6 +90,7 @@ export default function ElementControls({
   onSize,
   onLayer,
   onCopy,
+  onCut,
   onDelete,
   onFinish,
   onEdit,
@@ -104,6 +106,7 @@ export default function ElementControls({
   onSize: (axis: 'w' | 'h', value: number) => void;
   onLayer: (action: 'top' | 'bottom' | 'up' | 'down') => void;
   onCopy: () => void;
+  onCut: () => void;
   onDelete: () => void;
   onFinish: () => void;
   onEdit: () => void;
@@ -269,6 +272,14 @@ export default function ElementControls({
         onClick={onCopy}
       >
         <Copy />
+      </button>
+      <button
+        className="quiet tool-icon compact-cut"
+        aria-label="剪切素材"
+        title="剪切 · ⌘X"
+        onClick={onCut}
+      >
+        <Scissors />
       </button>
       <button
         className="quiet tool-icon compact-delete"

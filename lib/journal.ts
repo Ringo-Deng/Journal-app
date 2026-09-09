@@ -399,6 +399,17 @@ export function appendDay(book:Book,day:Day,result:AIResult,assets:Asset[],sprea
   return{...book,spreads};
 }
 export const pieceKey=(p:Piece)=>p.kind==='text'?`${p.dayId}:${p.paragraphIndex!==undefined?p.id:p.role||p.id}`:p.kind==='photo'?`${p.dayId}:${p.photoOriginal||p.src}`:p.assetId||p.id;
+export function removePiecesFromSpread(spread:Spread,pieceIds:Iterable<string>):Spread{
+  const ids=new Set(pieceIds);
+  if(!ids.size||!spread.elements.some(piece=>ids.has(piece.id)))return spread;
+  return {
+    ...spread,
+    removed:[...(spread.removed||[]),...spread.elements.filter(piece=>ids.has(piece.id)).map(pieceKey)],
+    elements:spread.elements
+      .filter(piece=>!ids.has(piece.id))
+      .map(piece=>piece.attachedTo&&ids.has(piece.attachedTo)?{...piece,attachedTo:undefined}:piece),
+  };
+}
 export function regenerateSpread(spread:Spread,result:AIResult,assets:Asset[],variant=1):Spread{
   const locked=spread.elements.filter(e=>e.locked);
   const days=spread.days.map((d,i)=>({...d,title:result.elements||locked.some(e=>e.dayId===d.id&&e.role==='title')?d.title:result.days[i].title,text:result.elements||locked.some(e=>e.dayId===d.id&&e.role==='body')?d.text:result.days[i].text}));

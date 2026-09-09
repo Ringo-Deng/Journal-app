@@ -1,7 +1,7 @@
 'use client';
 import StationeryCover from '@/components/stationery-cover';
 import CollageTools from '@/components/collage-tools';
-import CollageStudio from '@/components/collage-studio';
+import CollageStudio,{type ClipboardSource} from '@/components/collage-studio';
 import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
 import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate} from '@/lib/collage';
 import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
@@ -63,6 +63,7 @@ import {
   RefreshCw,
   PanelTop,
   List,
+  ClipboardPaste,
 } from 'lucide-react';
 import {
   Dialog,
@@ -100,7 +101,7 @@ import {
   localResult,
   appendDay,
   regenerateSpread,
-  pieceKey,
+  removePiecesFromSpread,
   defaultHeader,
   headerDateFormats,
   renderHeader,
@@ -189,6 +190,8 @@ export default function Home() {
   const [multiIds,setMultiIds]=useState<string[]>([]);
   const [editingGroup,setEditingGroup]=useState<string|null>(null);
   const [collageOpen,setCollageOpen]=useState(false);
+  const [clipboardCutRequest,setClipboardCutRequest]=useState(0);
+  const [clipboardPasteRequest,setClipboardPasteRequest]=useState(0);
   const [cropping,setCropping]=useState(false);
   const [layoutReport,setLayoutReport]=useState<{message:string;ids:string[];type:string}[]|null>(null);
   const [textRange,setTextRange]=useState<{id:string;start:number;end:number;text:string}|null>(null);
@@ -698,6 +701,20 @@ export default function Home() {
     const copies=cloneCluster(activePieces,uid);
     changeSpread(s=>({...s,elements:[...s.elements,...copies]}));setMultiIds(copies.length>1?copies.map(p=>p.id):[]);setSelected(copies[0].id);setEditingGroup(null);toast('已复制，可直接拖动到新位置。');
   }
+  function cutSelection(source:ClipboardSource){
+    const sourceBook=booksRef.current.find(candidate=>candidate.id===source.sourceBookId);
+    const sourceSpread=[sourceBook?.flyleaf,...(sourceBook?.spreads||[])].find(candidate=>candidate?.id===source.sourceSpreadId);
+    const ids=new Set(source.pieceIds),pieces=sourceSpread?.elements.filter(candidate=>ids.has(candidate.id))||[];
+    if(!pieces.length){toast('剪切的素材已不在原页。');return;}
+    if(pieces.some(candidate=>candidate.locked)){toast('锁定素材不能剪切，请先解锁。');return;}
+    change(all=>all.map(candidate=>candidate.id!==source.sourceBookId?candidate:{
+      ...candidate,
+      flyleaf:candidate.flyleaf?.id===source.sourceSpreadId?removePiecesFromSpread(candidate.flyleaf,ids):candidate.flyleaf,
+      spreads:candidate.spreads.map(candidateSpread=>candidateSpread.id===source.sourceSpreadId?removePiecesFromSpread(candidateSpread,ids):candidateSpread),
+    }));
+    if(book?.id===source.sourceBookId&&spread?.id===source.sourceSpreadId)setSelected(null);
+    toast(pieces.length>1?'已剪切所选素材，可翻页后粘贴。':'已剪切素材，可翻页后粘贴。');
+  }
   function changeLayer(action:'top'|'bottom'|'up'|'down'){
     if(!piece||selectionLocked)return;
     const ids=new Set(activePieces.map(p=>p.id));
@@ -747,14 +764,7 @@ export default function Home() {
   const removePiece = () => {
     if (selected && !selectionLocked) {
       const ids=new Set(activePieces.map(p=>p.id));
-      changeSpread((s) => ({
-        ...s,
-        removed: [
-          ...(s.removed || []),
-          ...s.elements.filter((e) => ids.has(e.id)).map(pieceKey),
-        ],
-        elements: s.elements.filter((e) => !ids.has(e.id)).map(e=>e.attachedTo&&ids.has(e.attachedTo)?{...e,attachedTo:undefined}:e),
-      }));
+      changeSpread((s) => removePiecesFromSpread(s,ids));
       setSelected(null);
     }
   };
@@ -1727,6 +1737,7 @@ export default function Home() {
               <Layers/><span>图层</span>
             </button>
             <button className="quiet" disabled={!spread||busy||!opened} onClick={()=>{finishEditing();setCollageOpen(true);}}><Feather/><span>旅行拼贴</span></button>
+            <button className="quiet" disabled={!spread||busy||!opened} onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span>粘贴</span></button>
             <span className="tool-divider"/>
             <button className="quiet" aria-label="撤销调整" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
@@ -1735,16 +1746,16 @@ export default function Home() {
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个素材`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'⌘/Ctrl 或 Shift 点击可多选'}</span>
-            {cluster&&<><button className="quiet" disabled={selectionLocked} onClick={groupSelection}>编为一组</button><button className="quiet" disabled={selectionLocked||!piece.groupId} onClick={ungroupSelection}>解组</button><label>组合名称<input aria-label="组合名称" value={templateName} maxLength={40} onChange={e=>setTemplateName(e.target.value)}/></label><button className="quiet" onClick={saveCluster}>保存组合</button><button className="quiet" onClick={copyPiece}>复制组合</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('top')}>组合置顶</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('bottom')}>组合置底</button><button className="quiet" disabled={selectionLocked} onClick={removePiece}>删除所选</button><button className="quiet" onClick={()=>enterGroup(piece)}>编辑组内元素</button></>}
+            {cluster&&<><button className="quiet" disabled={selectionLocked} onClick={groupSelection}>编为一组</button><button className="quiet" disabled={selectionLocked||!piece.groupId} onClick={ungroupSelection}>解组</button><label>组合名称<input aria-label="组合名称" value={templateName} maxLength={40} onChange={e=>setTemplateName(e.target.value)}/></label><button className="quiet" onClick={saveCluster}>保存组合</button><button className="quiet" onClick={copyPiece}>复制组合</button><button className="quiet" disabled={selectionLocked} onClick={()=>setClipboardCutRequest(value=>value+1)}>剪切所选</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('top')}>组合置顶</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('bottom')}>组合置底</button><button className="quiet" disabled={selectionLocked} onClick={removePiece}>删除所选</button><button className="quiet" onClick={()=>enterGroup(piece)}>编辑组内元素</button></>}
             {editingGroup&&<button className="quiet" onClick={()=>{setEditingGroup(null);setInlineId(null);}}>返回整个组合</button>}
             <button className="quiet" aria-pressed={selectionLocked} onClick={()=>patchSelection({locked:!selectionLocked})}>{selectionLocked?<Unlock/>:<Lock/>}{selectionLocked?'解锁所选':'锁定所选'}</button>
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
-          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onMore={()=>setPanel('edit')} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
+          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onMore={()=>setPanel('edit')} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
           <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">选择素材后可在这里调整</span>}
         </div>}
-        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster}/>}
+        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
 
         {ready&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
