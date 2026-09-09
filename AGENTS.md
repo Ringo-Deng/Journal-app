@@ -51,7 +51,7 @@
 | 素材库 | `components/material-library.tsx`：库内筛选及待插入素材，通过 `onInsert` 进入编辑器；库内待插入选择与画布选择用途不同 |
 | 素材处理台 | `components/material-studio.tsx`：处理和候选预览；`local/server.mjs`：素材 API 与选定结果保存 |
 | 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的自动候选路由，再载入 `local/server.mjs`；路由通过 `execFile` 的自定义 promisify 接入 `local/segment` 调用 |
-| AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据；重设计经 `designPreview/applyDesignPreview` 预览应用 |
+| AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` 计算构图区域与内容流，`local/collage-layout.mjs` 控制已选装饰，`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据；重设计经 `designPreview/applyDesignPreview` 预览应用 |
 | 本地服务 | `local/server-bootstrap.mjs`：初始化原生工具和请求适配后载入 `local/server.mjs`；开发、正式启动均使用 bootstrap 入口 |
 | 保存 | `app/page.tsx` 的 `books` → `pending/flush` → `/api/state` → `local/server.mjs` 的校验、写入队列、revision 冲突检查及 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 |
 | 数据兼容 | `lib/journal.ts` 的默认值与 `ensureFlyleaf`、`local/server.mjs` 的 `validateState`：兼容及校验入口；当前没有统一手帐 schema migration，`revision` 是写入并发号 |

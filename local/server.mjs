@@ -1,6 +1,7 @@
 import {tidyLayout} from '../lib/layout-safety.mjs';
 import {nextMaterialStrategy} from '../lib/material-retry.mjs';
 import {finishCollage} from './collage-layout.mjs';
+import {resolveComposition} from './layout-composition.mjs';
 import {selectStickers} from './sticker-selection.mjs';
 import {layoutPrompt} from './layout-prompt.mjs';
 import {designRecords} from './design-records.mjs';
@@ -407,13 +408,14 @@ async function generate(input) {
     }
   }
   let designBrief;
-  const artMessages=[{role:'system',content:artPrompt},{role:'user',content:JSON.stringify({instruction:input.instruction,texts:input.elements.filter(p=>p.kind==='text').map(p=>p.text),days:input.elements.length?[]:input.days.map(d=>d.text||d.raw)})}];
+  const artMessages=[{role:'system',content:artPrompt},{role:'user',content:JSON.stringify({instruction:input.instruction,ratio:input.ratio,hasLocked:input.elements.some(p=>p.locked),photoCount:input.elements.length?input.elements.filter(p=>p.kind==='photo').length:input.days.reduce((n,d)=>n+(d.photos?.length||0),0),texts:input.elements.filter(p=>p.kind==='text').map(p=>p.text),days:input.elements.length?[]:input.days.map(d=>d.text||d.raw)})}];
   for(let attempt=0;attempt<2;attempt++) {
     try { designBrief=await designRequest(artMessages,attempt,{});break; }
     catch { if(attempt) throw error('AI 未完成视觉方案，请重试。原有手帐未改动。',502);artMessages.push({role:'user',content:'请返回完整且精简的JSON视觉方案。'}); }
   }
+  designBrief=designBrief&&typeof designBrief==='object'?designBrief:{};
+  const compositionPlan=resolveComposition(designBrief,input);
   candidateAssets=selectStickers(libraryAssets,terms,Array.isArray(designBrief.palette)?designBrief.palette:[]);
-  candidateAssets=[...candidateAssets,...libraryAssets.filter(a=>a.id.startsWith('collage-arrow')&&!candidateAssets.some(b=>b.id===a.id))];
   const system = layoutPrompt(candidateAssets);
   const userText = JSON.stringify({
     days: input.days.map((d) => ({
@@ -424,6 +426,8 @@ async function generate(input) {
       photoCount: d.photos?.length || 0,
     })),
     designBrief,
+    compositionPlan,
+    ratio:input.ratio,
     paper:input.paper,
     editorialEdited:editorial.edited,
     requirements:editorial.requirements,
@@ -462,8 +466,10 @@ async function generate(input) {
       output.days=designRecords(input,output);
       if(output.days.some(d=>typeof d.text!=='string'||typeof d.title!=='string')) throw Error('AI 返回的日志不完整。');
       elements=validatePlan(output.elements,input,assets);
-      elements=finishCollage(elements,input,[...candidateAssets,...assets.filter(a=>!candidateAssets.some(b=>b.id===a.id))],designBrief);
       if(editorial.requirements.framed) elements=elements.map(p=>p.kind==='text' && (Number.isInteger(p.paragraphIndex)||p.role==='body') && !['outline','note','torn','ticket','postcard','vellum','label','collage'].includes(p.frame) ? {...p,frame:'outline'} : p);
+      const activeBrief=output.layoutOverride==='free'?{...designBrief,preset:'free'}:designBrief;
+      elements=finishCollage(elements,{...input,requirements:editorial.requirements},assets,activeBrief);
+      diagnostic.composition=resolveComposition(activeBrief,input).preset;
       const locked=input.elements.filter(p=>p.locked);
       const protectedIds=new Set(locked.map(p=>p.id));
       const ratio=Number.isFinite(input.ratio)?Math.max(.6,Math.min(2.5,input.ratio)):1.43;
@@ -472,7 +478,7 @@ async function generate(input) {
       if(failures.length)throw Object.assign(Error('版式存在文字遮挡或空间不足，请减少装饰或增加跨页。'),{retryHint:JSON.stringify(failures.slice(0,8))});
       elements=safety.elements.filter(p=>!protectedIds.has(p.id)).map(({id:_id,locked:_locked,...p})=>p);
       diagnostic.textBoxes=elements.filter(p=>p.kind==='text').map(p=>({role:p.role,x:p.x,y:p.y,w:p.w,h:p.h,fontSize:p.fontSize,length:p.text?.length,frame:p.frame}));
-      checkParagraphDesign(elements,input,editorial.requirements,assets);
+      checkParagraphDesign(elements,input,editorial.requirements,assets,ratio);
       diagnostic.ok=true;
       break;
     } catch(cause) {

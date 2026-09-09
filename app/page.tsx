@@ -972,7 +972,11 @@ export default function Home() {
               ratio:bookFormat(book).ratio,
               headerSpace,
               instruction: inst ?? instruction,
-              elements: regen ? spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId || preserveLocks && p.locked})) : [],
+              elements: regen ? spread!.elements.map(p=>{
+                const node=p.kind==='photo'?selectedNode(p.id):null;
+                const measured=node&&canvas.current?.clientHeight?Math.max(node.offsetHeight,node.scrollHeight)/canvas.current.clientHeight*100:0;
+                return {...p,...(measured>0?{h:measured}:{}),locked:isPieceHidden(p)||!!p.groupId || preserveLocks && p.locked};
+              }) : [],
             }),
           )
         : localResult(days, currentTheme);

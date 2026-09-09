@@ -35,7 +35,7 @@ export function prepareEditorial(input, output) {
   if(requirements.paragraphCount && missing.length) throw Object.assign(Error('分段尚未覆盖全部正文，原文仍保留。'),{retryHint:`必须补充覆盖这些正文sourceIds：${missing.map(p=>p.id).join('、')}。不要省略任何事实；在指定总段数内整合，不要增加段落数量。`});
   return {input:{...input,elements:[...all.filter(p=>!refs.has(p.id)),...prepared]},requirements,edited:true};
 }
-export function checkParagraphDesign(elements, input, requirements, assets=[]) {
+export function checkParagraphDesign(elements, input, requirements, assets=[], ratio=1.43) {
   const paragraphs=elements.filter(p=>p.kind==='text' && Number.isInteger(p.paragraphIndex));
   const expected=input.elements.filter(p=>Number.isInteger(p.paragraphIndex));
   if(expected.length && paragraphs.length!==expected.length) throw Error('设计没有为每个新段落保留独立文本框。');
@@ -45,7 +45,7 @@ export function checkParagraphDesign(elements, input, requirements, assets=[]) {
     if(requirements.framed && !['outline','note','torn','ticket','postcard','vellum','label','collage'].includes(p.frame)) throw Error('每个段落都需要可见文本框，请逐段加框。');
     if(requirements.stickers && !elements.some(a=>{
       if(a.forParagraph!==p.sourceId || (a.x<50)!==(p.x<50)) return false;
-      const box=textFootprint(p);
+      const box=textFootprint(p,ratio);
       const gapY=Math.max(0,a.y-(box.y+box.h),box.y-(a.y+(a.h||12)));
       const gapX=Math.max(0,a.x-(box.x+box.w),box.x-(a.x+a.w));
       if(gapX>15||gapY>15)return false;
@@ -55,7 +55,7 @@ export function checkParagraphDesign(elements, input, requirements, assets=[]) {
     })) throw Object.assign(Error('有段落还没配上贴纸，请为它补一张风格、氛围或色系协调的素材。'),{retryHint:'逐段用forParagraph关联正文sourceId，放在段落旁；不要求命中stickerKeywords，同色系或风格搭配也符合要求。'});
   }
   // Check the text footprints rather than just the anchor coordinates.
-  const rect=p=>({...p,...textFootprint(p),height:textFootprint(p).h});
+  const rect=p=>({...p,...textFootprint(p,ratio),height:textFootprint(p,ratio).h});
   const boxes=elements.filter(p=>p.kind==='text'&&!isEmptyTextHint(p)).map(rect);
   for(let i=0;i<boxes.length;i++){
     const a=boxes[i];
