@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { leafSegments, shouldCompleteTurn } from '../lib/page-motion.ts';
+import { leafFrame, leafSegments, shouldCompleteTurn } from '../lib/page-motion.ts';
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 test('a leaf starts and lands flat, with the destination on its reverse', () => {
   for (const next of [true, false])
@@ -32,6 +32,18 @@ test('curved segments stay connected and reverse turns are exact reflections', (
         near(next[i + 1].z, a.z + dz);
       }
     }
+  }
+});
+test('the complete frame exposes the destination face before the live page handoff', () => {
+  for (const next of [true, false]) {
+    const start=leafFrame(0,next,10),middle=leafFrame(.5,next,10),end=leafFrame(1,next,10);
+    near(start.rotation,0);
+    near(end.rotation,next?-180:180);
+    near(start.lift,0);
+    near(end.lift,0);
+    near(middle.lift,1);
+    assert.ok(start.segments.every(segment=>segment.frontVisible&&!segment.backVisible));
+    assert.ok(end.segments.every(segment=>!segment.frontVisible&&segment.backVisible));
   }
 });
 test('a short drag returns, deliberate turn lands, pulling back cancels', () => {

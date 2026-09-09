@@ -30,6 +30,7 @@ import MaterialLibrary from '@/components/material-library';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 import {buildSnapTargets,snapMoveBox,type SnapGuides} from '@/lib/snap-guides';
+import {leafFrame} from '@/lib/page-motion';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
 /* oxlint-disable jsx-a11y/no-static-element-interactions -- Draggable canvas objects expose keyboard selection and coordinate controls. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -794,11 +795,43 @@ export default function Home() {
   }
   /* 翻页进度直接写入 DOM，避免每帧重渲染整个工作台。 */
   function paintTurn(progress: number, direction: number) {
-    const el = canvas.current?.querySelector<HTMLElement>(
-      '.page-turn-layer .turn-moving',
-    );
-    if (el)
-      el.style.transform = `rotateY(${(direction > 0 ? -180 : 180) * progress}deg)`;
+    const layer=canvas.current?.querySelector<HTMLElement>('.page-turn-layer');
+    if(!layer)return;
+    const frame=leafFrame(progress,direction>0,10);
+    if(turnRef.current)turnRef.current.progress=frame.progress;
+    const moving=layer.querySelector<HTMLElement>('.turn-moving');
+    if(moving)moving.style.transform=`rotateY(${frame.rotation}deg)`;
+    const shadow=layer.querySelector<HTMLElement>('.leaf-cast-shadow');
+    if(shadow)shadow.style.opacity=String(frame.lift*.24);
+    layer.querySelectorAll<HTMLElement>('[data-leaf-index]').forEach((strip,index)=>{
+      const segment=frame.segments[index];
+      if(!segment)return;
+      strip.style.transform=`translate3d(${segment.x*50}cqw,0,${segment.z*50}cqw) rotateY(${segment.angle}deg)`;
+      strip.style.setProperty('--front-visible',segment.frontVisible?'visible':'hidden');
+      strip.style.setProperty('--back-visible',segment.backVisible?'visible':'hidden');
+      const lights=strip.querySelectorAll<HTMLElement>('.leaf-light');
+      if(lights[0])lights[0].style.opacity=String(frame.lift*(.025+.065*index/frame.segments.length));
+      if(lights[1])lights[1].style.opacity=String(frame.lift*(.025+.065*(1-index/frame.segments.length)));
+    });
+  }
+  function clearTurn(t:NonNullable<typeof turnRef.current>){
+    if(turnRef.current!==t)return;
+    setFlipping('');setTurnProgress(0);setTurnSettling(false);turnRef.current=null;
+  }
+  function finishTurn(t:NonNullable<typeof turnRef.current>){
+    setPage(t.target);
+    requestAnimationFrame(()=>{
+      const images=Array.from(canvas.current?.querySelectorAll<HTMLImageElement>(':scope > .notebook-page-layer img, :scope > .piece img')||[]);
+      const ready=images.map(img=>img.complete?img.decode().catch(()=>{}):new Promise<void>(resolve=>{
+        const done=()=>resolve();
+        img.addEventListener('load',done,{once:true});
+        img.addEventListener('error',done,{once:true});
+      }));
+      void Promise.race([
+        Promise.all(ready),
+        new Promise<void>(resolve=>setTimeout(resolve,1200)),
+      ]).then(()=>requestAnimationFrame(()=>clearTurn(t)));
+    });
   }
   function settleTurn(complete: boolean) {
     const t = turnRef.current;
@@ -813,7 +846,7 @@ export default function Home() {
       const p=duration?Math.min(1,(now-started)/duration):1;
       paintTurn(from+(end-from)*(p*p*(3-2*p)), t.direction);
       if(p<1)turnAnimation.current=requestAnimationFrame(tick);
-      else {if(complete)setPage(t.target);setFlipping('');setTurnProgress(0);setTurnSettling(false);turnRef.current=null;}
+      else {if(complete)finishTurn(t);else clearTurn(t);}
     };
     turnAnimation.current=requestAnimationFrame(tick);
   }

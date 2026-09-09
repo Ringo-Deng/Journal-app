@@ -21,6 +21,21 @@ export function leafSegments(progress: number, next: boolean, count = 12) {
   });
 }
 
+export function leafFrame(progress: number, next: boolean, count = 12) {
+  const p = Math.max(0, Math.min(1, progress));
+  const rotation = (next ? -180 : 180) * p;
+  const lift = Math.sin(Math.PI * p);
+  return {
+    progress: p,
+    rotation,
+    lift,
+    segments: leafSegments(p, next, count).map(segment => {
+      const frontVisible = Math.cos(((rotation + segment.angle) * Math.PI) / 180) > 0;
+      return { ...segment, frontVisible, backVisible: !frontVisible };
+    }),
+  };
+}
+
 export function shouldCompleteTurn(progress: number, velocity: number) {
   // Velocity is positive toward the destination, negative when pulling back.
   return velocity > 0.45 || (progress > 0.38 && velocity > -0.3);
