@@ -62,3 +62,24 @@ test('explicitly changing the mode wins over automatic retry switching', () => {
     { mode: 'dense', tolerance: 31, attempt: 2 },
   );
 });
+
+test('changing strength reruns the selected mode instead of switching to AI', () => {
+  assert.deepEqual(nextMaterialStrategy({
+    requestedMode: 'paper', tolerance: 60, continuing: true,
+    previous: { attempt: 1, mode: 'paper', strategy: 'paper', tolerance: 28 },
+  }), { mode: 'paper', tolerance: 60, attempt: 2 });
+});
+
+test('switching back to auto is an explicit choice', () => {
+  assert.deepEqual(nextMaterialStrategy({
+    requestedMode: 'auto', tolerance: 28, continuing: true,
+    previous: { attempt: 2, mode: 'dense', strategy: 'dense', tolerance: 28 },
+  }), { mode: 'auto', tolerance: 28, attempt: 3 });
+});
+
+test('current-settings recognition never applies automatic retry strength', () => {
+  assert.deepEqual(nextMaterialStrategy({
+    requestedMode: 'dense', tolerance: 22, continuing: false,
+    previous: { attempt: 4, mode: 'dense', strategy: 'paper', tolerance: 28 },
+  }), { mode: 'dense', tolerance: 22, attempt: 4 });
+});

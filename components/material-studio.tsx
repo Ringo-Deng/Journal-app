@@ -6,7 +6,6 @@ import {ImagePlus,Loader2,Scissors,Check,Plus,CheckCheck,RotateCcw,Trash2} from 
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Checkbox} from '@/components/ui/checkbox';
 import type {Asset} from '@/lib/journal';
-import {acceptDenseRefinement,hasThinBridge} from '@/lib/material-segmentation-refine.mjs';
 
 type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;bounds?:number[]};
 type SourceMeta={type:'pinterest';pinId:string;originalUrl:string;imageUrl:string;sha256:string};
@@ -65,36 +64,11 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
  },[open,job?.source]);
  const fit=imageReady?Math.min(viewport.w/dimensions.w,viewport.h/dimensions.h,1):1;
 
- async function itemLooksJoined(item:Item){
-  if(item.imported||item.manual||Math.min(item.width,item.height)<48||Math.max(item.width,item.height)/Math.max(1,Math.min(item.width,item.height))>4.5)return false;
-  const image=new Image();image.src=item.src;await image.decode();
-  const scale=Math.min(1,420/Math.max(image.naturalWidth,image.naturalHeight));
-  const width=Math.max(1,Math.round(image.naturalWidth*scale)),height=Math.max(1,Math.round(image.naturalHeight*scale));
-  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)return false;
-  context.drawImage(image,0,0,width,height);const rgba=context.getImageData(0,0,width,height).data;const alpha=new Uint8Array(width*height);
-  for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
-  return hasThinBridge(alpha,width,height);
- }
- async function needsDenseRefinement(candidate:Job){
-  const fresh=candidate.items.filter(item=>!item.imported&&!item.manual);
-  if(!fresh.length||fresh.length>30||/保留纸底/.test(candidate.engine))return false;
-  for(const item of fresh)try{if(await itemLooksJoined(item))return true}catch{/* A preview decode failure must never block the usable first-pass result. */}
-  return false;
- }
  async function processImage(src:string,name:string,rect?:number[],overrideMode?:string,adaptive=false){
-  const requestedMode=overrideMode||mode;const existing=jobs.some(j=>j.source===src);
-  let next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength,...(rect?{rect}:{}),...(adaptive?{continue:true}:{})});
-  if(!rect&&!adaptive&&!existing&&requestedMode==='auto'&&await needsDenseRefinement(next)){
-   setProgress('检测到多个素材粘连，正在自动二次细分…');
-   try{
-    const refined=await request<Job>('/segment',{src,name,mode:'dense',tolerance:strength});
-    if(acceptDenseRefinement(next.items,refined.items))next=refined;
-    else next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength});
-   }catch{
-    // The first pass was already usable. Restore it if the optional refinement fails.
-    next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength});
-   }
-  }
+  const requestedMode=overrideMode||mode;
+  // The native recognizer and server router compare candidates before saving.
+  // One request commits one final result; previews never overwrite a good pass.
+  const next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength,...(rect?{rect}:{}),...(adaptive?{continue: true}:{})});
   setJobs(old=>[next,...old.filter(j=>j.source!==next.source)]);
   if(rect){setSelected(next.items.filter(i=>!job?.items.some(old=>old.id===i.id)).map(i=>i.id));setNames(Object.fromEntries(next.items.map(i=>[i.id,i.name])));setCrop(null)}else choose(next);
   return next;
@@ -153,7 +127,8 @@ export default function MaterialStudio({open,onClose,onImported}:{open:boolean;o
    <button className={`outline pinterest-toggle ${pinterestOpen?'active':''}`} disabled={busy} onClick={()=>setPinterestOpen(v=>!v)}>Pinterest 导入</button>
    <select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}><option value="auto">自动分离</option><option value="panels">底色 / 纹样分区</option><option value="paper">带色纸底分离</option><option value="dense">密集贴纸细分</option><option value="ai">本机 AI 主体识别</option></select>
    <label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label>
-   <button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun(undefined,undefined,true)}><RotateCcw/>继续识别</button>
+   <button className="outline" disabled={busy||!job||!!job.manualOnly} title="按当前选择的模式和去底强度重新识别，保留已入库及手动框选的素材" onClick={()=>void rerun()}><RotateCcw/>按当前设置识别</button>
+   <button className="outline" disabled={busy||!job||!!job.manualOnly} title="当前结果不理想时，自动换一种策略再试" onClick={()=>void rerun(undefined,undefined,true)}>继续识别</button>
    <button className="outline danger" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button>
    <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setCrop(null)}}><Scissors/>{cropping?'退出框选':'框选单个素材'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}

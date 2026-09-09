@@ -42,3 +42,30 @@ test('invalid primary allows a valid fallback without improvement threshold', ()
   assert.equal(chooseMaterialCandidate([primary,paper]).mode, 'paper');
   assert.deepEqual(materialFallbackModes(primary.result), ['paper','ai']);
 });
+
+test('many intact stickers do not trigger fragmentation retries', () => {
+  const sheet = result(Array.from({length:40}, (_, i) => item(100, 100, [(i%8)*.12, Math.floor(i/8)*.18, .1, .1])));
+  assert.deepEqual(materialFallbackModes(sheet), []);
+});
+
+test('malformed candidate dimensions and out-of-sheet bounds cannot win', () => {
+  const primary = {primary:true, result:result([item(200,200,[.1,.1,.2,.2])])};
+  for (const broken of [item(Infinity,200,[0,0,.2,.2]),item(200,200,[.9,0,.2,.2]),item(200,200,[0,0,-.2,.2])]) {
+    const candidate = {mode:'dense',result:result([broken])};
+    assert.equal(summarizeMaterialCandidate(candidate.result).valid,false);
+    assert.equal(chooseMaterialCandidate([primary,candidate], {minimumImprovement:0}).result,primary.result);
+  }
+});
+
+test('higher score cannot replace a candidate if a complete subject disappears', () => {
+  const before = [item(200,200,[.05,.05,.2,.2]),item(200,200,[.7,.7,.2,.2])];
+  const after = [item(90,200,[.05,.05,.09,.2]),item(90,200,[.16,.05,.09,.2])];
+  const primary={primary:true,result:result(before)};
+  assert.equal(chooseMaterialCandidate([primary,{result:result(after)}],{minimumImprovement:-100}).result,primary.result);
+});
+
+test('native alpha loss is rejected even if bounding boxes stay large', () => {
+  const primary={primary:true,result:result([{...item(500,500,[.1,.1,.5,.5]),foregroundPixels:200000}])};
+  const broken={result:result([{...item(500,500,[.1,.1,.5,.5]),foregroundPixels:300}])};
+  assert.equal(chooseMaterialCandidate([primary,broken],{minimumImprovement:-100}).result,primary.result);
+});

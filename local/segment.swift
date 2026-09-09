@@ -59,8 +59,9 @@ do{
  if args.count==9 {let nums=args[5...8].map{Double($0) ?? 0};let rect=CGRect(x:nums[0]*Double(original.width),y:nums[1]*Double(original.height),width:nums[2]*Double(original.width),height:nums[3]*Double(original.height)).integral;guard let cropped=original.cropping(to:rect) else{exit(3)};original=cropped}
  let w=original.width,h=original.height,n=w*h
  let pixels=rgba(original);var cut=pixels;var engine="本机 AI 主体识别"
- // Pattern paper has meaningful coloured backing; preserve it in each panel.
- if ["auto","dense","panels"].contains(mode) && args.count != 9 {
+ // Full-width texture cuts are an explicit operation. A sticker sheet can have
+ // strong colour bands too; automatic recognition must first follow its gaps.
+ if mode == "panels" && args.count != 9 {
   let horizontal=panelCuts(pixels,w,h,false),vertical=panelCuts(pixels,w,h,true)
   let hs=horizontal.map{$0.1}.max() ?? 0,vs=vertical.map{$0.1}.max() ?? 0
   let alongX=vs>hs,cuts=alongX ? vertical:horizontal
@@ -86,24 +87,40 @@ do{
   let old=groups[key] ?? (0,0,0,0);groups[key]=(old.count+1,old.r+r,old.g+g,old.b+b)
  }
  if let dominant=groups.values.max(by:{$0.count<$1.count}),dominant.count>40{background=[dominant.r,dominant.g,dominant.b].map{$0/Double(dominant.count)}}
+ // Prefer the outside border: large pale stickers inside the sheet are not
+ // evidence for the backing colour. Fall back to the whole-sheet estimate only
+ // when no dominant opaque border colour is available (e.g. a transparent frame).
+ var borderGroups=[Int:(count:Int,r:Double,g:Double,b:Double)]()
+ var borderCount=0
+ func sampleBorder(_ i:Int){
+  if pixels[i*4+3]<240{return}
+  let r=Double(pixels[i*4]),g=Double(pixels[i*4+1]),b=Double(pixels[i*4+2])
+  let key=(Int(r)/16)*256+(Int(g)/16)*16+Int(b)/16
+  let old=borderGroups[key] ?? (0,0,0,0)
+  borderGroups[key]=(old.count+1,old.r+r,old.g+g,old.b+b);borderCount+=1
+ }
+ for x in 0..<w{sampleBorder(x);sampleBorder((h-1)*w+x)}
+ if h>2{for y in 1..<(h-1){sampleBorder(y*w);sampleBorder(y*w+w-1)}}
+ if let dominant=borderGroups.values.max(by:{$0.count<$1.count}),dominant.count>=max(8,borderCount/4){
+  background=[dominant.r,dominant.g,dominant.b].map{$0/Double(dominant.count)}
+ }
  let uniform=corners.allSatisfy{p in (0..<3).allSatisfy{abs(Double(pixels[p*4+$0])-background[$0])<18}}
  let transparent=stride(from:3,to:pixels.count,by:4).filter{pixels[$0]<20}.count>n/50
  let whiteSheet=(uniform || (groups.values.map{$0.count}.max() ?? 0)>150) && background.min()!>130
  if mode == "crop" {engine="框选保留原底"}
- else if transparent {engine="透明素材分离"}
+ else if transparent && !["paper","single","ai"].contains(mode) {engine="透明素材分离"}
  else if mode=="paper" || mode=="dense" || mode=="single" || mode=="panels" || (mode=="auto" && whiteSheet) {
   engine=mode == "dense" ? "密集贴纸细分" : "边缘连通纸底分离"
   // Low-cost, predictable paper removal: only erase paper-coloured pixels that are
   // connected to the outside border. Similar light colours enclosed by a sticker
   // are preserved instead of being removed globally.
-  let bgLum=background.reduce(0,+)/3
   func paperDistance(_ i:Int)->Double {
-   let rgb=(0..<3).map{Double(pixels[i*4+$0])},lum=rgb.reduce(0,+)/3
-   let chroma=sqrt((0..<3).map{pow((rgb[$0]-lum)-(background[$0]-bgLum),2)}.reduce(0,+))
-   let raw=sqrt((0..<3).map{pow(rgb[$0]-background[$0],2)}.reduce(0,+))
-   return (lum>175 && abs(lum-bgLum)<55 && chroma<12) ? abs(lum-bgLum)*0.55+chroma*1.5:raw
+   // Do not discount lightness differences: that erases cream/pastel paper
+   // before its outline has a chance to become a separate component.
+   let r=Double(pixels[i*4])-background[0],g=Double(pixels[i*4+1])-background[1],b=Double(pixels[i*4+2])-background[2]
+   return sqrt(r*r+g*g+b*b)
   }
-  let threshold=tolerance+10
+  let threshold=tolerance
   var paper=[Bool](repeating:false,count:n),queue=[Int](),head=0
   func seed(_ i:Int){if !paper[i] && (pixels[i*4+3]<20 || paperDistance(i)<=threshold){paper[i]=true;queue.append(i)}}
   for x in 0..<w {seed(x);seed((h-1)*w+x)}
@@ -137,35 +154,84 @@ do{
   print(String(data:try JSONSerialization.data(withJSONObject:output),encoding:.utf8)!)
   exit(0)
  }
- // Dense sheets retain narrow gaps instead of merging downsampled cells.
- let block=1,gw=(w+block-1)/block,gh=(h+block-1)/block
- var occupied=[Bool](repeating:false,count:gw*gh)
- for y in 0..<h {for x in 0..<w {if cut[(y*w+x)*4+3]>45{occupied[(y/block)*gw+x/block]=true}}}
- if mode == "dense" && w>2 && h>2 {
-  let mask=occupied
-  for y in 1..<(h-1) {for x in 1..<(w-1) {
-   occupied[y*w+x] = mask[y*w+x] && mask[y*w+x-1] && mask[y*w+x+1] && mask[(y-1)*w+x] && mask[(y+1)*w+x]
+ // Label the original alpha first. Erosion is used only to find potential
+ // separation seeds; exported pixels always come from this original mask.
+ var occupied=[Bool](repeating:false,count:n)
+ for i in 0..<n{occupied[i]=cut[i*4+3]>45}
+ func componentsOf(_ mask:[Bool])->(labels:[Int],parts:[[Int]]){
+  var labels=[Int](repeating:0,count:n),parts=[[Int]]()
+  for start in 0..<n where mask[start] && labels[start]==0{
+   let label=parts.count+1;var queue=[start],head=0;labels[start]=label
+   while head<queue.count{
+    let p=queue[head];head+=1;let x=p%w,y=p/w
+    for dy in -1...1{for dx in -1...1{
+     let nx=x+dx,ny=y+dy
+     if nx>=0 && nx<w && ny>=0 && ny<h{let q=ny*w+nx;if mask[q] && labels[q]==0{labels[q]=label;queue.append(q)}}
+    }}
+   };parts.append(queue)
+  }
+  return(labels,parts)
+ }
+ let originalParts=componentsOf(occupied)
+ var components=originalParts.parts
+ var bridgeSplits=0
+ if ["auto","dense"].contains(mode) && w>2 && h>2{
+  var eroded=[Bool](repeating:false,count:n)
+  for y in 1..<(h-1){for x in 1..<(w-1){
+   let i=y*w+x;eroded[i]=occupied[i] && occupied[i-1] && occupied[i+1] && occupied[i-w] && occupied[i+w]
   }}
+  let cores=componentsOf(eroded).parts
+  var groups=[[[Int]]](repeating:[],count:components.count)
+  for core in cores{groups[originalParts.labels[core[0]]-1].append(core)}
+  var restored=[[Int]](),ownership=[Int](repeating:0,count:n)
+  for (index,component) in components.enumerated(){
+   let minimumCore=max(25,Int(Double(component.count)*(mode == "dense" ? 0.08:0.20)))
+   let major=groups[index].filter{$0.count>=minimumCore}.sorted{$0.count>$1.count}
+   let retained=major.reduce(0){$0+$1.count}
+   // Require substantial bodies. Fine lettering, stems, tiny detached details
+   // and a single solid shape stay exactly as they were before erosion.
+   if major.count<2 || major.count>(mode == "dense" ? 6:2) || Double(retained)<Double(component.count)*0.65{
+    restored.append(component);continue
+   }
+   var queue=[Int](),head=0,parts=major
+   for (j,core) in major.enumerated(){for p in core{ownership[p]=j+1;queue.append(p)}}
+   while head<queue.count{
+    let p=queue[head];head+=1;let x=p%w,y=p/w
+    for dy in -1...1{for dx in -1...1{
+     let nx=x+dx,ny=y+dy
+     if nx>=0 && nx<w && ny>=0 && ny<h{
+      let q=ny*w+nx
+      if originalParts.labels[q]==index+1 && ownership[q]==0{
+       ownership[q]=ownership[p];parts[ownership[p]-1].append(q);queue.append(q)
+      }
+     }
+    }}
+   }
+   restored.append(contentsOf:parts);bridgeSplits+=parts.count-1
+  }
+  components=restored
  }
- var labels=[Int](repeating:0,count:gw*gh);var components:[[Int]]=[];var label=0
- for start in 0..<occupied.count where occupied[start] && labels[start]==0 {
-  label+=1;var queue=[start];labels[start]=label;var pos=0
-  while pos<queue.count {let p=queue[pos];pos+=1;let x=p%gw,y=p/gw
-   for dy in -1...1 {for dx in -1...1 {let nx=x+dx,ny=y+dy;if (mode != "dense" || abs(dx)+abs(dy)==1) && nx>=0 && nx<gw && ny>=0 && ny<gh {let q=ny*gw+nx;if occupied[q] && labels[q]==0{labels[q]=label;queue.append(q)}}}}
-  };components.append(queue)
- }
- let minimum=max(5,gw*gh/(mode == "dense" ? 900 : 2500))
- var results:[[String:Any]]=[]
- for (index,component) in components.enumerated() where component.count>=minimum {
+ // A crowded sheet must not use a higher minimum than an ordinary one.
+ // Keep meaningful small stickers while filtering isolated compression specks.
+ let minimum=max(8,n/12000)
+ var results=[[String:Any]]()
+ for component in components where component.count>=minimum{
   if results.count>=100{break}
-  let minX=component.map{$0%gw}.min()!*block,minY=component.map{$0/gw}.min()!*block
-  let maxX=min(w,(component.map{$0%gw}.max()!+1)*block),maxY=min(h,(component.map{$0/gw}.max()!+1)*block)
-  let cw=maxX-minX,ch=maxY-minY;if cw<10 || ch<10{continue}
+  let minX=component.map{$0%w}.min()!,minY=component.map{$0/w}.min()!
+  let maxX=component.map{$0%w}.max()!+1,maxY=component.map{$0/w}.max()!+1
+  let cw=maxX-minX,ch=maxY-minY
+  if cw<3 || ch<3 || max(cw,ch)<10{continue}
   var tile=[UInt8](repeating:0,count:cw*ch*4)
-  for y in minY..<maxY {for x in minX..<maxX {if labels[(y/block)*gw+x/block]==index+1 {let from=(y*w+x)*4,to=((y-minY)*cw+x-minX)*4;for c in 0..<4{tile[to+c]=cut[from+c]}}}}
-  let name=UUID().uuidString.lowercased()+".png";let bitmap=NSBitmapImageRep(cgImage:makeImage(tile,cw,ch));try bitmap.representation(using:.png,properties:[:])!.write(to:out.appendingPathComponent(name))
-  results.append(["file":name,"width":cw,"height":ch,"bounds":[Double(minX)/Double(w),Double(minY)/Double(h),Double(cw)/Double(w),Double(ch)/Double(h)]])
+  for p in component{
+   let from=p*4,to=((p/w-minY)*cw+p%w-minX)*4
+   for c in 0..<4{tile[to+c]=cut[from+c]}
+  }
+  let name=UUID().uuidString.lowercased()+".png"
+  let bitmap=NSBitmapImageRep(cgImage:makeImage(tile,cw,ch))
+  try bitmap.representation(using:.png,properties:[:])!.write(to:out.appendingPathComponent(name))
+  results.append(["file":name,"width":cw,"height":ch,"foregroundPixels":component.count,"bounds":[Double(minX)/Double(w),Double(minY)/Double(h),Double(cw)/Double(w),Double(ch)/Double(h)]])
  }
- let output:[String:Any]=["items":results,"engine":engine,"width":w,"height":h]
+ if bridgeSplits>0{engine+=" · 粘连分离"}
+ let output:[String:Any]=["items":results,"engine":engine,"width":w,"height":h,"bridgeSplits":bridgeSplits]
  let json=try JSONSerialization.data(withJSONObject:output);print(String(data:json,encoding:.utf8)!)
 }catch{fputs("无法完成主体分离，请更换识别模式或手动框选后重试。\n",stderr);exit(5)}

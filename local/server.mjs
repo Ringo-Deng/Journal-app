@@ -822,7 +822,11 @@ const server = http.createServer(async (req, res) => {
         })),
       };
       await materialWrite(async () => {
-        if(previous){job={...job,id:previous.id,createdAt:previous.createdAt,rect:null,items:rect?[...previous.items,...job.items]:[...previous.items.filter(i=>i.imported||i.manual),...job.items]};}
+        // Recognition can take seconds. Preserve edits made while it was running
+        // using the latest record inside the same serialized write as imports.
+        const current = consolidatedJobs(materialJobs).find(j=>j.source===input.src);
+        if(previous&&!current)throw error('这条处理记录已删除，请重新导入原图。',409);
+        if(current){job={...job,id:current.id,createdAt:current.createdAt,rect:null,items:rect?[...current.items,...job.items]:[...current.items.filter(i=>i.imported||i.manual),...job.items]};}
         materialJobs = [job, ...materialJobs.filter(j=>j.source!==input.src)];
         await atomic('material-jobs.json', materialJobs);
       });

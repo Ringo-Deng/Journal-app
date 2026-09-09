@@ -363,19 +363,9 @@ Agent 最终汇报至少应包含：
 
 ### 17.1 当前仓库状态
 
-当前 `main` 分支处于“GitHub 项目库已建立、应用源码尚未完整导入”的阶段。
+当前 `main` 已包含完整应用源码。`package.json` 管理版本及脚本；前端入口是 `app/layout.tsx` 与 `app/page.tsx`，本地服务由 `local/server-bootstrap.mjs` 启动。
 
-目前仓库中可以确认的主要内容是：
-
-- `AGENTS.md`：本项目最高层级的开发规则。
-- `.agents/skills/`：项目内 Agent Skill。
-- `.gitignore`：构建产物、运行时数据、私有数据的排除规则。
-- `setup-journal-v0.1.6-windows-v5.cmd` 等：将本地拾光手帐源码初始化/导入 GitHub 的辅助脚本。
-- `README.md`：当前仅有项目基本说明。
-
-**当前仓库根目录没有 `package.json`，也没有可以确认的应用源码目录，因此此时不得声称画布、AI Studio、素材系统或数据层位于某个具体源码路径。**
-
-如果 Agent 接到应用代码修改任务时发现 `package.json` 仍不存在，应先明确说明“应用源码尚未进入当前 GitHub 基线”，而不是根据旧 zip、旧聊天或常见 React 项目结构虚构文件路径。
+素材识别通过 `components/material-studio.tsx` → `/api/materials/segment` → `local/material-segment-router.mjs` → `local/segment`；候选结果在服务端选定后才保存。修改 `local/segment.swift` 后，必须同时重新编译并验证受版本管理的 `local/segment`，不能只提交源码。
 
 ### 17.2 源码导入后的架构登记表
 
@@ -383,22 +373,22 @@ Agent 最终汇报至少应包含：
 
 | 模块 | 当前权威位置 | Agent 修改前必须确认的事项 |
 | --- | --- | --- |
-| 应用入口 | 待确认 | 实际启动入口、路由入口、全局 Provider |
-| 手帐编辑器根组件 | 待确认 | 编辑器整体布局以及左右页/跨页如何组织 |
+| 应用入口 | `app/layout.tsx`、`app/page.tsx`：布局与主页面 | 实际启动入口、路由入口、全局 Provider |
+| 手帐编辑器根组件 | `app/page.tsx`：书本、跨页与编辑画布 | 编辑器整体布局以及左右页/跨页如何组织 |
 | 画布渲染层 | 待确认 | 素材如何渲染、坐标/缩放/旋转由谁负责 |
-| 画布选择状态 | 待确认 | `selected`、`multiIds` 等状态真正的 owner |
-| 页面/跨页状态 | 待确认 | 当前页、左右页、跨页切换和清理逻辑 |
+| 画布选择状态 | `app/page.tsx`：`selected` / `multiIds` 的状态 owner | `selected`、`multiIds` 等状态真正的 owner |
+| 页面/跨页状态 | `app/page.tsx`：`books` / `bookId` / `page` | 当前页、左右页、跨页切换和清理逻辑 |
 | 素材系统 | 待确认 | 文字、照片、贴纸、装饰的统一数据模型和入口 |
 | 页面素材侧栏 | 待确认 | 侧栏 UI 位置；必须与画布共用选择状态 |
-| 素材处理台 | 待确认 | 抠图、清纸、调色或素材预处理相关入口 |
+| 素材处理台 | `components/material-studio.tsx`；`local/server.mjs` 保存识别结果 | 抠图、清纸、调色或素材预处理相关入口 |
 | AI Studio / AI 创作 | 待确认 | AI 指令入口、请求层、结果写回画布的位置 |
-| 数据模型 / Schema | 待确认 | 手帐、本子、页面、素材对象的类型定义 |
-| 保存层 | 待确认 | localStorage / IndexedDB / 文件 / 服务端等真实持久化入口 |
+| 数据模型 / Schema | `lib/journal.ts`：书本、页面、素材类型 | 手帐、本子、页面、素材对象的类型定义 |
+| 保存层 | `local/server.mjs`：本地 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 | localStorage / IndexedDB / 文件 / 服务端等真实持久化入口 |
 | 数据迁移 | 待确认 | schema version、migration、旧数据兼容逻辑 |
 | 自动备份 / 历史 | 待确认 | 自动备份、历史版本、恢复机制的实现位置 |
-| 版本号唯一来源 | 源码导入前：待确认 | 默认优先检查 `package.json.version`，但必须确认是否还有其他权威来源 |
-| 测试入口 | 待确认 | 单测、回归测试、编辑器交互测试的位置和命令 |
-| 构建入口 | 待确认 | build/dev/typecheck/lint 的实际命令 |
+| 版本号唯一来源 | `package.json.version`；`app/layout.tsx` 同步左下角标签 | 默认优先检查 `package.json.version`，但必须确认是否还有其他权威来源 |
+| 测试入口 | `npm test`；类型检查 `npx tsc --noEmit` | 单测、回归测试、编辑器交互测试的位置和命令 |
+| 构建入口 | `npm run dev` / `npm run build` / `npm run lint` | build/dev/typecheck/lint 的实际命令 |
 
 维护要求：
 
