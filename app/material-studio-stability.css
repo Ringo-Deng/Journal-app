@@ -48,3 +48,22 @@
   width: 15px;
   height: 15px;
 }
+
+/* The whole preview labels the existing checkbox, including transparent space. */
+.material-studio .material-select-preview {
+  cursor: pointer;
+  user-select: none;
+}
+
+.material-studio .material-select-preview[data-disabled] {
+  cursor: default;
+}
+
+.material-studio .material-select-preview:not([data-disabled]):hover {
+  box-shadow: inset 0 0 0 2px #809c6a;
+}
+
+.material-studio .material-select-preview:focus-within {
+  outline: 2px solid #809c6a;
+  outline-offset: 2px;
+}
