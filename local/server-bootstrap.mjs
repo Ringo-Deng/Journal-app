@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
 import { installDeepSeekVisionRouter } from './deepseek-vision-router.mjs';
 import { installMaterialClassifierFallback } from './deepseek-material-classifier.mjs';
+import { installMaterialSegmentRouter } from './material-segment-router.mjs';
 import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
 import { installRuntimeHealth } from './runtime-health.mjs';
@@ -26,6 +27,10 @@ installDeepSeekVisionRouter();
 // unavailable or returns malformed JSON. Fall back to conservative metadata
 // classification rather than failing an entire batch.
 installMaterialClassifierFallback();
+// Auto segmentation keeps the existing native recognizer as its first choice.
+// Only weak results trigger bounded fallback strategies, and replacements need
+// a clear deterministic quality improvement before they can become authoritative.
+installMaterialSegmentRouter();
 installRuntimeHealth({ version: appVersion });
 
 const nativeTools = await prepareNativeImageTools({ root });
