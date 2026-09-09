@@ -1650,7 +1650,45 @@ export default function Home() {
             <button className="quiet" aria-label="笔记本设置" title="笔记本设置" disabled={!book} onClick={()=>startCover()}><Settings/></button>
             <button className="quiet" aria-label="记录索引" title="记录索引" onClick={()=>setModal('index')}><List/></button>
           </div>
-          <fieldset className="book-tools creation-tools" aria-label="添加与撤销">
+          <fieldset className="book-tools creation-tools" aria-label="编辑工具">
+            {opened && <>
+              <div className="editor-page-navigation" role="group" aria-label="跨页导航与纸面大小">
+                <button
+                  className="quiet icon"
+                  aria-label="上一跨页"
+                  onClick={() => flip(-1)}
+                  disabled={!!flipping}
+                >
+                  <ChevronLeft />
+                </button>
+                <span className="editor-page-counter" aria-live="polite">
+                  {isFlyleaf
+                    ? '扉页'
+                    : spread
+                      ? `${page + 1} / ${book?.spreads.length}`
+                      : '第一张空白纸'}
+                </span>
+                <button
+                  className="quiet icon"
+                  aria-label="下一跨页"
+                  onClick={() => flip(1)}
+                  disabled={
+                    !!flipping || (reading && page + 1 >= (book?.spreads.length || 0))
+                  }
+                >
+                  <ChevronRight />
+                </button>
+                <label className="page-zoom editor-page-zoom">
+                  <select aria-label="纸面大小" value={zoom} onChange={e=>setZoom(Number(e.target.value))}>
+                    <option value={100}>适合窗口</option>
+                    <option value={115}>115%</option>
+                    <option value={130}>130%</option>
+                    <option value={150}>150%</option>
+                  </select>
+                </label>
+              </div>
+              <span className="tool-divider"/>
+            </>}
             <button className="quiet" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
             <button className="quiet" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
             <button className="quiet" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Layers/><span>素材</span></button>
@@ -1994,40 +2032,6 @@ export default function Home() {
                             settling={turnSettling}
                           />
                         )}
-                    </div>
-                    <div className="page-navigation">
-                      <label className="page-zoom canvas-zoom"><select aria-label="纸面大小" value={zoom} onChange={e=>setZoom(Number(e.target.value))}><option value={100}>适合窗口</option><option value={115}>115%</option><option value={130}>130%</option><option value={150}>150%</option></select></label>
-                      <button
-                        className="outline icon"
-                        aria-label="上一跨页"
-                        onClick={() => flip(-1)}
-                        disabled={!!flipping}
-                      >
-                        <ChevronLeft />
-                      </button>
-                      <span>
-                        {isFlyleaf
-                          ? '扉页'
-                          : spread
-                            ? `${page + 1} / ${book?.spreads.length}`
-                            : '第一张空白纸'}
-                        <small>
-                          {isFlyleaf
-                            ? '封面内侧 · 扉页'
-                            : themes.find((t) => t.id === spread?.theme)?.name ||
-                              '植物采集'}
-                        </small>
-                      </span>
-                      <button
-                        className="outline icon"
-                        aria-label="下一跨页"
-                        onClick={() => flip(1)}
-                        disabled={
-                          !!flipping || (reading && page + 1 >= (book?.spreads.length || 0))
-                        }
-                      >
-                        <ChevronRight />
-                      </button>
                     </div>
                   </div>
                 )}

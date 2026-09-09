@@ -3260,11 +3260,16 @@ fieldset.book-tools{border-top:0;}
 .compact-shell .editor-header{height:64px;min-height:64px;padding:0 25px;justify-content:space-between;gap:22px;overflow:visible;}
 .notebook-title-tools{display:flex;align-items:center;gap:7px;min-width:0;}
 .notebook-title-tools .picker{min-width:110px;max-width:240px;font:500 17px 'Songti SC',serif;}
+.notebook-title-tools>strong{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .notebook-title-tools>.quiet{padding:9px;color:#89907f;}
 .notebook-title-tools>.quiet svg{width:16px;height:16px;}
-.creation-tools{display:flex;align-items:center;gap:8px;flex:none;}
-.creation-tools .quiet{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:12px;color:#626d59;}
+.creation-tools{display:flex;align-items:center;justify-content:flex-start;gap:8px;flex:1 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;}
+.creation-tools .quiet{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:12px;color:#626d59;flex:none;white-space:nowrap;}
 .creation-tools svg{width:17px;height:17px;stroke-width:1.6;}
+.editor-page-navigation{display:flex;align-items:center;gap:3px;flex:none;margin-left:auto;color:#68715f;white-space:nowrap;}
+.editor-page-navigation .quiet.icon{width:31px;height:32px;padding:6px;}
+.editor-page-counter{min-width:42px;text-align:center;font:12px Georgia,serif;color:#68715f;}
+.editor-page-zoom select{width:auto;max-width:110px;border-color:#d8ddd0;background:#fafbf6;color:#68715f;}
 .tool-divider{height:18px;border-left:1px solid #d8ddd0;margin:0 6px;}
 .fixed-element-tools{left:100px!important;right:24px!important;top:70px!important;}
 
@@ -3469,7 +3474,7 @@ fieldset.book-tools{border-top:0;}
 .paper-feel-controls{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0;}.paper-feel-controls label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;}.paper-feel-controls input[type=range]{width:105px;accent-color:#8d8060;}.paper-feel-controls input[type=color]{width:45px;}
 .collage-layout-actions{display:flex;gap:12px;}.collage-studio h3{font-size:14px;margin-top:20px;}.collage-template-list{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 22px;font-size:12px;color:#7b806e;}.collage-template-list small{display:block;font-size:10px;margin-top:6px;}.collage-studio>.primary{width:100%;}
 .layout-report{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;padding:7px 16px;background:#f8edda;border-bottom:1px solid #dfceab;color:#705c36;font-size:11px;}.layout-report .quiet{font-size:11px;}.layout-report svg{width:14px;height:14px;}
-@media(max-width:700px){.cream-style-card{gap:12px;padding:12px;}.cream-sample{width:130px;}.paper-feel-controls{grid-template-columns:1fr;}.fixed-element-tools{max-height:32dvh;overflow:auto;}.collage-context-tools{gap:6px;}.creation-tools{flex-wrap:wrap;}}
+@media(max-width:700px){.cream-style-card{gap:12px;padding:12px;}.cream-sample{width:130px;}.paper-feel-controls{grid-template-columns:1fr;}.fixed-element-tools{max-height:32dvh;overflow:auto;}.collage-context-tools{gap:6px;}.creation-tools{flex-wrap:nowrap;}}
 /* Fit the paper to the actual remaining work area when contextual controls open. */
 .compact-shell .work-area:has(.book-scene){container-type:size;}
 .compact-shell .work-area .book-scene{width:calc(min(100cqw - 48px,max(180px,100cqh - 92px)*var(--spread-ratio,1.43))*var(--page-zoom,1));}
