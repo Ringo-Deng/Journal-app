@@ -866,7 +866,7 @@ button {
 }
 .page-corner {
   /* A fixed, compact click target stays small even when the canvas is zoomed. */
-  --fold-size: 16px;
+  --fold-size: 0px;
   position: absolute;
   bottom: 0;
   width: 34px;
@@ -911,7 +911,7 @@ button {
     color-mix(in srgb, var(--corner-paper, var(--paper)) 88%, #827967)
   );
 }
-.page-corner:not(:disabled):is(:hover, :focus-visible) { --fold-size: 26px; }
+.page-corner:not(:disabled):hover { --fold-size: 26px; }
 .page-corner:disabled { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .page-corner::before, .page-corner::after { transition: none; }
