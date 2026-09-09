@@ -94,7 +94,6 @@ export default function ElementControls({
   onDelete,
   onFinish,
   onEdit,
-  onMore,
   onReplace,
   onReset,
 }: {
@@ -110,7 +109,6 @@ export default function ElementControls({
   onDelete: () => void;
   onFinish: () => void;
   onEdit: () => void;
-  onMore: () => void;
   onReplace: () => void;
   onReset: () => void;
 }) {
@@ -289,7 +287,6 @@ export default function ElementControls({
       >
         <Trash2 />
       </button>
-      <button className="quiet compact-more-button" onClick={onMore}>更多</button>
       <button className="quiet tool-finish-button" aria-label="完成编辑" onClick={onFinish}>
         <Check /><span>完成</span>
       </button>

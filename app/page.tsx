@@ -58,8 +58,6 @@ import {
   Type,
   PanelRightClose,
   Image as ImageIcon,
-  ArrowUpToLine,
-  ArrowDownToLine,
   FolderOpen,
   RefreshCw,
   PanelTop,
@@ -214,7 +212,7 @@ export default function Home() {
     [flipping, setFlipping] = useState('');
   const [view, setView] = useState<'library' | 'workbench'>('workbench');
   const [recent, setRecent] = useState<string[]>([]);
-  const [panel, setPanel] = useState<'write' | 'edit' | 'elements' | null>(null),
+  const [panel, setPanel] = useState<'write' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
       'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | null
@@ -298,7 +296,6 @@ export default function Home() {
   const saveStatusNeedsAttention = shouldShowSaveStatus(saved);
   const [recoveringSave, setRecoveringSave] = useState(false);
   const saveBlocked = useRef(false);
-  const historyGroup = useRef<string | null>(null);
   const bookAnimation = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if(bookAnimation.current)clearTimeout(bookAnimation.current); }, []);
   const [editingBookId,setEditingBookId]=useState<string|null>(null),
@@ -354,7 +351,6 @@ export default function Home() {
   const cluster=activePieces.length>1;
   const selectionLocked=activePieces.some(p=>p.locked);
   function setSelected(value:string|null){
-    if(value!==selected)historyGroup.current=null;
     if(value!==selected)setCropping(false);
     if(value===null){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
     _setSelected(value);
@@ -468,7 +464,6 @@ export default function Home() {
     return () => window.removeEventListener('beforeunload', before);
   }, []);
   const remember = () => {
-    historyGroup.current=null;
     history.current.push(structuredClone(booksRef.current));
     if (history.current.length > 30) history.current.shift();
     future.current = [];
@@ -520,15 +515,9 @@ export default function Home() {
       }),
       withHistory,
     );
-  const patchContinuous = (id: string, patch: Partial<Piece>) => {
-    const key=`${book?.id}/${spread?.id}/${id}/${Object.keys(patch).sort().join(',')}`;
-    patchPiece(id,patch,historyGroup.current!==key);
-    historyGroup.current=key;
-  };
-  const finishContinuous = () => { historyGroup.current=null; };
   function finishEditing(){
     if(inlineId){const p=spread?.elements.find(p=>p.id===inlineId);if(p&&p.text!==inlineText)patchPiece(inlineId,{text:inlineText});setInlineId(null);}
-    setSelected(null);setMultiIds([]);setEditingGroup(null);setCropping(false);if(panel==='edit')setPanel(null);
+    setSelected(null);setMultiIds([]);setEditingGroup(null);setCropping(false);
   }
   const selectedNode=useCallback((id:string)=>Array.from(canvas.current?.querySelectorAll<HTMLElement>('[data-piece-id]')||[]).find(el=>el.dataset.pieceId===id),[]);
   const pieceBox=useCallback((p:Piece):Box=>{
@@ -739,7 +728,7 @@ export default function Home() {
     setBookId(position.bookId);setPage(position.page);setOpened(position.opened);
     if(!position.bookId)setView('library');
     setInlineId(null);setTextRange(null);setSelected(null);
-    setDesignPreview(null);historyGroup.current=null;
+    setDesignPreview(null);
     editingPosition.current=null;scrollRestore.current=null;
     dirty.current=true;
     booksRef.current=snapshot;
@@ -1304,7 +1293,7 @@ export default function Home() {
     };
     changeSpread((s) => ({ ...s, elements: [...s.elements, p] }));
     setSelected(p.id);
-    setPanel('edit');
+    setPanel(null);
     setModal(null);
   }
   const resolveMaterial = (src: string | undefined, id?: string) =>
@@ -1761,7 +1750,7 @@ export default function Home() {
             <button className="quiet" aria-pressed={selectionLocked} onClick={()=>patchSelection({locked:!selectionLocked})}>{selectionLocked?<Unlock/>:<Lock/>}{selectionLocked?'解锁所选':'锁定所选'}</button>
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
-          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onMore={()=>setPanel('edit')} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
+          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
           <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">选择素材后可在这里调整</span>}
         </div>}
@@ -2096,16 +2085,12 @@ export default function Home() {
                       <span className="eyebrow">
                         {panel === 'write'
                           ? 'AI STUDIO'
-                          : panel === 'elements'
-                            ? 'LAYERS'
-                          : 'MAKE IT YOURS'}
+                          : 'LAYERS'}
                       </span>
                       <h2>
                         {panel === 'write'
                           ? 'AI 创作'
-                          : panel === 'elements'
-                            ? '图层'
-                          : '调整这一小片'}
+                          : '图层'}
                       </h2>
                     </div>
                     <button
@@ -2165,7 +2150,7 @@ export default function Home() {
                         </div>
                       )}
                     </div>
-                  ) : panel === 'elements' ? (
+                  ) : (
                     <div className="panel-scroll page-elements-panel">
                       <div className="page-elements-summary">
                         <span>{isFlyleaf?'扉页':'当前跨页'}</span>
@@ -2275,279 +2260,6 @@ export default function Home() {
                           <Layers/>
                           <strong>这一页还没有图层</strong>
                           <span>添加文字、照片或素材后，会显示在这里。</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="panel-scroll">
-                      {piece ? (
-                        <>
-                          <div className="selected-preview">
-                            {piece.kind === 'text' ? (
-                              <Type />
-                            ) : (
-                              <img
-                                src={
-                                  piece.kind === 'asset'
-                                    ? resolveMaterial(piece.src, piece.assetId)
-                                    : piece.src
-                                }
-                                alt="选中元素预览"
-                              />
-                            )}
-                            <span>
-                              {piece.kind === 'text'
-                                ? '文字片段'
-                                : piece.kind === 'photo'
-                                  ? '生活照片'
-                                  : assets.find((a) => a.id === piece.assetId)
-                                      ?.name || '拼贴素材'}
-                            </span>
-                          </div>
-                          {piece.kind === 'text' && (
-                            <label className="field">
-                              <span>修改文字</span>
-                              <textarea
-                                rows={6}
-                                value={piece.text || ''}
-                                maxLength={8000}
-                                onBlur={finishContinuous}
-                                onChange={(e) =>
-                                  patchContinuous(piece.id, { text: e.target.value })
-                                }
-                              />
-                            </label>
-                          )}
-                          <div className="field">
-                            <span>
-                              大小 <small>{Math.round(piece.w)}%</small>
-                            </span>
-                            <Slider
-                              aria-label="元素大小"
-                              value={[piece.w]}
-                              min={5}
-                              max={70}
-                              onValueCommitted={finishContinuous}
-                              onValueChange={(v) =>
-                                patchContinuous(piece.id, {
-                                  w: Array.isArray(v) ? v[0] : v,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="field">
-                            <span>
-                              旋转 <small>{Math.round(piece.rotation)}°</small>
-                            </span>
-                            <Slider
-                              aria-label="旋转角度"
-                              value={[piece.rotation]}
-                              min={-180}
-                              max={180}
-                              onValueCommitted={finishContinuous}
-                              onValueChange={(v) =>
-                                patchContinuous(piece.id, {
-                                  rotation: Array.isArray(v) ? v[0] : v,
-                                })
-                              }
-                            />
-                          </div>
-                          {piece.kind === 'text' && (
-                            <div className="field">
-                              <span>字号</span>
-                              <Slider
-                                aria-label="文字字号"
-                                value={[piece.fontSize || 18]}
-                                min={12}
-                                max={48}
-                                onValueCommitted={finishContinuous}
-                              onValueChange={(v) =>
-                                  patchContinuous(piece.id, {
-                                    fontSize: Array.isArray(v) ? v[0] : v,
-                                  })
-                                }
-                              />
-                            </div>
-                          )}
-                          {piece.kind === 'photo' && (
-                            <>
-                              <div className="field">
-                                <span>照片边框</span>
-                                <Pick
-                                  label="照片边框"
-                                  value={piece.frame || 'polaroid'}
-                                  onChange={(v) =>
-                                    patchPiece(piece.id, { frame: v })
-                                  }
-                                  items={[
-                                    { id: 'polaroid', name: '拍立得' },
-                                    { id: 'torn', name: '撕纸边缘' },
-                                    { id: 'stamp', name: '邮票齿孔' },
-                                    { id: 'plain', name: '完整原图' },
-                                  ]}
-                                />
-                              </div>
-                              {piece.frame !== 'plain' && (
-                                <div className="field">
-                                  <span>调整裁切位置</span>
-                                  <Slider
-                                    aria-label="照片裁切位置"
-                                    value={[piece.crop ?? 50]}
-                                    min={0}
-                                    max={100}
-                                    onValueCommitted={finishContinuous}
-                              onValueChange={(v) =>
-                                      patchContinuous(piece.id, {
-                                        crop: Array.isArray(v) ? v[0] : v,
-                                      })
-                                    }
-                                  />
-                                </div>
-                              )}
-                              <button
-                                className="outline full"
-                                disabled={busy}
-                                onClick={() => void cutout()}
-                              >
-                                {busy ? (
-                                  <Loader2 className="spinning" />
-                                ) : (
-                                  <Sparkles />
-                                )}
-                                本地抠出主体
-                              </button>
-                              <p className="microcopy">
-                                使用 Mac 本地识别，不发送照片、不消耗 AI 用量。
-                              </p>
-                              <button
-                                className="outline full"
-                                onClick={() => replaceInput.current?.click()}
-                              >
-                                <ImageIcon />
-                                替换照片
-                              </button>
-                              <button
-                                className="quiet full"
-                                onClick={() =>
-                                  patchPiece(piece.id, {
-                                    src: piece.photoOriginal || piece.src,
-                                    crop: 50,
-                                    frame: 'plain',
-                                  })
-                                }
-                              >
-                                恢复完整原图
-                              </button>
-                            </>
-                          )}
-                          <div className="field">
-                            <span>位置</span>
-                            <div className="two-fields">
-                              <label>
-                                横向
-                                <input
-                                  aria-label="横向位置"
-                                  type="number"
-                                  min="0"
-                                  max="95"
-                                  value={Math.round(piece.x)}
-                                  onChange={(e) =>
-                                    patchPiece(piece.id, {
-                                      x: Math.max(
-                                        0,
-                                        Math.min(95, Number(e.target.value)),
-                                      ),
-                                    })
-                                  }
-                                />
-                              </label>
-                              <label>
-                                纵向
-                                <input
-                                  aria-label="纵向位置"
-                                  type="number"
-                                  min="0"
-                                  max="95"
-                                  value={Math.round(piece.y)}
-                                  onChange={(e) =>
-                                    patchPiece(piece.id, {
-                                      y: Math.max(
-                                        0,
-                                        Math.min(95, Number(e.target.value)),
-                                      ),
-                                    })
-                                  }
-                                />
-                              </label>
-                            </div>
-                          </div>
-                          <div className="row">
-                            <button
-                              className="outline"
-                              onClick={() =>
-                                changeSpread((s) => ({
-                                  ...s,
-                                  elements: [
-                                    ...s.elements.filter(
-                                      (e) => e.id !== piece.id,
-                                    ),
-                                    { ...piece },
-                                  ],
-                                }))
-                              }
-                            >
-                              <ArrowUpToLine />
-                              置顶
-                            </button>
-                            <button
-                              className="outline"
-                              onClick={() =>
-                                changeSpread((s) => ({
-                                  ...s,
-                                  elements: [
-                                    { ...piece },
-                                    ...s.elements.filter(
-                                      (e) => e.id !== piece.id,
-                                    ),
-                                  ],
-                                }))
-                              }
-                            >
-                              <ArrowDownToLine />
-                              置底
-                            </button>
-                          </div>
-                          <div className="lock-card">
-                            <div>
-                              {piece.locked ? <Lock /> : <Unlock />}
-                              <p>
-                                {piece.locked
-                                  ? '重做时保留此元素'
-                                  : '允许 AI 重新设计'}
-                                <small>开启后，可在重设计时选择保留</small>
-                              </p>
-                            </div>
-                            <Switch
-                              aria-label="重做时保留此元素"
-                              checked={piece.locked}
-                              onCheckedChange={(v) =>
-                                patchPiece(piece.id, { locked: v })
-                              }
-                            />
-                          </div>
-                          <button className="danger full" onClick={removePiece}>
-                            <Trash2 />
-                            移除这一元素
-                          </button>
-                        </>
-                      ) : (
-                        <div className="empty-editor">
-                          <Feather />
-                          <p>
-                            点选纸上的文字、照片或素材，
-                            <br />
-                            就能调整它。
-                          </p>
                         </div>
                       )}
                     </div>
