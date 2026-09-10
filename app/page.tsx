@@ -1891,7 +1891,7 @@ export default function Home() {
         <div className="rail-spacer"/>
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
         <button aria-label="导出备份" onClick={()=>void exportBackup()}><Download/><span>备份</span></button>
-        <button aria-label="AI 设置" onClick={openSettings}><Settings/><span>设置</span></button>
+        <button aria-label="设置" onClick={openSettings}><Settings/><span>设置</span></button>
         <small className="build-version" title="当前版本">v0.1.20</small>
       </aside>
       <main>
@@ -1942,7 +1942,6 @@ export default function Home() {
             </>}
             <button className="quiet" aria-label="添加文字" title="文字" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
             <button className="quiet" aria-label={uploading?'正在添加照片':'添加照片'} title="照片" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
-            <button className="quiet" aria-label="照片回收站" title="照片回收站" disabled={!spread||!opened} onClick={()=>{cancelPhotoMask();setPhotoTrashOpen(true);}}><Trash2/><span>照片回收站</span></button>
             <button className="quiet" aria-label="打开素材库" title="素材" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
             <button
               className={`quiet ${panel==='elements'?'active':''}`}
@@ -3007,10 +3006,15 @@ export default function Home() {
         onOpenChange={(v) => !v && setModal(null)}
       >
         <DialogContent className="journal-dialog">
-          <DialogTitle>连接你的 AI</DialogTitle>
+          <DialogTitle>设置</DialogTitle>
           <DialogDescription>
-            目前固定使用 DeepSeek。默认选择 Vision，密钥保存在本机，不随手帐备份导出。
+            管理 AI 连接与保留在本机的照片原图。
           </DialogDescription>
+          <div className="lock-card settings-photo-trash">
+            <div><Trash2/><p>照片回收站<small>查看、恢复或清理照片蒙版保留的原图。</small></p></div>
+            <button className="outline" onClick={()=>{setModal(null);cancelPhotoMask();setPhotoTrashOpen(true);}}>打开</button>
+          </div>
+          <strong className="settings-section-title">AI 连接</strong>
           <label className="field">
             <span>AI 服务</span>
             <input value="DeepSeek" disabled readOnly />

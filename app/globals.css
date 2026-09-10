@@ -1517,6 +1517,17 @@ button {
 .journal-dialog .lock-card {
   margin: 4px 0;
 }
+.journal-dialog .settings-photo-trash {
+  margin: 2px 0 4px;
+}
+.settings-photo-trash > button {
+  flex: none;
+}
+.settings-section-title {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #59634f;
+}
 .journal-dialog .microcopy {
   margin: 0;
 }
