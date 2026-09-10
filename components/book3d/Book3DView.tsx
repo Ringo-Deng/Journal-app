@@ -362,36 +362,16 @@ function PageShade({
   );
 }
 
-/** Narrow folded cloth edges stay attached to each moving cover. */
-function CoverTurnIns({ side, color }: { side: -1 | 1; color: string }) {
-  const { BOOK } = useBookScene();
-  const z = side * (BOOK.cover / 2 + 0.0025);
-  return (
-    <group>
-      {[
-        [BOOK.width / 2, BOOK.height / 2 + 0.015, BOOK.width + 0.1, 0.07],
-        [BOOK.width / 2, -BOOK.height / 2 - 0.015, BOOK.width + 0.1, 0.07],
-        [0, 0, 0.075, BOOK.height - 0.04],
-        [BOOK.width, 0, 0.075, BOOK.height - 0.04],
-      ].map(([x, y, w, h], i) => (
-        <mesh key={i} position={[x, y, z]} raycast={() => {}}>
-          <boxGeometry args={[w, h, 0.003]} />
-          <meshStandardMaterial color={color} roughness={0.98} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
 function RoundedCoverFace({ lining = false, flipped = false }: { lining?: boolean; flipped?: boolean }) {
   const { BOOK } = useBookScene();
-  const width = BOOK.width + (lining ? -0.08 : 0.1);
-  const height = BOOK.height + (lining ? -0.08 : 0.14);
+  const width = BOOK.width + (lining ? 0.12 : 0.1);
+  const height = BOOK.height + (lining ? 0.16 : 0.14);
   const geometry = useMemo(() => {
     const result = new ShapeGeometry(
       coverOutline(
         width,
         height,
-        lining ? 0.11 : 0.15,
+        lining ? 0.16 : 0.15,
         lining ? null : flipped ? "right" : "left",
       ),
       10,
@@ -655,7 +635,6 @@ function BookModel({
         />
       )}
       <group ref={backCover} position={[0, 0, coverHeight("below")]}>
-        {paperStyle === "bound" && <CoverTurnIns side={1} color={surface.color} />}
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow
@@ -724,7 +703,6 @@ function BookModel({
         <PageShade progress={progress} leftCount={leftCount} rightCount={rightCount} />
       )}
       <group ref={cover} position={[0, 0, coverHeight("above")]}>
-        {paperStyle === "bound" && <CoverTurnIns side={-1} color={surface.color} />}
         <mesh
           position={[BOOK.width / 2, 0, 0]}
           castShadow

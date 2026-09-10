@@ -3461,6 +3461,10 @@ fieldset.book-tools{border-top:0;}
 .flyleaf-page-layer-mid{right:-4px;background:#eee7d8;height:calc(100% - 4px);top:2px;}
 .flyleaf-sheet .paper-grain,.flyleaf-spread .paper-grain{opacity:.2;}
 
+/* The pasted lining reaches the cover edge; keep only the center binding, not a rectangular rim. */
+.compact-shell.is-editing .book-scene .open-book.flyleaf-spread{outline:0;box-shadow:0 20px 35px -13px #332a2940;}
+.compact-shell.is-editing .flyleaf-spread .cover-inside-edge{display:none;}
+
 @media(max-width:720px){.deck-cover-scene{width:var(--sheet-size);left:calc((100% - var(--sheet-size))/2);}}
 @media(prefers-reduced-motion:reduce){.viewer-opening .deck-book-core,.viewer-opening .deck-rigid-cover{animation-duration:.01s;}.deck-heading,.deck-view-switch,.deck-controls{transition:none;}}
 /* Slight bleed hides antialiased cracks between adjacent paper facets. */
