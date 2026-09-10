@@ -14,6 +14,7 @@ import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
 import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
+import { createPhotoMaskStore, photoTrashProtection } from './photo-mask.mjs';
 import { createJournalHistory } from './journal-history.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
@@ -197,6 +198,8 @@ async function withMaterialColors(assets){
 }
 async function library(){const assets=await rawLibrary();return catalogService?catalogService.decorate(assets):assets;}
 let writeQueue = Promise.resolve();
+const photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state});
+function photoTask(fn){const task=writeQueue.then(fn);writeQueue=task.catch(()=>{});return task;}
 const publicSettings = () => ({
   baseUrl: settings.baseUrl,
   model: settings.model,
@@ -583,6 +586,12 @@ const server = http.createServer(async (req, res) => {
       }else imported.push(await persistFont(buffer,filename));
       return json(res,{fonts:[...new Map(imported.map(font=>[font.id,fontPublic(font)])).values()]});
     }
+    if(path==='/api/photo-mask'&&req.method==='POST'){const input=await body(req);return json(res,await photoTask(()=>photoMasks.generate(input)));}
+    if(path==='/api/photo-trash'&&req.method==='GET')return json(res,await photoTask(()=>photoMasks.list()));
+    if(path==='/api/photo-trash/clear'&&req.method==='POST'){const sources=photoTrashProtection(req.headers['content-type']?await body(req):{});return json(res,await photoTask(()=>photoMasks.clear(sources)));}
+    const trashMatch=/^\/api\/photo-trash\/([a-f0-9-]{36})(\/restore)?$/.exec(path);
+    if(trashMatch&&req.method==='POST'&&trashMatch[2])return json(res,await photoTask(()=>photoMasks.restore(trashMatch[1])));
+    if(trashMatch&&req.method==='DELETE'&&!trashMatch[2]){const sources=photoTrashProtection(req.headers['content-type']?await body(req):{});return json(res,await photoTask(()=>photoMasks.remove(trashMatch[1],sources)));}
     if (path === '/api/history' && req.method === 'GET') return json(res, await journalHistory.list());
     if (path.startsWith('/api/history/') && req.method === 'GET') return json(res, await journalHistory.read(path.slice('/api/history/'.length)));
     if (path === '/api/state' && req.method === 'GET') return json(res, state);
@@ -595,6 +604,7 @@ const server = http.createServer(async (req, res) => {
             '其他窗口更新了手帐。请先导出当前记录，再刷新页面。',
             409,
           );
+        await photoMasks.assertSavable(next);
         let historyWarning;
         try { await journalHistory.captureBeforeSave(state, next); }
         catch { historyWarning = '本次手帐已保存，但历史备份未能完成。请检查磁盘空间或数据目录权限，并导出备份。'; }
@@ -609,6 +619,7 @@ const server = http.createServer(async (req, res) => {
         const saved = { books: next.books, revision: state.revision + 1 };
         await atomic('journal.json', saved);
         state = saved;
+        try{await photoMasks.reconcile(saved);}catch{historyWarning='手帐已保存，但照片回收站登记暂未完成，重新打开回收站后会重试。';}
         return { revision: saved.revision, ...(historyWarning ? { historyWarning } : {}) };
       });
       writeQueue = task.catch(() => {});

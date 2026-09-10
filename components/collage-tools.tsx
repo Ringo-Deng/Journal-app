@@ -19,7 +19,7 @@ function fontResponse(value:unknown):{fonts:UserFont[];error?:string}{
  return {fonts,error:typeof data.error==='string'?data.error:undefined};
 }
 
-export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,cropping,onCrop,busy,hasTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
+export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,onMask,cropping,onCrop,busy,hasTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;onMask:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
  const [userFonts,setUserFonts]=useState<UserFont[]>([]);
  const [fontMessage,setFontMessage]=useState('');
  const [fontError,setFontError]=useState(false);
@@ -85,7 +85,9 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
    </ToolbarPopover>
  </div>;
 
+ if(p.kind==='photo'&&p.frame==='masked')return <div className="collage-context-tools compact-context-tools"><span>蒙版已定稿 · 可撤销或从照片回收站恢复原图</span><NumberControl label="轮廓白边" value={(p.cutoutOutline??.18)*10} min={0} max={25} onCommit={v=>onPatch({cutoutOutline:v/10})}/><NumberControl label="阴影" value={(p.shadow??.4)*100} min={0} max={100} onCommit={v=>onPatch({shadow:v/100})}/></div>;
  if(p.kind==='photo') return <div className="collage-context-tools compact-context-tools" aria-label="照片细节">
+   <button className="quiet" disabled={busy} onClick={onMask}>照片蒙版</button>
    <label className="compact-select-control compact-photo-frame">装裱<select aria-label="照片装裱" value={p.frame||'polaroid'} onChange={e=>onPatch({frame:e.target.value,hideTape:true})}>{[['polaroid','拍立得'],['torn','撕纸'],['stamp','邮票'],['plain','原图'],['cutout','白边剪贴']].map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
    <button className="quiet compact-photo-crop" aria-pressed={cropping} onClick={onCrop}>{cropping?'完成裁切':'裁切'}</button>
    <ToolbarPopover label="照片细节" icon={<SlidersHorizontal/>} className="compact-photo-detail" panelClassName="photo-detail-popover">

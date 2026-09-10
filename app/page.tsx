@@ -1,6 +1,10 @@
 'use client';
 import StationeryCover from '@/components/stationery-cover';
 import CollageTools from '@/components/collage-tools';
+import PhotoMaskTools from '@/components/photo-mask-tools';
+import PhotoTrash from '@/components/photo-trash';
+import {applyMaskToBooks,restorePhotoMask,type PhotoMaskDraft,type PhotoTrashEntry} from '@/lib/photo-mask-state';
+import {maskImageRect,rotatedMaskBounds} from '@/lib/photo-mask.mjs';
 import CollageStudio,{type ClipboardSource} from '@/components/collage-studio';
 import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
 import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate} from '@/lib/collage';
@@ -209,6 +213,12 @@ export default function Home() {
   const [clipboardCutRequest,setClipboardCutRequest]=useState(0);
   const [clipboardPasteRequest,setClipboardPasteRequest]=useState(0);
   const [cropping,setCropping]=useState(false);
+  const [photoMaskDraft,setPhotoMaskDraft]=useState<PhotoMaskDraft|null>(null);
+  const maskDraftRef=useRef<PhotoMaskDraft|null>(null);
+  const [photoTrashOpen,setPhotoTrashOpen]=useState(false);
+  function updateMaskDraft(next:PhotoMaskDraft|null){maskDraftRef.current=next;setPhotoMaskDraft(next);}
+  function cancelPhotoMask(){updateMaskDraft(null);drag.current=null;setCropping(false);}
+  function editMaskDraft(patch:Partial<PhotoMaskDraft>){const d=maskDraftRef.current;if(d&&!d.generating)updateMaskDraft({...d,...patch});}
   const [layoutReport,setLayoutReport]=useState<{message:string;ids:string[];type:string}[]|null>(null);
   const [textRange,setTextRange]=useState<{id:string;start:number;end:number;text:string}|null>(null);
   const [templateName,setTemplateName]=useState('我的照片拼贴');
@@ -361,18 +371,27 @@ export default function Home() {
   }, [books]);
   const book = books.find((b) => b.id === bookId) || books[0],
     spread = book ? (page === -1 ? book.flyleaf : book.spreads[page]) : undefined,
-    piece = spread?.elements.find((e) => e.id === selected),
+    savedPiece = spread?.elements.find((e) => e.id === selected),
+    maskActive=photoMaskDraft?.bookId===book?.id&&photoMaskDraft?.spreadId===spread?.id&&photoMaskDraft?.pieceId===selected,
+    piece = maskActive?photoMaskDraft!.piece:savedPiece,
     activeTurn = turnRef.current;
-  const activePieces=spread?.elements.filter(p=>multiIds.length?multiIds.includes(p.id):p.id===selected||!!piece?.groupId&&piece.groupId!==editingGroup&&p.groupId===piece.groupId)||[];
+  const activePieces=spread?.elements.filter(p=>multiIds.length?multiIds.includes(p.id):p.id===selected||!!piece?.groupId&&piece.groupId!==editingGroup&&p.groupId===piece.groupId).map(p=>maskActive&&p.id===photoMaskDraft!.pieceId?photoMaskDraft!.piece:p)||[];
   const activeUnitCount=new Set(activePieces.map(p=>editingGroup?`piece:${p.id}`:p.groupId?`group:${p.groupId}`:`piece:${p.id}`)).size;
   const multiSelection=activeUnitCount>1;
   const cluster=activePieces.length>1;
   const selectionLocked=activePieces.some(p=>p.locked);
   function setSelected(value:string|null){
+    if(maskDraftRef.current&&value!==maskDraftRef.current.pieceId)cancelPhotoMask();
     if(value!==selected)setCropping(false);
     if(value===null){canvasMarquee.current=null;setSelectionMarquee(null);setSelectionPreviewIds([]);setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
     _setSelected(value);
   }
+  const maskContext=useRef('');
+  maskContext.current=JSON.stringify([book?.id,spread?.id,selected,reading,view,opened,libraryOpen,modal,panel,photoTrashOpen,multiIds]);
+  useEffect(()=>{
+    const d=maskDraftRef.current;
+    if(d&&(!maskActive||reading||view!=='workbench'||!opened||libraryOpen||modal||panel||photoTrashOpen||cluster||JSON.stringify(savedPiece)!==JSON.stringify(d.before)))cancelPhotoMask();
+  },[maskActive,reading,view,opened,libraryOpen,modal,panel,photoTrashOpen,cluster,savedPiece]);
   const sheetAt = (b: Book, i: number) =>
     (i === -1 ? b.flyleaf : b.spreads[i]) as Spread | undefined;
   const toast = useCallback(
@@ -482,11 +501,13 @@ export default function Home() {
     return () => window.removeEventListener('beforeunload', before);
   }, []);
   const remember = () => {
+    if(maskDraftRef.current)return;
     history.current.push(structuredClone(booksRef.current));
     if (history.current.length > 30) history.current.shift();
     future.current = [];
   };
   const change = (fn: (all: Book[]) => Book[], withHistory = true) => {
+    if(maskDraftRef.current)cancelPhotoMask();
     if (withHistory) remember();
     dirty.current = true;
     setBooks((all) => {
@@ -511,7 +532,9 @@ export default function Home() {
         }),
       withHistory,
     );
-  const patchPiece = (id: string, patch: Partial<Piece>, withHistory = true) =>
+  const patchPiece = (id: string, patch: Partial<Piece>, withHistory = true) => {
+    const draft=maskDraftRef.current;
+    if(draft?.pieceId===id){if(!draft.generating)updateMaskDraft({...draft,piece:{...draft.piece,...patch}});return;}
     changeSpread(
       (s) => ({
         ...s,
@@ -533,6 +556,7 @@ export default function Home() {
       }),
       withHistory,
     );
+  };
   function finishEditing(){
     if(inlineId){const p=spread?.elements.find(p=>p.id===inlineId);if(p&&p.text!==inlineText)patchPiece(inlineId,{text:inlineText});setInlineId(null);}
     setSelected(null);setMultiIds([]);setEditingGroup(null);setCropping(false);
@@ -738,6 +762,53 @@ export default function Home() {
     const outside=(e:MouseEvent)=>{const target=e.target;if(!(target instanceof Element)||target.closest('[data-piece-id],.selection-box,.open-book,[data-editor-ui],.side-panel,[role="dialog"],[role="alertdialog"]'))return;finishEditing();};
     document.addEventListener('click',outside);return()=>document.removeEventListener('click',outside);
   });
+  async function preparePhotoSave(){
+    // Wait for the shared save queue; never create a second persistence path.
+    for(let i=0;writing.current&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,50));
+    if(writing.current||saveBlocked.current)throw Error('请先解决保存问题，再操作照片。');
+    pending.current=booksRef.current;
+    await flush();
+    if(pending.current||saveBlocked.current)throw Error('手帐尚未保存，照片未被修改。');
+    return [...new Set([...history.current,...future.current].flatMap(notebookUploads))];
+  }
+  async function startPhotoMask(){
+    if(!book||!spread||!savedPiece||savedPiece.kind!=='photo'||savedPiece.frame==='masked'||selectionLocked||cluster||busy)return;
+    const before=structuredClone(savedPiece),context=maskContext.current;
+    try{
+      const image=new Image();image.src=before.src!;await image.decode();
+      if(context!==maskContext.current)return;
+      const height=before.h??pieceBox(before).h/(canvas.current?.clientHeight||700)*100;
+      setPanel(null);setCropping(false);
+      updateMaskDraft({pieceId:before.id,bookId:book.id,spreadId:spread.id,before,
+        piece:{...before,h:height,stretch:true,frame:'masked',hideTape:true,cutoutOutline:before.cutoutOutline??.18,crop:before.crop??50,cropY:before.cropY??50,cropZoom:Math.max(1,Math.min(4,before.cropZoom??1))},
+        photoRotation:0,imageWidth:image.naturalWidth,imageHeight:image.naturalHeight,shape:'circle',generating:false,token:uid()});
+    }catch{toast('照片无法读取，请重新选择照片。');}
+  }
+  async function applyPhotoMask(){
+    const draft=maskDraftRef.current;if(!draft||draft.generating)return;
+    const context=maskContext.current,active=()=>maskDraftRef.current?.token===draft.token&&maskContext.current===context;
+    updateMaskDraft({...draft,generating:true});let applied=false;
+    try{
+      await preparePhotoSave();if(!active())return;
+      const p=draft.piece,cw=canvas.current?.clientWidth||1000,ch=canvas.current?.clientHeight||700;
+      const result=await api<{src:string}>('/photo-mask',send('POST',{src:draft.before.src,shape:draft.shape,crop:p.crop??50,cropY:p.cropY??50,cropZoom:p.cropZoom??1,photoRotation:draft.photoRotation,flipX:!!p.flipX,flipY:!!p.flipY,width:p.w*cw/100,height:(p.h??15)*ch/100,bookId:draft.bookId,spreadId:draft.spreadId,pieceId:draft.pieceId,revision:revision.current}));
+      if(!active())return;
+      const image=new Image();image.src=result.src;await image.decode();if(!active())return;
+      const next=applyMaskToBooks(booksRef.current,draft,result.src);
+      cancelPhotoMask();change(()=>next);booksRef.current=next;applied=true;
+      pending.current=next;await flush();
+      toast(pending.current?'蒙版已生成，手帐保存失败，请重试保存。':'蒙版已应用，原图已移入照片回收站。');
+    }catch(e){
+      if(!applied&&active()){updateMaskDraft({...draft,generating:false});toast('蒙版生成失败，照片未被修改。 '+(e as Error).message);}
+      else if(applied)toast('蒙版图片已保留，请重试保存手帐。');
+    }
+  }
+  async function restoreTrashPhoto(entry:PhotoTrashEntry){
+    if(!book||!spread)throw Error('请先打开要恢复照片的跨页。');
+    const next=restorePhotoMask(booksRef.current,entry,book.id,spread.id,uid());
+    change(()=>next);booksRef.current=next;pending.current=next;await flush();
+    if(pending.current)throw Error('照片已恢复，手帐保存失败，请重试保存。');
+  }
   function changeSize(axis:'w'|'h',value:number){
     if(!piece||selectionLocked)return;
     const h=piece.h??(selectionSize.h||15),w=piece.w;
@@ -791,6 +862,7 @@ export default function Home() {
     setBooks(snapshot);
   }
   const undo = () => {
+    if(maskDraftRef.current){cancelPhotoMask();return;}
     const previous = history.current.pop();
     if (previous) {
       future.current.push(structuredClone(booksRef.current));
@@ -800,6 +872,7 @@ export default function Home() {
     } else toast('还没有可以撤销的修改');
   };
   const redo = () => {
+    if(maskDraftRef.current){cancelPhotoMask();return;}
     const next=future.current.pop();
     if(next){
       history.current.push(structuredClone(booksRef.current));
@@ -985,7 +1058,7 @@ export default function Home() {
         changeSpread(s=>({...s,elements:[...s.elements,...additions]}));
         setReading(false);setLibraryOpen(false);setOpened(true);setPanel(null);setSelected(additions.at(-1)?.id||null);toast(`已添加 ${added.length} 张照片，可直接拖动调整。`);
       }else if (replace && piece)
-        patchPiece(piece.id, { src: added[0], photoOriginal: added[0] });
+        patchPiece(piece.id, { src: added[0], photoOriginal: added[0], ...(piece.frame==='masked'?{frame:'plain'}:{}) });
       else setPhotos((p) => [...p, ...added].slice(0, 6));
     } catch (e) {
       toast((e as Error).message);
@@ -1146,9 +1219,9 @@ export default function Home() {
     paper.classList.remove('is-moving-selection');
   }
   function pointerDown(e: React.PointerEvent, id: string, mode = 'move') {
-    if (reading || inlineId === id || e.button !== 0 || busy || turnRef.current) return;
+    if (reading || inlineId === id || e.button !== 0 || busy || turnRef.current || maskDraftRef.current?.generating) return;
     e.stopPropagation();
-    const p=spread?.elements.find(p=>p.id===id),paper=canvas.current;
+    const p=maskDraftRef.current?.pieceId===id?maskDraftRef.current.piece:spread?.elements.find(p=>p.id===id),paper=canvas.current;
     if(!p||!paper)return;
     if((e.shiftKey||e.metaKey||e.ctrlKey)&&mode==='move')return;
     const alreadyActive=activePieces.some(q=>q.id===id);
@@ -1161,20 +1234,28 @@ export default function Home() {
     const movingIds=new Set(members.map(member=>member.id));
     const snap=mode==='move'&&!(cropping&&p.kind==='photo')?buildSnapTargets(cw,ch,(spread?.elements||[]).filter(q=>!movingIds.has(q.id)&&!isPieceHidden(q)).map(pieceBox)):undefined;
     setSnapGuides({});
-    drag.current={id,x:e.clientX,y:e.clientY,mode:cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
+    drag.current={id,x:e.clientX,y:e.clientY,mode:maskDraftRef.current?.pieceId===id&&mode==='move'?'mask-crop':cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function pointerMove(e: React.PointerEvent) {
     const d=drag.current;if(!d)return;
     const dx=e.clientX-d.x,dy=e.clientY-d.y;
     if(!d.started){if(Math.hypot(dx,dy)<3)return;remember();d.started=true;}
+    if(d.mode==='mask-crop'){
+      const draft=maskDraftRef.current;if(!draft||draft.generating)return;
+      const p=d.members[0],angle=-p.rotation*Math.PI/180,inner=-draft.photoRotation*Math.PI/180;
+      const x=dx*Math.cos(angle)-dy*Math.sin(angle),y=dx*Math.sin(angle)+dy*Math.cos(angle);
+      const ix=(x*Math.cos(inner)-y*Math.sin(inner))*(p.flipX?-1:1),iy=(x*Math.sin(inner)+y*Math.cos(inner))*(p.flipY?-1:1);
+      const r=maskImageRect(draft.imageWidth,draft.imageHeight,d.box.w,d.box.h,p.crop??50,p.cropY??50,p.cropZoom??1,draft.photoRotation),bounds=rotatedMaskBounds(d.box.w,d.box.h,draft.photoRotation);
+      patchPiece(d.id,{crop:Math.max(0,Math.min(100,(p.crop??50)-(r.width>bounds.width+.01?ix/(r.width-bounds.width)*100:0))),cropY:Math.max(0,Math.min(100,(p.cropY??50)-(r.height>bounds.height+.01?iy/(r.height-bounds.height)*100:0)))},false);return;
+    }
     if(d.mode==='crop'){patchPiece(d.id,{crop:Math.max(0,Math.min(100,d.crop!.x-dx/d.box.w*100)),cropY:Math.max(0,Math.min(100,d.crop!.y-dy/d.box.h*100))},false);return;}
     let box={...d.box};
     if(d.mode==='rotate'){
       box.rotation=normalizeAngle(d.box.rotation+Math.atan2(e.clientY-d.cy,e.clientX-d.cx)*180/Math.PI-d.angle);
       if(e.shiftKey)box.rotation=Math.round(box.rotation/15)*15;
     }else if(d.mode.startsWith('resize-')){
-      box=resizeBox(d.box,d.mode.slice(7),dx,dy,d.members.length>1||proportional||e.shiftKey);
+      box=resizeBox(d.box,d.mode.slice(7),dx,dy,d.members.length>1||(!maskDraftRef.current&&proportional)||e.shiftKey);
       const scale=Math.min(1,d.canvasW/box.w,d.canvasH/box.h);box.w*=scale;box.h*=scale;
       box.x=Math.max(0,Math.min(d.canvasW-box.w,box.x));box.y=Math.max(0,Math.min(d.canvasH-box.h,box.y));
     }else{
@@ -1741,7 +1822,7 @@ export default function Home() {
   const currentMonth = book?.month || today().slice(0, 7);
   const format = bookFormat(book);
   const isFlyleaf = page === -1;
-  const decorative = spread?.elements || [];
+  const decorative = (spread?.elements || []).map(p=>maskActive&&p.id===photoMaskDraft!.pieceId?photoMaskDraft!.piece:p);
   const pageElementRows=(()=>{
     const seen=new Set<string>();
     let groupNumber=0;
@@ -1861,6 +1942,7 @@ export default function Home() {
             </>}
             <button className="quiet" aria-label="添加文字" title="文字" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
             <button className="quiet" aria-label={uploading?'正在添加照片':'添加照片'} title="照片" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
+            <button className="quiet" aria-label="照片回收站" title="照片回收站" disabled={!spread||!opened} onClick={()=>{cancelPhotoMask();setPhotoTrashOpen(true);}}><Trash2/><span>照片回收站</span></button>
             <button className="quiet" aria-label="打开素材库" title="素材" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
             <button
               className={`quiet ${panel==='elements'?'active':''}`}
@@ -1878,7 +1960,7 @@ export default function Home() {
             <button className="quiet" aria-label="撤销调整" title="撤销" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" title="重做" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
-        {!reading&&!libraryOpen&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
+        {!reading&&!libraryOpen&&!photoMaskDraft&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个对象`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'空白拖框 · ⌘/Ctrl 或 Shift 追加'}</span>
@@ -1888,7 +1970,7 @@ export default function Home() {
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
           {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
-          <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
+          <CollageTools onMask={()=>void startPhotoMask()} piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')}/>}
@@ -1992,7 +2074,7 @@ export default function Home() {
             </div>
           ) : (
             <div
-              className={`editor-layout ${panel && !reading ? 'with-panel' : ''}`}
+              className={`editor-layout ${photoMaskDraft?'with-photo-mask':panel && !reading ? 'with-panel' : ''}`}
             >
               <div ref={workArea} className="work-area" style={{'--page-zoom':zoom/100} as CSSProperties}>
                 <span className="canvas-caption">
@@ -2119,7 +2201,7 @@ export default function Home() {
                         >
                           {p.kind === 'text' ? (
                             inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" rows={1} ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
-                          ) : p.kind==='photo' ? <PhotoArtwork piece={p} alt="当天照片"/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (
+                          ) : p.kind==='photo' ? <PhotoArtwork piece={p} alt="当天照片" maskPreview={maskActive&&p.id===photoMaskDraft!.pieceId?{shape:photoMaskDraft!.shape,photoRotation:photoMaskDraft!.photoRotation,ratio:p.w/(p.h||15)*(canvas.current?canvas.current.clientWidth/canvas.current.clientHeight:bookFormat(book).ratio)}:undefined}/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (
                             <JournalDrawing piece={p}/>
                           ) : (
                             <img
@@ -2221,6 +2303,7 @@ export default function Home() {
                   自由跨页 · 翻到最后自动添页
                 </span>
               </div>
+              {photoMaskDraft&&maskActive&&!reading&&<PhotoMaskTools draft={photoMaskDraft} onShape={shape=>editMaskDraft({shape})} onPatch={patch=>patchPiece(photoMaskDraft.pieceId,patch)} onRotation={photoRotation=>editMaskDraft({photoRotation})} onSize={(axis,value)=>patchPiece(photoMaskDraft.pieceId,{[axis]:value,stretch:true})} onApply={()=>void applyPhotoMask()} onCancel={cancelPhotoMask}/>}
               {panel && !reading && (
                 <aside className="side-panel">
                   <header>
@@ -3351,6 +3434,7 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+      <PhotoTrash open={photoTrashOpen} onClose={()=>setPhotoTrashOpen(false)} onPrepare={preparePhotoSave} onRestore={restoreTrashPhoto}/>
       <JournalHistory open={modal==='history'} onClose={()=>setModal(null)} onRestore={restoreNotebookCopies}/>
       {notice && (
         <output className="toast">

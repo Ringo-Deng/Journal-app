@@ -1,5 +1,7 @@
 'use client';
+import './photo-mask.css';
 /* oxlint-disable next/no-img-element -- Local journal photographs retain their original pixels. */
+import PhotoMaskPreview from './photo-mask-preview';
 import type { CSSProperties } from 'react';
 import type { Piece } from '@/lib/journal';
 import {journalFontFamily} from '@/lib/collage';
@@ -15,6 +17,7 @@ export function pieceAppearance(p:Piece): CSSProperties {
     '--piece-align':p.textAlign,
     '--photo-border':p.photoBorder!==undefined?`${p.photoBorder}cqw`:undefined,
     '--piece-shadow':p.shadow===undefined?undefined:`0.15cqw 0.3cqw ${.2+p.shadow*.55}cqw rgb(65 48 27 / ${p.shadow*.32})`,
+    '--mask-shadow':p.shadow===0?'drop-shadow(0 0 0 transparent)':`drop-shadow(.15cqw .3cqw ${.2+(p.shadow??.4)*.55}cqw rgb(65 48 27 / ${(p.shadow??.4)*.32}))`,
     '--cutout-edge':`${p.cutoutOutline??.18}cqw`,
     zIndex:Number.isFinite(stackOrder)?stackOrder:19,
   } as CSSProperties;
@@ -22,8 +25,9 @@ export function pieceAppearance(p:Piece): CSSProperties {
 export function pieceClasses(p:Piece) {
   return `${p.material?`material-${p.material}`:''} ${p.hideTape?'no-auto-tape':''} ${p.fontFamily?'has-typography':''} ${p.shadow!==undefined&&(p.kind!=='text'||!!p.frame&&p.frame!=='plain')?'has-shadow':''} ${p.kind==='photo'?'mounted-photo':''} ${p.tapeEdge==='straight'?'tape-straight':''}`;
 }
-export function PhotoArtwork({piece:p,alt=''}:{piece:Piece;alt?:string}) {
-  return <div className={`photo-window ${p.frame==='plain'||p.frame==='cutout'?'natural-photo':''}`}>
+export function PhotoArtwork({piece:p,alt='',maskPreview}:{piece:Piece;alt?:string;maskPreview?:{shape:string;ratio:number;photoRotation?:number}}) {
+  if(maskPreview)return <PhotoMaskPreview piece={p} {...maskPreview}/>;
+  return <div className={`photo-window ${p.frame==='plain'||p.frame==='cutout'||p.frame==='masked'?'natural-photo':''}`}>
     <img draggable={false} src={p.src} alt={alt} style={{objectPosition:`${p.crop??50}% ${p.cropY??50}%`,transform:`scale(${(p.cropZoom??1)*(p.flipX?-1:1)},${(p.cropZoom??1)*(p.flipY?-1:1)})`,transformOrigin:`${p.crop??50}% ${p.cropY??50}%`}}/>
   </div>;
 }
