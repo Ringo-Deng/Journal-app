@@ -24,6 +24,99 @@ func imageFromBuffer(_ buffer:CVPixelBuffer)->CGImage? {
  var image:CGImage?
  return VTCreateCGImageFromCVPixelBuffer(buffer,options:nil,imageOut:&image)==noErr ? image:nil
 }
+// Some downloaded JPGs have a transparency preview baked into their pixels.
+// Require the same neutral, alternating grid on all four borders before treating
+// it as backing. A checked sticker inside a plain sheet must remain artwork.
+func removeCheckerBacking(_ pixels:[UInt8],_ w:Int,_ h:Int)->[UInt8]? {
+ if min(w,h)<80{return nil}
+ func grey(_ p:Int)->Int? {
+  let i=p*4,r=Int(pixels[i]),g=Int(pixels[i+1]),b=Int(pixels[i+2])
+  if pixels[i+3]<245 || min(r,g,b)<180 || max(r,g,b)-min(r,g,b)>8{return nil}
+  return (r+g+b)/3
+ }
+ let top=(0..<w).map{grey($0)},left=(0..<h).map{grey($0*w)}
+ let samples=(top+left).compactMap{$0}
+ if samples.count<(w+h)*98/100{return nil}
+ var histogram=[Int](repeating:0,count:256)
+ for value in samples{histogram[value]+=1}
+ guard let first=(180...255).max(by:{histogram[$0]<histogram[$1]}),
+       let second=(180...255).filter({abs($0-first)>=12}).max(by:{histogram[$0]<histogram[$1]}) else{return nil}
+ let low=min(first,second),high=max(first,second)
+ if histogram[second]<samples.count/10 || high<235 || high-low>65{return nil}
+ let matchTolerance=min(7,max(3,(high-low)/3))
+ func label(_ value:Int?)->Int? {
+  guard let value=value else{return nil}
+  if abs(value-low)<=matchTolerance{return 0}
+  if abs(value-high)<=matchTolerance{return 1}
+  return nil
+ }
+ // Ignore antialiased transitions when measuring runs; retain their position in
+ // the phase map so fractional cell sizes and cropped grid offsets still work.
+ func axis(_ values:[Int?])->(phase:[Int],cell:Double)? {
+  var phase=[Int](),changes=[Int](),last=label(values[0]) ?? 0,valid=0
+  for (i,value) in values.enumerated(){
+   if let next=label(value){valid+=1;if next != last{changes.append(i);last=next}}
+   phase.append(last)
+  }
+  if valid<values.count*95/100 || changes.count<5{return nil}
+  let runs=zip(changes,changes.dropFirst()).map{Double($1-$0)}.sorted()
+  let cell=runs[runs.count/2]
+  if cell<6 || cell>Double(values.count)/5{return nil}
+  if runs.filter({abs($0-cell)<=max(2,cell*0.12)}).count<runs.count*9/10{return nil}
+  return(phase,cell)
+ }
+ guard let horizontal=axis(top),let vertical=axis(left),
+       abs(horizontal.cell-vertical.cell)<=max(2,horizontal.cell*0.12) else{return nil}
+ let corner=horizontal.phase[0]
+ func expected(_ p:Int)->Int{horizontal.phase[p%w] ^ vertical.phase[p/w] ^ corner}
+ var borderMatches=0,borderCount=0
+ for x in 0..<w{for p in [x,(h-1)*w+x]{borderCount+=1;if label(grey(p))==expected(p){borderMatches+=1}}}
+ for y in 0..<h{for p in [y*w,y*w+w-1]{borderCount+=1;if label(grey(p))==expected(p){borderMatches+=1}}}
+ if borderMatches<borderCount*95/100{return nil}
+
+ // Validate each light connected region against the grid, including enclosed
+ // windows in a frame. Solid white labels/cards fail this check and stay opaque.
+ let n=w*h
+ var light=[Bool](repeating:false,count:n),seen=[Bool](repeating:false,count:n)
+ for p in 0..<n{if let value=grey(p){light[p]=value>=low-matchTolerance}}
+ var cut=pixels,removed=0
+ for start in 0..<n where light[start] && !seen[start] {
+  var queue=[start],head=0,matches=0,counts=[0,0];seen[start]=true
+  while head<queue.count {
+   let p=queue[head];head+=1
+   if let actual=label(grey(p)){counts[actual]+=1;if actual==expected(p){matches+=1}}
+   let x=p%w,y=p/w
+   for q in [x>0 ? p-1:-1,x+1<w ? p+1:-1,y>0 ? p-w:-1,y+1<h ? p+w:-1] where q>=0 {
+    if light[q] && !seen[q]{seen[q]=true;queue.append(q)}
+   }
+  }
+  if matches<queue.count*92/100 || min(counts[0],counts[1])<max(8,queue.count/12){continue}
+  for p in queue{for c in 0..<4{cut[p*4+c]=0}}
+  removed+=queue.count
+ }
+ // A bare checked paper is itself a material, not an empty transparency preview.
+ if removed<n/10 || n-removed<max(25,n/200){return nil}
+ // Unmatte neutral antialiased edges against the detected backing. Otherwise
+ // JPEG's pale fringe remains visible around dark frames on a coloured page.
+ for y in 1..<(h-1){for x in 1..<(w-1){
+  let p=y*w+x,i=p*4
+  if cut[i+3]==0 || ![p-1,p+1,p-w,p+w].contains(where:{cut[$0*4+3]==0}){continue}
+  let r=Int(pixels[i]),g=Int(pixels[i+1]),b=Int(pixels[i+2])
+  if max(r,g,b)-min(r,g,b)>8{continue}
+  let value=Double(r+g+b)/3,back=Double(expected(p)==0 ? low:high)
+  var foreground=value
+  for dy in -1...1{for dx in -1...1{
+   let q=((y+dy)*w+x+dx)*4
+   let nr=Int(pixels[q]),ng=Int(pixels[q+1]),nb=Int(pixels[q+2])
+   if pixels[q+3]>245 && max(nr,ng,nb)-min(nr,ng,nb)<=8{foreground=min(foreground,Double(nr+ng+nb)/3)}
+  }}
+  if foreground>Double(low-40) || value-foreground<8{continue}
+  let alpha=max(0,min(1,(back-value)/(back-foreground)))
+  for c in 0..<3{cut[i+c]=UInt8(foreground*alpha)}
+  cut[i+3]=UInt8(255*alpha)
+ }}
+ return cut
+}
 // Find full-width/full-height changes in paper colour and texture, before removing
 // any background. Histogram windows span several checks/stars to avoid slicing motifs.
 func panelCuts(_ pixels:[UInt8],_ w:Int,_ h:Int,_ vertical:Bool)->[(Int,Double)] {
@@ -69,6 +162,11 @@ do{
  guard let loaded=sourceImage.cgImage(forProposedRect:nil,context:nil,hints:nil) else{fputs("无法解析输入图片。\n",stderr);exit(2)}
  let scale=min(1,2400/Double(max(loaded.width,loaded.height)))
  guard var original=scaledImage(loaded,scale) else{fputs("无法缩放输入图片。\n",stderr);exit(2)}
+ var checkerRemoved=false
+ // Detect on the full source before a point/manual crop loses the grid borders.
+ if !["crop","panels"].contains(mode),let cleaned=removeCheckerBacking(rgba(original),original.width,original.height){
+  original=makeImage(cleaned,original.width,original.height);checkerRemoved=true
+ }
  if args.count==9 {let nums=args[5...8].map{Double($0) ?? 0};let rect=CGRect(x:nums[0]*Double(original.width),y:nums[1]*Double(original.height),width:nums[2]*Double(original.width),height:nums[3]*Double(original.height)).integral;guard let cropped=original.cropping(to:rect) else{exit(3)};original=cropped}
  let w=original.width,h=original.height,n=w*h
  let pixels=rgba(original);var cut=pixels;var engine="本机 AI 主体识别";var pointMask=false
@@ -120,7 +218,7 @@ do{
  let uniform=corners.allSatisfy{p in (0..<3).allSatisfy{abs(Double(pixels[p*4+$0])-background[$0])<18}}
  let transparent=stride(from:3,to:pixels.count,by:4).filter{pixels[$0]<20}.count>n/50
  let whiteSheet=(uniform || (groups.values.map{$0.count}.max() ?? 0)>150) && background.min()!>130
- if mode == "point" {
+ if mode == "point" && !checkerRemoved {
   // DeepSeek supplies only a padded semantic box. Within that small box,
   // Vision makes the pixel mask; keeping every foreground instance preserves
   // detached buttons, straps and decorations that belong to the clicked item.
@@ -133,6 +231,7 @@ do{
   } catch {fputs("点选主体蒙版不可用，将使用纸底分离：\(error.localizedDescription)\n",stderr)}
  }
  if mode == "crop" {engine="框选保留原底"}
+ else if checkerRemoved {engine="棋盘格去底"}
  else if pointMask {}
  else if transparent && !["paper","single","ai","point"].contains(mode) {engine="透明素材分离"}
  else if mode=="paper" || mode=="dense" || mode=="single" || mode=="point" || mode=="panels" || (mode=="auto" && whiteSheet) {

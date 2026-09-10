@@ -6,6 +6,7 @@ import {join, resolve} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {deflateSync, inflateSync} from 'node:zlib';
+import sharp from 'sharp';
 const run=promisify(execFile);
 const native={skip:process.platform!=='darwin'||process.arch!=='arm64'};
 
@@ -43,7 +44,7 @@ function sheet(width,height,color=[255,255,255,255]){
 async function segment(image,mode,verify,rect){
  const dir=await mkdtemp(join(tmpdir(),'journal-native-'));
  try{
-  const source=join(dir,'source.png');await writeFile(source,png(image.width,image.height,image.pixels));
+  const source=join(dir,'source.png');await writeFile(source,image.encoded||png(image.width,image.height,image.pixels));
   const {stdout}=await run(resolve('local/segment'),[source,dir,mode,'28',...(rect||[]).map(String)],{timeout:30000});
   const result=JSON.parse(stdout);const outputs=await Promise.all(result.items.map(async item=>({...item,...decodePng(await readFile(join(dir,item.file)))})));
   await verify(result,outputs);
@@ -97,4 +98,60 @@ test('point mode returns one padded crop and removes its connected paper backgro
   assert.equal(items.length,1);assert.equal(result.width,180);assert.equal(result.height,180);
   assert.equal(alphaCount(items[0]),12000);
  },[.2,.2,.6,.6]);
+});
+
+function checkerSheet(width=400,height=300,cell=16,offset=0){
+ const image=sheet(width,height);
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  const grey=(Math.floor((x+offset)/cell)+Math.floor((y+offset)/cell))%2?238:255;
+  image.pixels.set([grey,grey,grey,255],(y*width+x)*4);
+ }
+ return image;
+}
+function addFrame(image){
+ for(const [x,y,w,h] of [[32,80,336,16],[32,204,336,16],[32,80,16,140],[352,80,16,140],[192,80,16,140]])image.rect(x,y,w,h,[24,24,24,255]);
+ return image;
+}
+
+test('baked checker backing yields one frame with transparent enclosed windows, including JPEG',native,async()=>{
+ for(const jpeg of [false,true]){
+  const image=addFrame(checkerSheet(400,300,13.75,5));
+  if(jpeg)image.encoded=await sharp(png(image.width,image.height,image.pixels)).jpeg({quality:88}).toBuffer();
+  await segment(image,'auto',(result,items)=>{
+   assert.match(result.engine,/棋盘格去底/);assert.equal(items.length,1);
+   assert.ok(items[0].width>=336&&items[0].width<=340);
+   assert.ok(items[0].height>=140&&items[0].height<=144);
+   // Probe in source coordinates: both windows empty, bars intact.
+   const alpha=(x,y)=>items[0].pixels[((y-Math.round(items[0].bounds[1]*300))*items[0].width+x-Math.round(items[0].bounds[0]*400))*4+3];
+   assert.equal(alpha(80,140),0);assert.equal(alpha(280,140),0);assert.equal(alpha(200,140),255);
+  });
+ }
+});
+
+test('checker removal preserves solid white card interiors and pale separate stickers',native,async()=>{
+ const image=checkerSheet();
+ image.rect(32,64,144,176,[25,25,25,255]);image.rect(36,68,136,168,[255,255,255,255]);
+ image.rect(240,80,96,128,[224,233,238,255]);
+ await segment(image,'auto',(result,items)=>{
+  assert.match(result.engine,/棋盘格去底/);assert.equal(items.length,2);
+  assert.deepEqual(items.map(alphaCount),[144*176,96*128]);
+ });
+});
+
+test('a checked card on plain paper keeps its printed pattern',native,async()=>{
+ const image=sheet(400,300),pattern=checkerSheet();
+ image.rect(40,40,320,220,[25,25,25,255]);
+ for(let y=44;y<256;y++)for(let x=44;x<356;x++)image.pixels.set(pattern.pixels.subarray((y*400+x)*4,(y*400+x)*4+4),(y*400+x)*4);
+ await segment(image,'auto',(result,items)=>{
+  assert.doesNotMatch(result.engine,/棋盘格/);assert.equal(items.length,1);assert.equal(alphaCount(items[0]),320*220);
+ });
+});
+
+test('point and single detect backing before cropping, while crop retains the original',native,async()=>{
+ const image=addFrame(checkerSheet());
+ for(const mode of ['point','single','crop'])await segment(image,mode,(_,items)=>{
+  assert.equal(items.length,1);assert.equal(items[0].width,360);assert.equal(items[0].height,180);
+  assert.equal(items[0].pixels[(80*360+60)*4+3],mode==='crop'?255:0);
+  assert.equal(items[0].pixels[(80*360+180)*4+3],255);
+ },[.05,.2,.9,.6]);
 });
