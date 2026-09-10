@@ -1,0 +1,752 @@
+.demo {
+  min-height: 100vh;
+  background: #d9d5cb;
+  color: #34362f;
+  font-family: "PingFang SC", "Hiragino Sans GB", sans-serif;
+  overflow: auto;
+}
+.top {
+  height: 86px;
+  padding: 0 5vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f3f0e8;
+  border-bottom: 1px solid #c8c2b5;
+}
+.top span {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #8c735b;
+}
+.top h1 {
+  margin: 7px 0 0;
+  font:
+    500 19px/1.2 Georgia,
+    "Songti SC",
+    serif;
+}
+.top a {
+  padding: 9px 15px;
+  border: 1px solid #aaa394;
+  border-radius: 999px;
+  color: #575a50;
+  text-decoration: none;
+  font-size: 12px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  min-height: calc(100vh - 87px);
+}
+.workspace > nav {
+  padding: 32px 20px;
+  background: #cbc7bd;
+  border-right: 1px solid #b8b2a7;
+}
+.workspace > nav > p {
+  margin: 0 9px 22px;
+  font:
+    600 10px Georgia,
+    serif;
+  letter-spacing: 0.12em;
+  color: #71685c;
+}
+.workspace nav button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  padding: 10px 9px;
+  margin: 3px 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #5d5d54;
+  text-align: left;
+  cursor: pointer;
+}
+.workspace nav button b {
+  font:
+    400 9px Georgia,
+    serif;
+  color: #968d80;
+}
+.workspace nav button span {
+  font-size: 12px;
+}
+.workspace nav button.active {
+  background: #f2eee4;
+  box-shadow: 0 1px 3px #756d5e1c;
+  color: #27322a;
+}
+.workspace > nav > small {
+  display: block;
+  margin: 26px 9px 0;
+  padding-top: 18px;
+  border-top: 1px solid #b6b0a4;
+  color: #817a70;
+  font-size: 10px;
+  line-height: 1.8;
+}
+.stage {
+  padding: 25px 34px 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.stage > header {
+  width: min(1050px, 100%);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 13px;
+  color: #585a51;
+  font-size: 13px;
+  font-weight: 600;
+}
+.stage > header small,
+.stage > p {
+  font-size: 10px;
+  color: #77766f;
+  font-weight: 400;
+}
+.book {
+  position: relative;
+  width: min(1050px, 100%);
+  aspect-ratio: 1.44;
+  background: #f7f1e4;
+  border-radius: 3px 8px 8px 3px;
+  box-shadow:
+    0 22px 52px #4e4a4138,
+    0 2px 6px #4a463c2c;
+  overflow: hidden;
+}
+.book:after {
+  content: "";
+  position: absolute;
+  z-index: 9;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #82745f18 35%,
+    #fff9ea55 51%,
+    #6c62501e 70%,
+    transparent
+  );
+  pointer-events: none;
+}
+.book:before {
+  content: "";
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  background: linear-gradient(110deg, #91785f0d, transparent 35%, #91785f08);
+  pointer-events: none;
+}
+.pages {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
+}
+.page {
+  position: relative;
+  padding: 6.2%;
+  overflow: hidden;
+  background: #f8f3e8;
+}
+.page:first-child {
+  border-right: 1px solid #cfc5b255;
+}
+.eyebrow {
+  font:
+    600 9px Georgia,
+    serif;
+  letter-spacing: 0.19em;
+  color: #9b775c;
+}
+.opening {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #eee5d2;
+}
+.opening > strong {
+  font:
+    400 clamp(80px, 13vw, 156px)/0.82 Georgia,
+    serif;
+  color: #7d8e70;
+}
+.opening h2 {
+  margin: 22px 0 7px;
+  font:
+    400 clamp(21px, 2.8vw, 35px) Georgia,
+    "Songti SC",
+    serif;
+  letter-spacing: 0.12em;
+}
+.opening p,
+.intro li,
+.review p,
+.memory p {
+  font-family: "Kaiti SC", serif;
+}
+.opening > i {
+  position: absolute;
+  right: 10%;
+  bottom: 9%;
+  font-size: 50px;
+  color: #c2a98a;
+}
+.intro {
+  padding: 10% 9%;
+}
+.intro > em {
+  font:
+    italic 18px Georgia,
+    serif;
+  color: #9b7658;
+}
+.intro h3 {
+  margin: 4px 0 9%;
+  font:
+    400 25px Georgia,
+    "Songti SC",
+    serif;
+}
+.intro ol {
+  margin: 0;
+  padding-left: 24px;
+  font-size: 13px;
+  line-height: 3;
+}
+.intro li {
+  border-bottom: 1px solid #b9b09f66;
+}
+.intro blockquote {
+  margin: 9% 0 0;
+  padding: 8%;
+  background: #b7c1a6;
+  color: #fffdf8;
+  font:
+    16px/1.8 "Kaiti SC",
+    serif;
+}
+.intro > small {
+  position: absolute;
+  right: 8%;
+  bottom: 7%;
+  font:
+    9px/1.8 Georgia,
+    serif;
+  letter-spacing: 0.14em;
+  color: #8c8173;
+}
+.calendar {
+  height: 100%;
+  padding: 3.6% 4.2%;
+  box-sizing: border-box;
+}
+.calendar > header {
+  height: 8%;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.calendar > header strong {
+  font:
+    400 clamp(21px, 2.6vw, 31px) Georgia,
+    serif;
+  letter-spacing: 0.12em;
+}
+.calendar > header em {
+  font:
+    normal 12px "Songti SC",
+    serif;
+  color: #9f765f;
+}
+.weekdays,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.weekdays {
+  height: 4%;
+  align-items: center;
+  border-bottom: 1px solid #80776899;
+}
+.weekdays span {
+  padding-left: 8px;
+  font:
+    600 8px Georgia,
+    serif;
+  letter-spacing: 0.12em;
+}
+.weekdays span:nth-last-child(-n + 2) {
+  color: #a96e62;
+}
+.grid {
+  height: 71%;
+  grid-template-rows: repeat(6, 1fr);
+  border-left: 1px solid #b4aa9855;
+}
+.grid > div {
+  padding: 5px 7px;
+  border-right: 1px solid #b4aa9855;
+  border-bottom: 1px solid #b4aa9855;
+  background-image:
+    linear-gradient(#b7ac9917 1px, transparent 1px),
+    linear-gradient(90deg, #b7ac9917 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+.grid b {
+  font:
+    400 10px Georgia,
+    serif;
+}
+.grid small {
+  display: block;
+  margin-top: 9%;
+  font:
+    10px "Kaiti SC",
+    serif;
+  color: #66725e;
+}
+.grid .faded {
+  opacity: 0.28;
+}
+.calendar > footer {
+  height: 13%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 9px;
+}
+.calendar > footer span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e2d9c7;
+}
+.calendar > footer small {
+  margin-left: auto;
+  color: #9b8f7c;
+  font:
+    8px Georgia,
+    serif;
+  letter-spacing: 0.08em;
+}
+.focus h2,
+.habits h2 {
+  margin: 8px 0 18px;
+  font:
+    400 clamp(18px, 2.2vw, 28px) Georgia,
+    "Songti SC",
+    serif;
+}
+.focus blockquote {
+  margin: 0;
+  padding: 6% 7%;
+  border-left: 3px solid #a3ae90;
+  background: #ece9dc;
+  font:
+    clamp(15px, 1.7vw, 21px)/1.7 "Kaiti SC",
+    serif;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 7% 0;
+}
+.cards article {
+  padding: 10px 8px;
+  border: 1px solid #bdb3a077;
+}
+.cards article > b {
+  display: block;
+  font:
+    20px Georgia,
+    serif;
+  color: #9b765e;
+}
+.cards small {
+  font-size: 8px;
+}
+.cards p,
+.todo {
+  font-size: 10px;
+}
+.todo p {
+  margin: 5px 0;
+  border-bottom: 1px solid #b8ad9b66;
+  line-height: 2;
+}
+.habitTable {
+  font-size: 8px;
+}
+.habitTable > header,
+.habitTable > div {
+  display: grid;
+  grid-template-columns: 65px repeat(15, 1fr);
+  align-items: center;
+  min-height: 27px;
+  border-bottom: 1px solid #b7ae9d77;
+}
+.habitTable b {
+  text-align: center;
+  font:
+    400 7px Georgia,
+    serif;
+}
+.habitTable div > span {
+  font-size: 9px;
+}
+.habitTable i {
+  width: 6px;
+  height: 6px;
+  margin: auto;
+  border: 1px solid #a9a08f;
+  border-radius: 50%;
+}
+.habitTable i.checked {
+  background: #94a284;
+  border-color: #94a284;
+}
+.moods {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 9% 0 7%;
+  font-size: 9px;
+}
+.moods i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d2a795;
+}
+.moods i:nth-of-type(2) {
+  background: #d9c498;
+}
+.moods i:nth-of-type(3) {
+  background: #9eae8c;
+}
+.moods i:nth-of-type(4) {
+  background: #99a9aa;
+}
+.moods i:nth-of-type(5) {
+  background: #b3a5b4;
+}
+.habits > aside {
+  padding: 5%;
+  background: #eee9dd;
+  font-size: 9px;
+}
+.habits > aside p {
+  color: #b4aa9b;
+  margin: 8px 0;
+}
+.week {
+  height: 100%;
+  padding: 4.5%;
+  box-sizing: border-box;
+}
+.week > header {
+  height: 9%;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+.week > header span {
+  font:
+    9px Georgia,
+    serif;
+  color: #91745c;
+}
+.week > header strong {
+  font:
+    400 21px Georgia,
+    serif;
+  letter-spacing: 0.08em;
+}
+.week > header em {
+  margin-left: auto;
+  font:
+    normal 11px "Kaiti SC",
+    serif;
+}
+.week > div {
+  height: 72%;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid #948b7d88;
+  border-left: 1px solid #b4aa9855;
+}
+.week article {
+  padding: 10px;
+  border-right: 1px solid #b4aa9855;
+  display: flex;
+  flex-direction: column;
+}
+.week article > b {
+  font:
+    600 8px Georgia,
+    serif;
+}
+.week article > strong {
+  font:
+    400 25px Georgia,
+    serif;
+  margin: 7px 0 14px;
+}
+.week article p {
+  min-height: 22px;
+  font:
+    10px "Kaiti SC",
+    serif;
+  color: #6e7965;
+}
+.week article span {
+  height: 12%;
+  border-bottom: 1px solid #bcb3a455;
+}
+.week > footer {
+  height: 16%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6%;
+  padding-top: 2.3%;
+  font-size: 9px;
+}
+.week > footer section {
+  border-top: 1px solid #9b9284;
+  padding-top: 7px;
+}
+.daily > header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border-bottom: 1px solid #9f9587;
+  padding-bottom: 11px;
+}
+.daily > header strong {
+  font:
+    400 52px Georgia,
+    serif;
+}
+.daily > header span {
+  font:
+    8px/1.6 Georgia,
+    serif;
+}
+.daily > aside {
+  margin: 7% 0;
+  padding: 5%;
+  background: #e3e7d8;
+  font-size: 9px;
+}
+.daily > aside p {
+  margin: 6px 0 0;
+  font:
+    13px "Kaiti SC",
+    serif;
+}
+.time {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  height: 35px;
+}
+.time b {
+  font:
+    400 8px Georgia,
+    serif;
+  color: #8f8678;
+}
+.time span {
+  border-top: 1px solid #b7ad9d66;
+}
+.memory .tape {
+  position: absolute;
+  top: 4%;
+  left: 35%;
+  width: 30%;
+  height: 22px;
+  background: #cbb79799;
+  transform: rotate(-3deg);
+}
+.photo {
+  height: 45%;
+  margin: 5% 5% 6%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #b6c0a4, #d5c0a8 52%, #929d83);
+  border: 8px solid #fff;
+  color: #fff9;
+  font:
+    9px Georgia,
+    serif;
+  box-shadow: 0 5px 12px #5c514627;
+  transform: rotate(1.5deg);
+}
+.memory h2 {
+  margin: 0 6% 4%;
+  font:
+    400 clamp(17px, 2vw, 25px) "Kaiti SC",
+    serif;
+}
+.memory > p {
+  margin: 0 6%;
+  font:
+    11px/2 "Kaiti SC",
+    serif;
+}
+.memory > small {
+  display: inline-block;
+  margin: 6%;
+  padding: 7px 12px;
+  border: 1px dashed #9c8067;
+  background: #e7d3b8;
+  font:
+    8px Georgia,
+    serif;
+}
+.memory > em {
+  position: absolute;
+  right: 8%;
+  bottom: 7%;
+  font-size: 34px;
+  color: #a7b092;
+}
+.review h2 {
+  margin: 8px 0 8%;
+  font:
+    400 28px Georgia,
+    "Songti SC",
+    serif;
+}
+.review article {
+  margin-bottom: 7%;
+  padding-bottom: 6%;
+  border-bottom: 1px solid #b7ad9e77;
+}
+.review article b {
+  font-size: 10px;
+  color: #927058;
+}
+.review article p {
+  margin: 10px 0 0;
+  font:
+    13px/1.8 "Kaiti SC",
+    serif;
+}
+.gallery {
+  background: #eee8da;
+}
+.photos {
+  height: 44%;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
+.photos i {
+  background: linear-gradient(135deg, #a8b298, #dac2a6);
+}
+.photos i:first-child {
+  grid-row: 1/3;
+}
+.photos i:nth-child(2) {
+  background: linear-gradient(135deg, #d0af95, #8c9a87);
+}
+.photos i:nth-child(3) {
+  background: linear-gradient(135deg, #9ba8a6, #d9c99f);
+}
+.gallery > section {
+  margin-top: 7%;
+  font-size: 10px;
+}
+.gallery > section span {
+  font:
+    8px Georgia,
+    serif;
+  letter-spacing: 0.14em;
+  color: #94765d;
+}
+.gallery > section h3 {
+  margin: 5px 0 8px;
+  font:
+    400 20px "Songti SC",
+    serif;
+}
+.gallery > aside {
+  position: absolute;
+  right: 8%;
+  bottom: 7%;
+  display: flex;
+  align-items: end;
+  gap: 5px;
+}
+.gallery > aside span {
+  font-size: 8px;
+}
+.gallery > aside strong {
+  font:
+    400 32px Georgia,
+    serif;
+  color: #8c9b7c;
+}
+.gallery > aside em {
+  font:
+    italic 8px Georgia,
+    serif;
+}
+@media (max-width: 760px) {
+  .top {
+    height: auto;
+    padding: 18px 20px;
+  }
+  .top h1 {
+    font-size: 16px;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .workspace > nav {
+    padding: 10px 14px;
+    display: flex;
+    gap: 4px;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid #b8b2a7;
+  }
+  .workspace > nav > p,
+  .workspace > nav > small {
+    display: none;
+  }
+  .workspace nav button {
+    min-width: 88px;
+    grid-template-columns: 22px 1fr;
+    margin: 0;
+  }
+  .stage {
+    padding: 18px 10px;
+    align-items: flex-start;
+    overflow: auto;
+  }
+  .book {
+    min-width: 720px;
+  }
+  .stage > header,
+  .stage > p {
+    position: sticky;
+    left: 0;
+    width: calc(100vw - 20px);
+  }
+}
