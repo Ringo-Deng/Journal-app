@@ -40,11 +40,11 @@ function sheet(width,height,color=[255,255,255,255]){
  const pixels=Buffer.alloc(width*height*4);for(let i=0;i<width*height;i++)pixels.set(color,i*4);
  return{width,height,pixels,rect(x,y,w,h,c){for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)pixels.set(c,(yy*width+xx)*4)}};
 }
-async function segment(image,mode,verify){
+async function segment(image,mode,verify,rect){
  const dir=await mkdtemp(join(tmpdir(),'journal-native-'));
  try{
   const source=join(dir,'source.png');await writeFile(source,png(image.width,image.height,image.pixels));
-  const {stdout}=await run(resolve('local/segment'),[source,dir,mode,'28'],{timeout:30000});
+  const {stdout}=await run(resolve('local/segment'),[source,dir,mode,'28',...(rect||[]).map(String)],{timeout:30000});
   const result=JSON.parse(stdout);const outputs=await Promise.all(result.items.map(async item=>({...item,...decodePng(await readFile(join(dir,item.file)))})));
   await verify(result,outputs);
  }finally{await rm(dir,{recursive:true,force:true})}
@@ -89,4 +89,12 @@ test('paper mode preserves pale cards and their enclosed light interiors',native
 test('explicit paper removal works through a transparent outer frame',native,async()=>{
  const image=sheet(240,160,[0,0,0,0]);image.rect(10,10,220,140,[255,255,255,255]);image.rect(40,40,50,60,[20,90,180,255]);image.rect(140,40,50,60,[180,90,20,255]);
  await segment(image,'paper',(_,items)=>{assert.equal(items.length,2);assert.deepEqual(items.map(i=>alphaCount(i)),[3000,3000])});
+});
+
+test('point mode returns one padded crop and removes its connected paper background',native,async()=>{
+ const image=sheet(300,300);image.rect(100,90,100,120,[40,110,180,255]);
+ await segment(image,'point',(result,items)=>{
+  assert.equal(items.length,1);assert.equal(result.width,180);assert.equal(result.height,180);
+  assert.equal(alphaCount(items[0]),12000);
+ },[.2,.2,.6,.6]);
 });

@@ -1,18 +1,29 @@
 import Foundation
 import AppKit
 import Vision
-import CoreImage
+import VideoToolbox
 // Output paths and pixel rectangles are relative to the oriented input image.
 let args=CommandLine.arguments
 if args.count<5 {exit(1)}
 let input=URL(fileURLWithPath:args[1]), out=URL(fileURLWithPath:args[2]), mode=args[3]
 let tolerance=Double(args[4]) ?? 28
-let ciContext=CIContext()
 func rgba(_ image:CGImage)->[UInt8]{var bytes=[UInt8](repeating:0,count:image.width*image.height*4);bytes.withUnsafeMutableBytes { ptr in
  let c=CGContext(data:ptr.baseAddress,width:image.width,height:image.height,bitsPerComponent:8,bytesPerRow:image.width*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue)!
  c.draw(image,in:CGRect(x:0,y:0,width:image.width,height:image.height))
 };return bytes}
 func makeImage(_ bytes:[UInt8],_ w:Int,_ h:Int)->CGImage {let provider=CGDataProvider(data:Data(bytes) as CFData)!;return CGImage(width:w,height:h,bitsPerComponent:8,bitsPerPixel:32,bytesPerRow:w*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGBitmapInfo(rawValue:CGImageAlphaInfo.premultipliedLast.rawValue),provider:provider,decode:nil,shouldInterpolate:true,intent:.defaultIntent)!}
+func scaledImage(_ image:CGImage,_ scale:Double)->CGImage? {
+ if scale>=1{return image}
+ let width=max(1,Int(Double(image.width)*scale)),height=max(1,Int(Double(image.height)*scale))
+ guard let context=CGContext(data:nil,width:width,height:height,bitsPerComponent:8,bytesPerRow:width*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else{return nil}
+ context.interpolationQuality = .high
+ context.draw(image,in:CGRect(x:0,y:0,width:width,height:height))
+ return context.makeImage()
+}
+func imageFromBuffer(_ buffer:CVPixelBuffer)->CGImage? {
+ var image:CGImage?
+ return VTCreateCGImageFromCVPixelBuffer(buffer,options:nil,imageOut:&image)==noErr ? image:nil
+}
 // Find full-width/full-height changes in paper colour and texture, before removing
 // any background. Histogram windows span several checks/stars to avoid slicing motifs.
 func panelCuts(_ pixels:[UInt8],_ w:Int,_ h:Int,_ vertical:Bool)->[(Int,Double)] {
@@ -53,12 +64,14 @@ func panelCuts(_ pixels:[UInt8],_ w:Int,_ h:Int,_ vertical:Bool)->[(Int,Double)]
 }
 
 do{
- guard var ci=CIImage(contentsOf:input,options:[.applyOrientationProperty:true]) else{exit(2)}
- let scale=min(1,2400/max(ci.extent.width,ci.extent.height));ci=ci.transformed(by:CGAffineTransform(scaleX:scale,y:scale))
- guard var original=ciContext.createCGImage(ci,from:ci.extent) else{exit(2)}
+ let inputData=try Data(contentsOf:input,options:.mappedIfSafe)
+ guard let sourceImage=NSImage(data:inputData) else{fputs("无法读取输入图片。\n",stderr);exit(2)}
+ guard let loaded=sourceImage.cgImage(forProposedRect:nil,context:nil,hints:nil) else{fputs("无法解析输入图片。\n",stderr);exit(2)}
+ let scale=min(1,2400/Double(max(loaded.width,loaded.height)))
+ guard var original=scaledImage(loaded,scale) else{fputs("无法缩放输入图片。\n",stderr);exit(2)}
  if args.count==9 {let nums=args[5...8].map{Double($0) ?? 0};let rect=CGRect(x:nums[0]*Double(original.width),y:nums[1]*Double(original.height),width:nums[2]*Double(original.width),height:nums[3]*Double(original.height)).integral;guard let cropped=original.cropping(to:rect) else{exit(3)};original=cropped}
  let w=original.width,h=original.height,n=w*h
- let pixels=rgba(original);var cut=pixels;var engine="本机 AI 主体识别"
+ let pixels=rgba(original);var cut=pixels;var engine="本机 AI 主体识别";var pointMask=false
  // Full-width texture cuts are an explicit operation. A sticker sheet can have
  // strong colour bands too; automatic recognition must first follow its gaps.
  if mode == "panels" && args.count != 9 {
@@ -107,9 +120,22 @@ do{
  let uniform=corners.allSatisfy{p in (0..<3).allSatisfy{abs(Double(pixels[p*4+$0])-background[$0])<18}}
  let transparent=stride(from:3,to:pixels.count,by:4).filter{pixels[$0]<20}.count>n/50
  let whiteSheet=(uniform || (groups.values.map{$0.count}.max() ?? 0)>150) && background.min()!>130
+ if mode == "point" {
+  // DeepSeek supplies only a padded semantic box. Within that small box,
+  // Vision makes the pixel mask; keeping every foreground instance preserves
+  // detached buttons, straps and decorations that belong to the clicked item.
+  do {
+   let handler=VNImageRequestHandler(cgImage:original,options:[:]);let request=VNGenerateForegroundInstanceMaskRequest();try handler.perform([request])
+   if let result=request.results?.first,!result.allInstances.isEmpty {
+    let buffer=try result.generateMaskedImage(ofInstances:result.allInstances,from:handler,croppedToInstancesExtent:false)
+    if let masked=imageFromBuffer(buffer){cut=rgba(masked);pointMask=true;engine="点选精细抠图"}
+   }
+  } catch {fputs("点选主体蒙版不可用，将使用纸底分离：\(error.localizedDescription)\n",stderr)}
+ }
  if mode == "crop" {engine="框选保留原底"}
- else if transparent && !["paper","single","ai"].contains(mode) {engine="透明素材分离"}
- else if mode=="paper" || mode=="dense" || mode=="single" || mode=="panels" || (mode=="auto" && whiteSheet) {
+ else if pointMask {}
+ else if transparent && !["paper","single","ai","point"].contains(mode) {engine="透明素材分离"}
+ else if mode=="paper" || mode=="dense" || mode=="single" || mode=="point" || mode=="panels" || (mode=="auto" && whiteSheet) {
   engine=mode == "dense" ? "密集贴纸细分" : "边缘连通纸底分离"
   // Low-cost, predictable paper removal: only erase paper-coloured pixels that are
   // connected to the outside border. Similar light colours enclosed by a sticker
@@ -142,15 +168,15 @@ do{
   let handler=VNImageRequestHandler(cgImage:original,options:[:]);let request=VNGenerateForegroundInstanceMaskRequest();try handler.perform([request])
   guard let result=request.results?.first,!result.allInstances.isEmpty else {throw NSError(domain:"没有识别到主体，请尝试纸底分离或手动框选",code:4)}
   let buffer=try result.generateMaskedImage(ofInstances:result.allInstances,from:handler,croppedToInstancesExtent:false)
-  guard let masked=ciContext.createCGImage(CIImage(cvPixelBuffer:buffer),from:CGRect(x:0,y:0,width:w,height:h)) else{exit(4)};cut=rgba(masked)
+  guard let masked=imageFromBuffer(buffer) else{exit(4)};cut=rgba(masked)
  }
  // A manual crop is one complete sticker; never split its letters or punctuation.
- if mode == "single" || mode == "crop" {
+ if mode == "single" || mode == "crop" || mode == "point" {
   let tile = mode == "crop" ? pixels : cut
   let name=UUID().uuidString.lowercased()+".png"
   let bitmap=NSBitmapImageRep(cgImage:makeImage(tile,w,h))
   try bitmap.representation(using:.png,properties:[:])!.write(to:out.appendingPathComponent(name))
-  let output:[String:Any] = ["items":[["file":name,"width":w,"height":h,"bounds":[0,0,1,1]]],"engine":mode == "crop" ? "框选保留原底" : "框选整件去底","width":w,"height":h]
+  let output:[String:Any] = ["items":[["file":name,"width":w,"height":h,"bounds":[0,0,1,1]]],"engine":mode == "crop" ? "框选保留原底" : mode == "point" ? engine : "框选整件去底","width":w,"height":h]
   print(String(data:try JSONSerialization.data(withJSONObject:output),encoding:.utf8)!)
   exit(0)
  }
