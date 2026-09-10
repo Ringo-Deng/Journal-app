@@ -57,7 +57,8 @@
 | 保存 | `app/page.tsx` 的 `books` → `pending/flush` → `/api/state` → `local/server.mjs` 的校验、写入队列、revision 冲突检查及 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 |
 | 数据兼容 | `lib/journal.ts` 的默认值与 `ensureFlyleaf`、`local/server.mjs` 的 `validateState`：兼容及校验入口；当前没有统一手帐 schema migration，`revision` 是写入并发号 |
 | 专项迁移 | `local/material-catalog.mjs` 的 `createMaterialCatalog`：素材目录迁移；`local/ai-config.mjs` 的 `migrateLegacyConfig`：旧 AI 配置兼容 |
-| 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，保留最近 30 份健康快照；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用 |
+| 完整资料备份 | `components/full-backup.tsx` 提供统一入口；`local/full-backup.mjs` 管理导出、预检和恢复，`local/backup-archive.mjs` 分段打包与校验，`local/backup-restore.mjs` 追加恢复并在启动前重放中断事务；`backup-imports.json` 记录重复导入，密钥不入包 |
+| 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，自动快照保留最近 30 份，完整备份恢复的历史另行保留；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用 |
 | 3D 阅读 | `components/reading-deck.tsx` → `components/reading-book3d.tsx` → `components/book3d/Book3DView.tsx`；`lib/book3d-motion.ts` 控制翻页几何；`app/three-test/page.tsx` 为独立测试入口 |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |

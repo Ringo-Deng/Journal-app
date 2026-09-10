@@ -5,6 +5,7 @@ import RuntimeCompatibility from '@/components/runtime-compatibility';
 import ThreeTestGateway from '@/components/three-test-gateway';
 import MaterialRecovery from '@/components/material-recovery';
 import './globals.css';
+import './full-backup.css';
 import './cover-materials.css';
 import './reading-cover-fixes.css';
 import './reading-back-cover-fixes.css';

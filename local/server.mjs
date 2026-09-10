@@ -17,6 +17,7 @@ import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEP
 import { createPhotoMaskStore, photoTrashProtection, references } from './photo-mask.mjs';
 import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
+import {createFullBackup, recoverBackupTransaction} from './full-backup.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -72,8 +73,9 @@ const readConfigJSON = async (file, fallback) => {
     throw e;
   }
 };
+await recoverBackupTransaction(data);
 let state = await readJSON('journal.json', { revision: 0, books: [] });
-const journalHistory = createJournalHistory({ data, atomicAt, validate: validateState });
+let journalHistory = createJournalHistory({ data, atomicAt, validate: validateState });
 function consolidatedJobs(jobs){
   const sources=[...new Set(jobs.map(j=>j.source))];
   return sources.map(source=>{const group=jobs.filter(j=>j.source===source);const base=group.find(j=>!j.rect)||group[0];const retained=group.flatMap(j=>j.items.filter(i=>i.imported||j.rect).map(i=>({...i,manual:!!j.rect||i.manual})));return {...base,items:[...new Map([...base.items,...retained].map(i=>[i.id,i])).values()]};});
@@ -213,8 +215,8 @@ async function photoReferencedOutsideLibrary(src){
   }catch{return true}
   return false;
 }
-const photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
-const photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
+let photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
+let photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
 function photoTask(fn){const task=writeQueue.then(fn);writeQueue=task.catch(()=>{});return task;}
 const publicSettings = () => ({
   baseUrl: settings.baseUrl,
@@ -578,9 +580,38 @@ async function generate(input) {
     }),
   };
 }
-const catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});
+let catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});
 let pendingMaterialReopen=null;
+let backupMaintenance=false, backupRecoveryRequired=false, activeDataRequests=0;
+async function backupSnapshot(includeBuiltins=false){
+  const histories=[];
+  const listing=await journalHistory.list();
+  if(listing.warning)throw error('部分历史备份无法读取，请先处理后再进行完整备份。',409);
+  for(const item of listing.entries)histories.push(await journalHistory.read(item.id));
+  const snapshot={state:structuredClone(state),assets:includeBuiltins?await rawLibrary():structuredClone(customAssets),materialJobs:structuredClone(materialJobs),pinterestImports:structuredClone(pinterestImports),catalog:await readJSON('material-catalog.json',null),classificationJobs:await readJSON('material-classification-jobs.json',[]),photos:await readJSON('photo-library.json',[]),fonts:structuredClone(userFonts),trash:await readJSON('photo-trash.json',{entries:[],deletedSources:[]}),histories,previous:await readJSON('journal.previous.json',null)};
+  if(!includeBuiltins)snapshot.imports=await readJSON('backup-imports.json',[]);
+  return snapshot;
+}
+const fullBackup=createFullBackup({data,publicDir:resolve(root,'public'),appVersion:JSON.parse(await readFile(resolve(root,'package.json'),'utf8')).version,validateState,getSnapshot:backupSnapshot,
+  exclusive:async fn=>{
+    if(backupMaintenance||activeDataRequests||catalogService.isBusy())throw error('资料正在保存或处理，请稍后重试备份操作。',409);
+    backupMaintenance=true;
+    try{await writeQueue;await materialQueue;return await photoTask(fn);}
+    catch(e){try{await lstat(resolve(data,'.backup-transaction'));backupRecoveryRequired=true;}catch{/* No committed restore transaction. */}throw e;}
+    finally{backupMaintenance=false;}
+  },
+  reload:async()=>{
+    backupRecoveryRequired=true;
+    state=await readJSON('journal.json',{revision:0,books:[]});customAssets=await readJSON('materials.json',[]);materialJobs=consolidatedJobs(await readJSON('material-jobs.json',[]));pinterestImports=await readJSON('pinterest-imports.json',[]);userFonts=await readJSON('fonts.json',[]);
+    journalHistory=createJournalHistory({data,atomicAt,validate:validateState});
+    photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
+    photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
+    catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});pendingMaterialReopen=null;paletteCache.clear();backupRecoveryRequired=false;
+  },
+});
+
 const server = http.createServer(async (req, res) => {
+  let countedDataRequest=false;
   try {
     const host = req.headers.host;
     const allowedHosts = new Set([
@@ -601,6 +632,12 @@ const server = http.createServer(async (req, res) => {
       throw error('仅允许本机手帐页面访问。', 403);
     const url = new URL(req.url, 'http://localhost');
     const path = decodeURIComponent(url.pathname);
+    if(backupRecoveryRequired)throw error('资料恢复尚未完成，请重新启动手帐继续恢复；原有资料已保留。',503);
+    if(fullBackup.handles(path))return await fullBackup.handle(path,req,res,json,body);
+    if(path.startsWith('/api/')&&path!=='/api/health'){
+      if(backupMaintenance)throw error('正在备份或恢复资料，请稍后再操作。',409);
+      activeDataRequests++;countedDataRequest=true;
+    }
     if (path === '/api/health') return json(res, { ok: true, runtimeId: 'page-elements-v0.1.20' });
     if (path === '/api/capabilities' && req.method === 'GET') return json(res, { platform: platform(), ...nativeCapabilities });
     if (path === '/api/fonts' && req.method === 'GET') return json(res,{fonts:userFonts.map(fontPublic)});
@@ -1187,7 +1224,7 @@ const server = http.createServer(async (req, res) => {
         e.status || 500,
       );
     else res.end();
-  }
+  } finally { if(countedDataRequest)activeDataRequests--; }
 });
 server.listen(port, '127.0.0.1', () =>
   console.log(`拾光本地服务 http://127.0.0.1:${port}`),

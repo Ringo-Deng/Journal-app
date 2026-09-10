@@ -6,8 +6,8 @@ const FORMAT = 'shiguang-history-v1';
 const ID_PATTERN = /^\d{13}-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const failure = (message, status = 500) => Object.assign(new Error(message), { status });
 const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const summary = ({ id, createdAt, day, reason, revision, books }) => ({
-  id, createdAt, day, reason, revision,
+const summary = ({ id, createdAt, day, reason, revision, books, restored }) => ({
+  id, createdAt, day, reason, revision, ...(restored?{restored:true}:{}),
   bookCount: books.length,
   spreadCount: books.reduce((count, book) => count + book.spreads.length, 0),
   titles: books.map(book => book.title),
@@ -69,11 +69,11 @@ export function createJournalHistory({ data, atomicAt, validate, limit = 30, now
   }
 
   async function prune() {
-    while (entries.length > limit) {
-      const oldest = entries.at(-1);
+    while (entries.filter(entry=>!entry.restored).length > limit) {
+      const oldest = entries.findLast(entry=>!entry.restored);
       try { await unlink(join(directory, `${oldest.id}.json`)); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
-      entries.pop();
+      entries=entries.filter(entry=>entry.id!==oldest.id);
     }
   }
 
@@ -90,7 +90,7 @@ export function createJournalHistory({ data, atomicAt, validate, limit = 30, now
       const date = now();
       const day = localDay(date);
       const deleting = removesPages(current, next);
-      if ((!deleting && entries.some(entry => entry.day === day)) || entries.some(entry => entry.revision === current.revision)) {
+      if ((!deleting && entries.some(entry => !entry.restored && entry.day === day)) || entries.some(entry => !entry.restored && entry.revision === current.revision)) {
         await prune();
         return;
       }

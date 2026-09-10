@@ -12,6 +12,7 @@ import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
 import type {CollageTemplate} from '@/lib/journal';
 import { restorePosition, restoreHistoryPosition, type WorkspacePosition } from '@/lib/workspace-view';
 import { JournalApiError, saveJournalSnapshot, shouldShowSaveStatus } from '@/lib/journal-save';
+import FullBackup from '@/components/full-backup';
 import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
@@ -239,7 +240,7 @@ export default function Home() {
   const [panel, setPanel] = useState<'write' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | null
+      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
     >(null);
   const [materialStudioNotice,setMaterialStudioNotice]=useState('');
   const [date, setDate] = useState(today()),
@@ -1634,6 +1635,23 @@ export default function Home() {
     }
     setModal(null);toast(existing?'笔记本设置已更新。':'已创建新笔记本。');
   }
+  async function prepareFullBackup() {
+    if(busy||uploading||writing.current)throw Error('手帐正在保存或处理，请稍后重试。');
+    if(saveBlocked.current)throw Error('请先处理保存冲突；可用旧版导出保留本窗口内容。');
+    if(dirty.current)pending.current=booksRef.current;
+    await flush();
+    if(pending.current||writing.current||saveBlocked.current)throw Error('手帐尚未保存，请先重试保存。');
+    return revision.current;
+  }
+  async function receiveFullBackup() {
+    const [restored,library]=await Promise.all([api<{revision:number;books:Book[]}>('/state'),api<Asset[]>('/materials')]);
+    revision.current=restored.revision;saveBlocked.current=false;pending.current=null;
+    history.current=[];future.current=[];
+    restoreHistorySnapshot(restored.books);dirty.current=false;
+    setAssets(library);setSaved('已保存到本机');setView('library');setLibraryOpen(false);setReading(false);setPanel(null);
+    const fontStyles=document.querySelector<HTMLLinkElement>('link[data-user-fonts]');
+    if(fontStyles)fontStyles.href='/api/fonts.css?restored='+Date.now();
+  }
   async function exportBackup() {
     try {
       toast('正在整理手帐和原始照片…');
@@ -1892,7 +1910,7 @@ export default function Home() {
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
-        <button aria-label="导出备份" onClick={()=>void exportBackup()}><Download/><span>备份</span></button>
+        <button aria-label="备份与恢复" disabled={!ready||busy||uploading} onClick={()=>{finishEditing();setModal('backup');}}><Download/><span>备份</span></button>
         <button aria-label="设置" onClick={openSettings}><Settings/><span>设置</span></button>
         <small className="build-version" title="当前版本">v0.1.20</small>
       </aside>
@@ -1995,7 +2013,7 @@ export default function Home() {
                 <h1>笔记库<span className="library-count">{books.length} 本</span></h1>
                 
               </div>
-<div className="library-head-actions"><button className="outline" onClick={()=>setModal('history')}>历史备份</button>              <button className="outline" onClick={() => importInput.current?.click()}>
+<div className="library-head-actions"><button className="outline" onClick={()=>setModal('history')}>历史备份</button>              <button className="outline" onClick={() => {finishEditing();setModal('backup');}}>
                 <FolderOpen />
                 导入备份
               </button>              <button
@@ -3449,6 +3467,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
       <PhotoTrash open={photoTrashOpen} onClose={()=>setPhotoTrashOpen(false)} onPrepare={preparePhotoSave} onRestore={restoreTrashPhoto}/>
+      <FullBackup open={modal==='backup'} onClose={()=>setModal(null)} onPrepare={prepareFullBackup} onRestored={receiveFullBackup} onLegacyExport={exportBackup} onLegacyImport={()=>importInput.current?.click()}/>
       <JournalHistory open={modal==='history'} onClose={()=>setModal(null)} onRestore={restoreNotebookCopies}/>
       {notice && (
         <output className="toast">

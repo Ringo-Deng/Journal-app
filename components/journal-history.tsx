@@ -71,7 +71,7 @@ export default function JournalHistory({ open, onClose, onRestore }: Props) {
   return <Dialog open={open} onOpenChange={value => { if (!value && !restoring) onClose(); }}>
     <DialogContent className="journal-dialog journal-history-dialog" showCloseButton={!restoring}>
       <DialogTitle>历史备份</DialogTitle>
-      <DialogDescription>每天首次保存、删除笔记本或跨页前自动留存，最多保留 30 份。选好时间后，将当时的笔记本恢复为副本。</DialogDescription>
+      <DialogDescription>每天首次保存、删除笔记本或跨页前自动留存，自动快照最多保留 30 份；完整备份恢复的历史另外保留。选好时间后，将当时的笔记本恢复为副本。</DialogDescription>
       {warning && <p className="microcopy" role="status">{warning}</p>}
       {error && <p className="history-error" role="alert">{error} <button className="quiet" disabled={restoring} onClick={() => setReload(value => value + 1)}>重新加载</button></p>}
       {loading ? <p role="status">正在读取历史备份…</p> : !entries.length && !error ? <p className="microcopy">还没有历史备份。已有笔记本在下一次保存时会自动留存。</p> : null}
