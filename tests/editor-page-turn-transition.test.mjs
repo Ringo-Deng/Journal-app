@@ -4,6 +4,10 @@ import { readFile } from 'node:fs/promises';
 
 const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const leaf = await readFile(new URL('../components/reading-leaf.tsx', import.meta.url), 'utf8');
+const transitionCss = await readFile(
+  new URL('../app/editor-rounded-transition.css', import.meta.url),
+  'utf8',
+);
 
 test('editor page turns paint the complete segmented leaf frame without rerendering the workbench', () => {
   assert.match(page, /const frame=leafFrame\(progress,direction>0,10\)/);
@@ -30,4 +34,13 @@ test('the target snapshot decodes before the live page and overlay swap atomical
   assert.match(page, /Promise\.race\([\s\S]*requestAnimationFrame\(\(\)=>\{[\s\S]*setPage\(t\.target\);[\s\S]*clearTurn\(t\)/);
   assert.doesNotMatch(page, /function finishTurn[\s\S]*?setPage\(t\.target\);[\s\S]*?Promise\.race/);
   assert.doesNotMatch(page, /if\(complete\)setPage\(t\.target\);setFlipping\(''\)/);
+});
+
+test('the editor suppresses transient work-area scrollbars only while a page is turning', () => {
+  assert.match(page, /data-fit-page=\{zoom === 100 \? 'true' : undefined\}/);
+  assert.match(
+    transitionCss,
+    /\.compact-shell\.is-editing \.work-area\[data-fit-page='true'\]:has\(\.page-turn-layer\)\s*\{\s*overflow:\s*hidden;/,
+  );
+  assert.doesNotMatch(transitionCss, /\.compact-shell\.is-editing \.work-area\s*\{[^}]*overflow:\s*hidden;/);
 });

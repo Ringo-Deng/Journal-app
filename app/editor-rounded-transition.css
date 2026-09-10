@@ -62,6 +62,13 @@
   border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
 }
 
+/* The 3D leaf briefly projects beyond the paper box while it curls. Keep the
+   work area scrollable at rest, but do not let that transient projection make
+   the browser flash scrollbars during a turn. */
+.compact-shell.is-editing .work-area[data-fit-page='true']:has(.page-turn-layer) {
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cover-transition-overlay .rigid-cover {
     animation-duration: .01s !important;

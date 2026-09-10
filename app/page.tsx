@@ -2075,7 +2075,12 @@ export default function Home() {
             <div
               className={`editor-layout ${photoMaskDraft?'with-photo-mask':panel && !reading ? 'with-panel' : ''}`}
             >
-              <div ref={workArea} className="work-area" style={{'--page-zoom':zoom/100} as CSSProperties}>
+              <div
+                ref={workArea}
+                className="work-area"
+                data-fit-page={zoom === 100 ? 'true' : undefined}
+                style={{'--page-zoom':zoom/100} as CSSProperties}
+              >
                 <span className="canvas-caption">
                   VOLUME {currentMonth.slice(-2)} ·{' '}
                   {monthName(currentMonth).toUpperCase()}
