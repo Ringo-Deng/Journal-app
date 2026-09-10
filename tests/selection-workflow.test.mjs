@@ -52,3 +52,13 @@ test('page item rows show stable group parents with indented selectable members'
   assert.match(css,/\.page-element-children \{[\s\S]*?margin-left: 22px;[\s\S]*?border-left:/);
   assert.match(page,/锁定素材不能加入多选/);
 });
+
+test('new text starts empty and editing uses one compact neutral frame', async()=>{
+  const [page,css]=await Promise.all([readFile(pagePath,'utf8'),readFile(cssPath,'utf8')]);
+  const addText=page.slice(page.indexOf('function addText()'),page.indexOf('async function cutout()'));
+  assert.match(addText,/kind: 'text',[\s\S]*?text: '',/);
+  assert.match(page,/className="inline-writing"[\s\S]*?rows=\{1\}/);
+  assert.doesNotMatch(css,/\.piece-text:empty::before/);
+  assert.match(css,/\.inline-writing\{[^}]*min-height:2\.4em;[^}]*border:0;[^}]*box-shadow:inset 0 0 0 1px/);
+  assert.match(css,/\.inline-writing:focus,.inline-writing:focus-visible\{[^}]*outline:none;/);
+});

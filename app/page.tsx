@@ -1390,7 +1390,7 @@ export default function Home() {
     const p: Piece = {
       id: uid(),
       kind: 'text',
-      text: '写在这里…',
+      text: '',
       x: 55,
       y: 45,
       w: 30,
@@ -2118,7 +2118,7 @@ export default function Home() {
                           onPointerCancel={cancelPointerDrag}
                         >
                           {p.kind === 'text' ? (
-                            inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
+                            inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" rows={1} ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
                           ) : p.kind==='photo' ? <PhotoArtwork piece={p} alt="当天照片"/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (
                             <JournalDrawing piece={p}/>
                           ) : (
