@@ -51,7 +51,7 @@
 | 素材库 | `components/material-library.tsx`：库内筛选及待插入素材，通过 `onInsert` 进入编辑器；库内待插入选择与画布选择用途不同 |
 | 素材处理台 | `components/material-studio.tsx`：处理和候选预览；`local/server.mjs`：素材 API 与选定结果保存 |
 | 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的自动候选路由，再载入 `local/server.mjs`；路由通过 `execFile` 的自定义 promisify 接入 `local/segment` 调用 |
-| AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/reference-layout-guide.mjs` 提供共用参考排版规则；短文由 `local/paper-group.mjs` 提供实图选材与彩色底纸，`local/paper-group-layout.mjs` 按全文尺寸组合真实底纸、书写纸与周边素材并检查空位，`local/paper-art.mjs` 生成可选纸形与花纹；其他内容由 `local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` / `local/collage-layout.mjs` 排版；`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据，重设计经 `designPreview/applyDesignPreview` 预览应用 |
+| AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/reference-layout-guide.mjs` 提供共用参考规则与明确杂志风指令识别；普通短文由 `local/paper-group.mjs` 提供实图选材与彩色底纸，`local/paper-group-layout.mjs` 按全文尺寸组合纸张与周边素材并检查空位，`local/paper-art.mjs` 生成纸形与花纹；明确杂志风与其他内容由 `local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` / `local/collage-layout.mjs` 排版，`local/editorial-shapes.mjs` 提供本地几何图形；`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据，重设计经 `designPreview/applyDesignPreview` 预览应用 |
 | 照片蒙版与回收站 | `app/page.tsx` 的 `photoMaskDraft` 仅供编辑画布预览；`lib/photo-mask.mjs` 共用轮廓与取景几何；`local/photo-mask.mjs` 经原保存队列生成透明图、登记回收引用及检查安全删除；`components/photo-trash.tsx` 提供恢复与手动清理 |
 | 本地服务 | `local/server-bootstrap.mjs`：初始化原生工具和请求适配后载入 `local/server.mjs`；开发、正式启动均使用 bootstrap 入口 |
 | 保存 | `app/page.tsx` 的 `books` → `pending/flush` → `/api/state` → `local/server.mjs` 的校验、写入队列、revision 冲突检查及 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 |

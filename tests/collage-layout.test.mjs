@@ -5,6 +5,7 @@ import {resolveComposition} from '../local/layout-composition.mjs';
 import {layoutIssues} from '../lib/layout-safety.mjs';
 import {validatePlan} from '../local/design-plan.mjs';
 import {regenerateSpread} from '../lib/journal.ts';
+import {makeEditorialShape} from '../local/editorial-shapes.mjs';
 
 const assets = Array.from({length: 7}, (_, i) => ({id: `flower-${i}`, src: `/f${i}.png`, name: '小花', width: 100, height: 100}));
 const body = (text, i = 0) => ({kind: 'text', sourceId: `text-${i}`, role: 'body', text, x: i ? 56 : 5, y: 20, w: 34, fontSize: 18, rotation: 0});
@@ -89,6 +90,20 @@ test('selected decorations have no count cap and never recruit library filler', 
   const blocked = {...flowers[0], x: writing.x, y: writing.y};
   assert.deepEqual(finishCollage([writing, blocked], {elements: []}, assets), [writing]);
   assert.deepEqual(finishCollage([writing, ...flowers], {elements: [], instruction: '不要贴纸'}, assets), [writing]);
+});
+
+test('editorial geometry can remain without stickers but still respects empty pages and content bounds', () => {
+  const writing=body('保留文字周围的空间。');
+  const geometry={kind:'doodle',x:58,y:15,...makeEditorialShape({motif:'editorial-circle',w:20,color:'#798989'})};
+  const sticker={kind:'asset',assetId:assets[0].id,x:58,y:60,w:6};
+  const pieces=[writing,geometry,sticker],before=structuredClone(pieces);
+  assert.deepEqual(finishCollage(pieces,{instruction:'杂志风，不要贴纸'},assets),[writing,geometry]);
+  for(const instruction of ['高级感，无装饰','高级感，不要任何装饰','editorial layout, no decoration']) {
+    assert.deepEqual(finishCollage(pieces,{instruction},assets),[writing]);
+  }
+  assert.deepEqual(finishCollage([writing],{instruction:'几何排版'},assets),[writing], 'do not add unselected geometry');
+  assert.deepEqual(finishCollage([writing,{...geometry,x:writing.x,y:writing.y}],{instruction:'几何排版'},assets),[writing], 'geometry must not receive backing-paper overlap privileges');
+  assert.deepEqual(pieces,before);
 });
 
 test('required paragraph stickers stay associated with their writing', async () => {

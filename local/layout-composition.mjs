@@ -1,13 +1,15 @@
 import {estimatedHeight} from '../lib/layout-safety.mjs';
+import {wantsEditorialLayout} from './reference-layout-guide.mjs';
 
 export const compositionGuide = `preset 选择 quiet（日记留白）、photo-led（大照片配文）、photo-story（多照片故事）、travel-notes（旅行票据）、long-read（长文双栏）或 free（明确指定的位置、特殊构图或锁定组合）。primarySide 为 left 或 right，指主要视觉所在页。density 默认为 balanced（成组叠贴与连续留白），用户要求密集时用 rich，要求极简时用 sparse。不要为了用某种构图而新增文字或照片。`;
 const presets = new Set(['quiet', 'photo-led', 'photo-story', 'travel-notes', 'long-read']);
 
 // Regions describe a composition, not fixed text boxes. Heights follow content.
 export function resolveComposition(brief = {}, input = {}) {
-  const preset = (input.elements || []).some(p => p.locked || p.groupId) ? 'free' : presets.has(brief?.preset) ? brief.preset : 'free';
+  const editorial = wantsEditorialLayout(input.instruction);
+  const preset = editorial || (input.elements || []).some(p => p.locked || p.groupId) ? 'free' : presets.has(brief?.preset) ? brief.preset : 'free';
   const primarySide = brief?.primarySide === 'right' ? 'right' : 'left';
-  const density = ['sparse', 'balanced', 'rich'].includes(brief?.density) ? brief.density : 'balanced';
+  const density = ['sparse', 'balanced', 'rich'].includes(brief?.density) ? brief.density : editorial ? 'sparse' : 'balanced';
   const region = (id, x, y, w, h, accepts) => ({id, x: primarySide === 'right' ? 100 - x - w : x, y, w, h, accepts});
   const regions = {
     quiet: [region('writing', 9, 15, 32, 71, 'text'), region('continuation', 59, 34, 32, 52, 'text')],

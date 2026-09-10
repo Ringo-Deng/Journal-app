@@ -439,5 +439,6 @@ export function pageInk(book:Book,spread:Spread|undefined,side:'left'|'right'):s
 }
 export function reserveHeaderSpace(elements:DesignPiece[],top:number,lockedIds:string[]=[]):DesignPiece[]{
   const inset=Math.max(0,Math.min(20,top));if(!inset)return elements;const factor=(100-inset)/100;
-  return elements.map(p=>p.sourceId&&lockedIds.includes(p.sourceId)?p:{...p,y:inset+p.y*factor,...(p.h!==undefined?{h:p.h*factor}:{}),...(p.fontSize!==undefined?{fontSize:p.fontSize*factor}:{})});
+  // Circular editorial shapes must keep their aspect when a new entry makes room for the header.
+  return elements.map(p=>p.sourceId&&lockedIds.includes(p.sourceId)?p:{...p,y:inset+p.y*factor,...(p.h!==undefined?{h:p.h*factor}:{}),...(p.kind==='doodle'&&['editorial-circle','editorial-semicircle'].includes(p.doodleMotif||'')?{w:p.w*factor}:{}),...(p.fontSize!==undefined?{fontSize:p.fontSize*factor}:{})});
 }

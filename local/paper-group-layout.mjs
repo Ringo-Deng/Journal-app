@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {bounds, estimatedHeight, intersects} from '../lib/layout-safety.mjs';
 import {isEmptyTextHint} from './editorial.mjs';
 import {paperShapes,paperPatterns,isPaperAsset} from './paper-art.mjs';
+import {wantsEditorialLayout} from './reference-layout-guide.mjs';
 
 export const paperGroupSlots = {
   hero:'主素材，靠书写区左上方', leaf:'左下呼应', butterfly:'右上轻点缀',
@@ -10,7 +11,8 @@ export const paperGroupSlots = {
 export const paperPositions = {top:'上方露出',bottom:'下方露出',left:'左侧露出',right:'右侧露出',diagonal:'斜向错叠'};
 // Small writing groups have a real capacity. Longer writing/photos retain the existing layout path.
 export function paperGroupContent(input) {
-  if (/不要贴纸|无装饰|极简|杂志|不要底纸|no stickers|no decoration|minimal/i.test(input.instruction || '')) return null;
+  if (wantsEditorialLayout(input.instruction)) return null;
+  if (/不要贴纸|无装饰|极简|不要底纸|no stickers|no decoration|minimal/i.test(input.instruction || '')) return null;
   if (input.requirements?.framed || input.requirements?.paragraphCount > 1) return null;
   const editable=(input.elements||[]).filter(p=>!p.locked&&!p.groupId);
   if (editable.some(p=>p.kind==='photo') || (!input.elements?.length && input.days.some(d=>d.photos?.length))) return null;

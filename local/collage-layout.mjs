@@ -1,5 +1,6 @@
 import {bounds, estimatedHeight, intersects} from '../lib/layout-safety.mjs';
 import {composeContent, resolveComposition} from './layout-composition.mjs';
+import {isEditorialShape} from './editorial-shapes.mjs';
 
 export function textFootprint(p, ratio = 1.43) {
   const box = bounds(p, ratio);
@@ -16,11 +17,12 @@ export function finishCollage(elements, input, assets, brief = {}) {
   const content = result.filter(p => p.kind === 'text' || p.kind === 'photo');
   const occupied = [...content, ...locked].map(p => bounds(p, ratio));
   const noDecorations = /不要贴纸|无装饰|no stickers|no decoration/i.test(input.instruction || '');
+  const noShapes = /无装饰|不要(?:任何|任何的|所有)?装饰|no decoration/i.test(input.instruction || '');
   const kept = result.filter(p => {
     if (p.kind === 'text' || p.kind === 'photo' || protectedIds.has(p.sourceId)) return true;
     // Explicit paragraph stickers are requirements, not optional filler.
     const required = input.requirements?.stickers && p.forParagraph;
-    if (noDecorations && !required) return false;
+    if ((noDecorations || noShapes) && !required && (!isEditorialShape(p) || noShapes)) return false;
     const asset = assets.find(a => a.id === p.assetId);
     if (p.kind === 'asset' && asset?.width && asset?.height && !p.h) p.h = p.w * asset.height / asset.width * ratio;
     const target = content.find(t => t.sourceId && t.sourceId === p.forParagraph);

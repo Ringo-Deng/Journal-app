@@ -1,6 +1,7 @@
 import {makeHandDoodle} from './hand-doodles.mjs';
 import {isEmptyTextHint} from './editorial.mjs';
 import {stickerPath} from './sticker-art.mjs';
+import {isEditorialShape, makeEditorialShape} from './editorial-shapes.mjs';
 // Only structured drawing data is accepted; never markup or remote image URLs.
 export function validatePlan(elements, input, assets) {
   if (!Array.isArray(elements) || !elements.length || elements.length > 250)
@@ -54,6 +55,14 @@ export function validatePlan(elements, input, assets) {
       }
       return {...base,...presentation,frame:['plain','polaroid','torn','stamp','cutout'].includes(p.frame)?p.frame:['plain','polaroid','torn','stamp','cutout'].includes(source?.frame)?source.frame:'polaroid',hideTape:p.hideTape??source?.hideTape,stretch:source?.stretch,flipX:source?.flipX,flipY:source?.flipY,src,photoOriginal:source?.photoOriginal || src};
     }
+    if(source?.locked && isEditorialShape(source)) return {...source,sourceId:source.id};
+    const shapeMotif=p.motif??source?.doodleMotif;
+    if(isEditorialShape({kind:p.kind,doodleMotif:shapeMotif})) {
+      const shape=makeEditorialShape({...source,...p,motif:shapeMotif},input.ratio);
+      let sx=number(p.x??source?.x,2,98-shape.w,5);
+      if(sx<50 && sx+shape.w>48) sx=Math.max(2,48-shape.w);
+      return {...base,...shape,x:sx,y:number(p.y??source?.y,3,94-shape.h,10),rotation:number(p.rotation??source?.rotation,-30,30,0),flipX:source?.flipX,flipY:source?.flipY};
+    }
     if(input.doodleMode==='handdrawn' && !source?.locked) {
       const hand=makeHandDoodle(p);
       let hx=number(p.x,2,98-hand.w,5);
@@ -71,7 +80,7 @@ export function validatePlan(elements, input, assets) {
     if(!pathOK(p.path)) throw Error('AI 涂鸦路径无效。');
     return {...base,path:p.path,h:number(p.h,3,50,15)};
   });
-  if(input.doodleMode==='handdrawn' && result.filter(p=>p.doodleMotif).length>6) throw Error('手绘点缀过多，每跨页最多6处，请减少装饰并保留留白。');
+  if(input.doodleMode==='handdrawn' && result.filter(p=>p.doodleMotif&&!isEditorialShape(p)).length>6) throw Error('手绘点缀过多，每跨页最多6处，请减少装饰并保留留白。');
   // A redesign must account for all visible writing and photos, including free text.
   for(const s of sources.filter(s=>!s.locked && ['text','photo'].includes(s.kind))) {
     if(!result.some(p=>p.sourceId===s.id)) {
