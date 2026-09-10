@@ -4,6 +4,7 @@ import {
   clampSelectionMove,
   idsInSelectionRect,
   mergeSelection,
+  rotatedSelectionBounds,
   selectionRect,
 } from "../lib/selection-geometry.ts";
 
@@ -59,4 +60,16 @@ test("moving a selection permits bleed but keeps a grab area visible", () => {
     clampSelectionMove(moving, { x: -200, y: 300 }, { width: 300, height: 200 }, 28),
     { x: -72, y: 142 },
   );
+});
+
+test("multi-selection bounds include the visible corners of rotated items", () => {
+  const bounds = rotatedSelectionBounds(
+    [{ id: "rotated", x: 20, y: 20, w: 20, h: 20, rotation: 45 }],
+    2,
+  );
+  assert.ok(bounds);
+  assert.ok(bounds.x < 20);
+  assert.ok(bounds.y < 20);
+  assert.ok(bounds.w > 20);
+  assert.ok(bounds.h > 20);
 });

@@ -27,6 +27,8 @@ test("selection demo wires marquee preview, click-through selection bounds and l
   assert.match(client, /paintMovePreview\(gesture\.movingIds, delta\)/);
   assert.match(client, /data-demo-selection/);
   assert.match(client, /showSelectionActions/);
+  assert.match(client, /rotatedSelectionBounds\(selectedItems, PAPER_ASPECT_RATIO\)/);
+  assert.match(client, /classList\.add\(["']is-moving["']\)/);
   const moveHandler = client.slice(
     client.indexOf("function itemPointerMove"),
     client.indexOf("function finishMove"),
@@ -35,4 +37,5 @@ test("selection demo wires marquee preview, click-through selection bounds and l
   assert.match(css, /\.selection-demo__selection \{[\s\S]*?pointer-events: none;/);
   assert.match(css, /\.selection-demo__item\.is-selected::after \{[\s\S]*?opacity: 0;/);
   assert.match(css, /\.selection-demo__edge \{[\s\S]*?pointer-events: auto;/);
+  assert.match(css, /\.selection-demo__paper\.is-moving[\s\S]*?cursor: grabbing;/);
 });

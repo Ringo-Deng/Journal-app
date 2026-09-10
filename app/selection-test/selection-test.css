@@ -272,7 +272,7 @@
   display: grid;
   place-items: center;
   border: 0;
-  cursor: move;
+  cursor: grab;
   transform-origin: center;
   touch-action: none;
   will-change: transform;
@@ -421,8 +421,13 @@
   border: 1px solid rgba(77, 91, 73, 0.82);
   border-radius: 3px;
   box-shadow: 0 1px 3px rgba(55, 66, 52, 0.12);
-  transform: translate3d(var(--drag-x, 0px), var(--drag-y, 0px), 0);
   will-change: transform;
+}
+
+.selection-demo__paper.is-moving,
+.selection-demo__paper.is-moving .selection-demo__item,
+.selection-demo__paper.is-moving .selection-demo__edge {
+  cursor: grabbing;
 }
 
 .selection-demo__edge {
@@ -435,7 +440,7 @@
   left: -5px;
   right: -5px;
   height: 10px;
-  cursor: move;
+  cursor: grab;
 }
 .selection-demo__edge--top {
   top: -5px;
@@ -448,7 +453,7 @@
   top: 5px;
   bottom: 5px;
   width: 10px;
-  cursor: move;
+  cursor: grab;
 }
 .selection-demo__edge--left {
   left: -5px;

@@ -16,6 +16,7 @@ export type SelectionGeometryItem = {
   groupId?: string;
   locked?: boolean;
   hidden?: boolean;
+  rotation?: number;
 };
 
 export function selectionRect(start: SelectionPoint, end: SelectionPoint): SelectionRect {
@@ -84,6 +85,26 @@ export function selectionBounds(items: SelectionGeometryItem[]): SelectionGeomet
   const right = Math.max(...items.map((item) => item.x + item.w));
   const bottom = Math.max(...items.map((item) => item.y + item.h));
   return { id: "selection", x: left, y: top, w: right - left, h: bottom - top };
+}
+
+export function rotatedSelectionBounds(items: SelectionGeometryItem[], canvasAspectRatio: number) {
+  const safeAspectRatio = canvasAspectRatio > 0 ? canvasAspectRatio : 1;
+  return selectionBounds(
+    items.map((item) => {
+      const radians = ((item.rotation || 0) * Math.PI) / 180;
+      const cosine = Math.abs(Math.cos(radians));
+      const sine = Math.abs(Math.sin(radians));
+      const rotatedWidth = item.w * cosine + (item.h / safeAspectRatio) * sine;
+      const rotatedHeight = item.w * safeAspectRatio * sine + item.h * cosine;
+      return {
+        ...item,
+        x: item.x + item.w / 2 - rotatedWidth / 2,
+        y: item.y + item.h / 2 - rotatedHeight / 2,
+        w: rotatedWidth,
+        h: rotatedHeight,
+      };
+    }),
+  );
 }
 
 export function clampSelectionMove(

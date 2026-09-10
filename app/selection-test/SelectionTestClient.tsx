@@ -7,6 +7,7 @@ import {
   clampSelectionMove,
   idsInSelectionRect,
   mergeSelection,
+  rotatedSelectionBounds,
   selectionBounds,
   selectionRect,
   selectionRectSize,
@@ -159,6 +160,8 @@ const INITIAL_ITEMS: DemoItem[] = [
   },
 ];
 
+const PAPER_ASPECT_RATIO = 1.42;
+
 function modifierPressed(event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) {
   return event.shiftKey || event.metaKey || event.ctrlKey;
 }
@@ -207,7 +210,11 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
           : `piece:${item.id}`,
     ),
   ).size;
-  const selectedBounds = selectionBounds(selectedItems);
+  const selectedBounds =
+    selectedItems.length > 1
+      ? rotatedSelectionBounds(selectedItems, PAPER_ASPECT_RATIO)
+      : selectionBounds(selectedItems);
+  const selectionRotation = selectedItems.length === 1 ? selectedItems[0].rotation : 0;
   const selectedLocked = selectedItems.some((item) => item.locked);
   const selectedHasGroup = selectedItems.some((item) => item.groupId);
   const showSelectionActions =
@@ -230,6 +237,20 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
     setSelected(
       [...new Set(next)].filter((id) => items.some((item) => item.id === id && !item.hidden)),
     );
+  }
+
+  function selectionUnitCount(ids: string[]) {
+    return new Set(
+      items
+        .filter((item) => ids.includes(item.id) && !item.hidden)
+        .map((item) =>
+          editingGroup
+            ? `piece:${item.id}`
+            : item.groupId
+              ? `group:${item.groupId}`
+              : `piece:${item.id}`,
+        ),
+    ).size;
   }
 
   function hitIdsAt(point: SelectionPoint) {
@@ -263,6 +284,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
       started: false,
       delta: { x: 0, y: 0 },
     };
+    canvasRef.current.classList.add("is-moving");
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -289,6 +311,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
         element.style.removeProperty("--drag-x");
         element.style.removeProperty("--drag-y");
       });
+    canvas.classList.remove("is-moving");
   }
 
   function itemPointerDown(event: PointerEvent<HTMLDivElement>, item: DemoItem) {
@@ -431,7 +454,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
       setSelection(next);
       setMessage(
         next.length
-          ? `已选 ${new Set(next).size} 件；拖动任意已选素材可整体移动。`
+          ? `已选 ${selectionUnitCount(next)} 个对象；拖动任意已选素材可整体移动。`
           : "选择框内没有可选素材。",
       );
     } else if (!gesture.toggle) {
@@ -512,7 +535,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
         event.preventDefault();
         const next = items.filter((item) => !item.hidden && !item.locked).map((item) => item.id);
         setSelection(next);
-        setMessage(`已选择当前跨页全部 ${next.length} 件可移动素材。`);
+        setMessage(`已选择当前跨页全部 ${selectionUnitCount(next)} 个可移动对象。`);
       }
     }
     window.addEventListener("keydown", keyboard);
@@ -566,7 +589,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
               .filter((item) => !item.hidden && !item.locked)
               .map((item) => item.id);
             setSelection(next);
-            setMessage(`已选择当前跨页全部 ${next.length} 件可移动素材。`);
+            setMessage(`已选择当前跨页全部 ${selectionUnitCount(next)} 个可移动对象。`);
           }}
         >
           <Check />
@@ -715,6 +738,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
                   top: `${selectedBounds.y}%`,
                   width: `${selectedBounds.w}%`,
                   height: `${selectedBounds.h}%`,
+                  transform: `translate3d(var(--drag-x, 0px), var(--drag-y, 0px), 0) rotate(${selectionRotation}deg)`,
                 }}
               >
                 {!selectedLocked && (
@@ -752,7 +776,7 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
                 {showSelectionActions && (
                   <div className="selection-demo__selection-label" data-demo-ui>
                     {(selectedUnits > 1 || selectedLocked) && (
-                      <span>{selectedLocked ? "已锁定" : `${selectedUnits} 个素材`}</span>
+                      <span>{selectedLocked ? "已锁定" : `${selectedUnits} 个对象`}</span>
                     )}
                     {overlapStack.length > 1 && (
                       <button type="button" onClick={cycleLowerLayer}>
