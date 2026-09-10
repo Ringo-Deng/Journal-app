@@ -26,11 +26,13 @@ test("selection demo wires marquee preview, click-through selection bounds and l
   assert.match(client, /event\.pointerType === ["']touch["']/);
   assert.match(client, /paintMovePreview\(gesture\.movingIds, delta\)/);
   assert.match(client, /data-demo-selection/);
+  assert.match(client, /showSelectionActions/);
   const moveHandler = client.slice(
     client.indexOf("function itemPointerMove"),
     client.indexOf("function finishMove"),
   );
   assert.doesNotMatch(moveHandler, /setItems\(/);
   assert.match(css, /\.selection-demo__selection \{[\s\S]*?pointer-events: none;/);
+  assert.match(css, /\.selection-demo__item\.is-selected::after \{[\s\S]*?opacity: 0;/);
   assert.match(css, /\.selection-demo__edge \{[\s\S]*?pointer-events: auto;/);
 });

@@ -209,6 +209,13 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
   ).size;
   const selectedBounds = selectionBounds(selectedItems);
   const selectedLocked = selectedItems.some((item) => item.locked);
+  const selectedHasGroup = selectedItems.some((item) => item.groupId);
+  const showSelectionActions =
+    selectedUnits > 1 ||
+    selectedLocked ||
+    overlapStack.length > 1 ||
+    Boolean(editingGroup) ||
+    selectedHasGroup;
 
   function idsForItem(item: DemoItem) {
     if (item.groupId && editingGroup !== item.groupId) {
@@ -742,19 +749,23 @@ export default function SelectionTestClient({ appVersion }: { appVersion: string
                     />
                   </>
                 )}
-                <div className="selection-demo__selection-label" data-demo-ui>
-                  <span>{selectedLocked ? "已锁定" : `已选 ${selectedUnits} 个`}</span>
-                  {overlapStack.length > 1 && (
-                    <button type="button" onClick={cycleLowerLayer}>
-                      切换下层
-                    </button>
-                  )}
-                  {(editingGroup || selectedItems.some((item) => item.groupId)) && (
-                    <button type="button" onClick={enterOrLeaveGroup}>
-                      {editingGroup ? "返回组合" : "编辑组合"}
-                    </button>
-                  )}
-                </div>
+                {showSelectionActions && (
+                  <div className="selection-demo__selection-label" data-demo-ui>
+                    {(selectedUnits > 1 || selectedLocked) && (
+                      <span>{selectedLocked ? "已锁定" : `${selectedUnits} 个素材`}</span>
+                    )}
+                    {overlapStack.length > 1 && (
+                      <button type="button" onClick={cycleLowerLayer}>
+                        切换下层
+                      </button>
+                    )}
+                    {(editingGroup || selectedHasGroup) && (
+                      <button type="button" onClick={enterOrLeaveGroup}>
+                        {editingGroup ? "返回组合" : "编辑组合"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
