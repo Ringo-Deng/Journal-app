@@ -1886,7 +1886,7 @@ export default function Home() {
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
         <button className={libraryOpen?'active':''} aria-label="素材库" disabled={!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
-        <button className={modal==='material-import'?'active':''} aria-label="导入素材" onClick={()=>setModal('material-import')}><ImagePlus/><span>导入</span></button>
+        <button className={modal==='studio'||modal==='material-import'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setModal('studio')}}><ImagePlus/><span>导入</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
@@ -2998,6 +2998,7 @@ export default function Home() {
       <MaterialStudio
         open={modal === 'studio'}
         onClose={() => setModal(null)}
+        onImport={() => setModal('material-import')}
         onImported={setAssets}
         notice={materialStudioNotice}
       />

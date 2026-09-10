@@ -17,7 +17,7 @@ async function request<T>(path:string,data?:unknown):Promise<T>{
  if(!r.ok)throw Error(result.error||'素材处理失败');
  return result;
 }
-export default function MaterialStudio({open,onClose,onImported,notice}:{open:boolean;onClose:()=>void;onImported:(a:Asset[])=>void;notice?:string}){
+export default function MaterialStudio({open,onClose,onImport,onImported,notice}:{open:boolean;onClose:()=>void;onImport:()=>void;onImported:(a:Asset[])=>void;notice?:string}){
  const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[picking,setPicking]=useState(false),[pickPoint,setPickPoint]=useState<number[]|null>(null),[progress,setProgress]=useState('');
  const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
  const job=jobs.find(j=>j.id===active);
@@ -113,6 +113,7 @@ export default function MaterialStudio({open,onClose,onImported,notice}:{open:bo
   <DialogDescription className="studio-accessible-description">导入原图后可直接点击想要的素材；也支持自动识别与手动框选补漏。</DialogDescription>
   <div className="studio-topline">
    <DialogTitle>素材工作台</DialogTitle>
+   <button className="outline" disabled={busy} onClick={onImport}><ImagePlus/>导入新素材</button>
    <button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun(undefined,'auto')}><ScanSearch/>自动识别</button>
    <button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title="图片由已连接的 AI 定位，透明边缘在本机生成" onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button>
    <button className="outline danger" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button>
@@ -131,7 +132,7 @@ export default function MaterialStudio({open,onClose,onImported,notice}:{open:bo
      </div>
     </section>
     <section className="studio-results"><div className="row"><h3>分离结果 <small>{job.items.length} 个</small></h3><button className="quiet" disabled={busy} onClick={()=>setSelected(job.items.filter(i=>!i.imported).map(i=>i.id))}><CheckCheck/>全选</button><button className="quiet" disabled={busy} onClick={()=>setSelected([])}>清空选择</button></div><div className="sticker-grid">{job.items.map(item=><article className={selected.includes(item.id)?'chosen':''} key={item.id}><label className="transparent-preview material-select-preview" htmlFor={`material-select-${item.id}`} data-disabled={busy||item.imported?'':undefined} title={item.imported?'已入库':busy?'正在处理…':selected.includes(item.id)?'点击取消选择':'点击选择素材'}><img src={item.src} alt={names[item.id]||item.name} draggable={false}/><Checkbox id={`material-select-${item.id}`} aria-label={`选择${item.name}`} disabled={busy||item.imported} checked={item.imported||selected.includes(item.id)} onCheckedChange={v=>setSelected(ids=>v?[...ids.filter(id=>id!==item.id),item.id]:ids.filter(id=>id!==item.id))}/>{item.imported&&<span className="imported-label"><Check/>已入库</span>}</label><input aria-label="素材名称" value={names[item.id]??item.name} disabled={item.imported||busy} maxLength={80} onChange={e=>setNames(old=>({...old,[item.id]:e.target.value}))}/><small>{item.width} × {item.height} · PNG</small></article>)}</div>{!job.items.length&&<p className="studio-empty-result">没有检测到可分离素材。可以直接点选想要的素材，或使用框选补漏。</p>}</section>
-   </div>:<div className="studio-empty"><ImagePlus/><h2>还没有可处理的素材。</h2><p>请从主面板左侧的“导入”进入，添加本机图片或 Pinterest 素材。</p></div>}</main>
+   </div>:<div className="studio-empty"><ImagePlus/><h2>还没有可处理的素材。</h2><p>导入本机图片或 Pinterest 素材后，就可以在这里继续拆分、裁切和入库。</p><button className="primary" disabled={busy} onClick={onImport}>导入新素材</button></div>}</main>
   </div>
   <footer className="studio-footer"><span className="studio-status" role="status">{busy?(progress||'正在保存…'):(message||'原图保留在本机；分类和标签可在素材库中整理。')}</span><button className="primary" disabled={busy||!selected.length} onClick={()=>void importItems()}>{busy?<Loader2 className="spinning"/>:<Plus/>}将选中的 {selected.length} 个素材入库</button></footer>
  </DialogContent></Dialog>;

@@ -9,10 +9,11 @@ const [page,importer,studio,library]=await Promise.all([
   readFile(new URL('../components/material-library.tsx',import.meta.url),'utf8'),
 ]);
 
-test('material import is a dedicated action in the main left rail',()=>{
+test('the main left rail opens Material Studio without requiring a new image',()=>{
   const rail=page.slice(page.indexOf('<aside className="rail"'),page.indexOf('</aside>'));
-  assert.match(rail,/aria-label="导入素材"/);
-  assert.match(rail,/setModal\('material-import'\)/);
+  assert.match(rail,/aria-label="素材工作台"/);
+  assert.match(rail,/setMaterialStudioNotice\(''\);setModal\('studio'\)/);
+  assert.doesNotMatch(rail,/onClick=\{\(\)=>setModal\('material-import'\)\}/);
   assert.match(page,/<MaterialImporter/);
   assert.match(page,/open=\{modal === 'material-import'\}/);
 });
@@ -27,9 +28,12 @@ test('local and Pinterest acquisition live in the importer instead of Material S
   assert.doesNotMatch(studio,/pinterest\/resolve/);
   assert.doesNotMatch(studio,/>导入图片</);
   assert.match(studio,/if\(notice\)setMessage\(notice\)/);
+  assert.match(studio,/<button className="outline" disabled=\{busy\} onClick=\{onImport\}><ImagePlus\/>导入新素材<\/button>/);
+  assert.match(studio,/<button className="primary" disabled=\{busy\} onClick=\{onImport\}>导入新素材<\/button>/);
+  assert.match(page,/onImport=\{\(\) => setModal\('material-import'\)\}/);
 });
 
-test('material import stays in the dedicated left rail and is absent from the library header',()=>{
+test('material acquisition stays out of the library header while re-edit still opens the studio',()=>{
   assert.doesNotMatch(page,/onImport=\{\(\)=>setModal\('material-import'\)\}/);
   assert.doesNotMatch(library,/导入与拆分/);
   assert.doesNotMatch(library,/onImport/);
