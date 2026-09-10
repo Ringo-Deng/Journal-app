@@ -12,6 +12,7 @@ import { createPhotoLibrary } from "../local/photo-library.mjs";
 import { createJournalHistory } from "../local/journal-history.mjs";
 import { defaultTaxonomy } from "../local/material-catalog.mjs";
 import { writeArchive, readArchive, digest, BACKUP_FORMAT } from "../local/backup-archive.mjs";
+import { journalBackupSnapshot } from "../local/full-backup.mjs";
 import {
   validateSnapshot,
   planRestore,
@@ -251,6 +252,60 @@ test("complete backup restores into another library with originals, catalog, job
   assert.equal(trash.entries[0].pieceId, state.books[1].spreads[0].elements[0].id);
   assert.equal(JSON.parse(await readFile(join(data, "backup-imports.json")))[0].id, staged.id);
 });
+test("journal-only backup keeps notebooks and their referenced files without the surrounding libraries", async (t) => {
+  const f = await fixture(t),
+    unrelated = "/uploads/bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb.png";
+  await writeFile(join(f.data, unrelated.slice(1)), f.photo);
+  const snapshot = journalBackupSnapshot(f.snapshot.state, f.snapshot.fonts),
+    exported = await writeArchive({
+      ...f,
+      snapshot,
+      scope: "journals",
+      directory: await folder(t),
+      appVersion: "test",
+    }),
+    staged = await readArchive(createReadStream(exported.archive), await folder(t)),
+    paths = staged.manifest.files.map((file) => file.path);
+  validateSnapshot(staged.manifest.snapshot, validate);
+  assert.equal(staged.manifest.scope, "journals");
+  assert.deepEqual(staged.manifest.snapshot.state, persisted(f.snapshot.state));
+  assert.deepEqual(staged.manifest.snapshot.assets, []);
+  assert.deepEqual(staged.manifest.snapshot.photos, []);
+  assert.deepEqual(staged.manifest.snapshot.materialJobs, []);
+  assert.deepEqual(staged.manifest.snapshot.histories, []);
+  assert.equal(staged.manifest.snapshot.previous, null);
+  assert.deepEqual(staged.manifest.snapshot.trash, { entries: [], deletedSources: [] });
+  assert.deepEqual(staged.manifest.snapshot.fonts, persisted(f.snapshot.fonts));
+  assert.ok(paths.includes(f.snapshot.photos[0].src.slice(1)));
+  assert.ok(paths.includes(f.snapshot.assets[0].src.slice(1)));
+  assert.ok(paths.includes(f.snapshot.assets[1].src.slice(1)));
+  assert.ok(paths.includes(`user-fonts/${f.snapshot.fonts[0].id}${f.snapshot.fonts[0].ext}`));
+  assert.equal(paths.includes(f.snapshot.photos[0].originalFile), false);
+  assert.equal(paths.includes(`photo-thumbnails/${f.snapshot.photos[0].id}.webp`), false);
+  assert.equal(paths.includes(unrelated.slice(1)), false);
+
+  const target = await folder(t),
+    current = empty(),
+    existing = { ...defaultBook(), id: "existing", title: "原来的手帐" };
+  current.state = { revision: 10, books: [existing] };
+  await writeFile(join(target, "journal.json"), JSON.stringify(current.state));
+  const plan = await planRestore({ staged, current, data: target, validateState: validate });
+  await commitRestore(target, plan);
+  const restoredState = JSON.parse(await readFile(join(target, "journal.json"))),
+    restoredBook = restoredState.books[1];
+  assert.equal(restoredState.revision, 11);
+  assert.deepEqual(restoredState.books[0], persisted(existing));
+  assert.equal(restoredBook.title, "旅途");
+  assert.equal(JSON.parse(await readFile(join(target, "materials.json"))).length, 0);
+  assert.equal(JSON.parse(await readFile(join(target, "photo-library.json"))).length, 0);
+  assert.equal(JSON.parse(await readFile(join(target, "fonts.json"))).length, 1);
+  for (const path of [
+    restoredBook.spreads[0].elements[0].src,
+    restoredBook.spreads[0].elements[1].src,
+    restoredBook.spreads[0].elements[3].src,
+  ])
+    assert.equal((await readFile(join(target, path.slice(1)))).length > 0, true);
+});
 test("truncated, tampered, extra-data, duplicate-path and traversal archives never reach commit", async (t) => {
   const f = await fixture(t),
     directory = await folder(t),
@@ -424,4 +479,27 @@ test("real API previews, rejects stale revision, restores once, reloads caches a
   assert.equal(download.status, 200);
   const reexported = await readArchive(Readable.fromWeb(download.body), await folder(t));
   assert.equal(reexported.manifest.snapshot.state.books.length, 2);
+  assert.equal(reexported.manifest.scope, "all");
+  const journalExport = await s.call("/api/backup/export", "POST", {
+    revision: state.revision,
+    scope: "journals",
+  });
+  assert.equal(journalExport.status, 200, JSON.stringify(journalExport.value));
+  assert.equal(journalExport.value.scope, "journals");
+  const journalDownload = await fetch(`http://127.0.0.1:${s.port}${journalExport.value.url}`);
+  assert.equal(journalDownload.status, 200);
+  assert.match(journalDownload.headers.get("content-disposition"), /shiguang-journals-/);
+  const journalArchive = await readArchive(Readable.fromWeb(journalDownload.body), await folder(t));
+  assert.equal(journalArchive.manifest.scope, "journals");
+  assert.deepEqual(journalArchive.manifest.snapshot.assets, []);
+  assert.deepEqual(journalArchive.manifest.snapshot.photos, []);
+  assert.equal(
+    (
+      await s.call("/api/backup/export", "POST", {
+        revision: state.revision,
+        scope: "unknown",
+      })
+    ).status,
+    400,
+  );
 });

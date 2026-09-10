@@ -42,9 +42,3 @@
   color: #a33b32;
   font-size: 13px;
 }
-.full-backup-dialog details {
-  font-size: 13px;
-}
-.full-backup-dialog summary {
-  cursor: pointer;
-}

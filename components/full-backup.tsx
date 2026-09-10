@@ -17,11 +17,13 @@ type Summary = {
 };
 type Preview = {
   token: string;
+  scope: BackupScope;
   summary: Summary;
   alreadyImported: boolean;
   createdAt: string;
   appVersion: string;
 };
+type BackupScope = "all" | "journals";
 async function result<T>(response: Response): Promise<T> {
   const value = (await response.json()) as T & { error?: string };
   if (!response.ok) throw Error(value.error || "备份操作未完成，请重试。");
@@ -31,11 +33,14 @@ const size = (bytes: number) =>
   bytes >= 1024 ** 3
     ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
     : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-function Counts({ summary }: { summary: Summary }) {
-  return (
-    <div className="full-backup-counts">
-      {(
-        [
+function Counts({ summary, scope }: { summary: Summary; scope: BackupScope }) {
+  const entries =
+    scope === "journals"
+      ? ([
+          ["笔记本", summary.books],
+          ["随手帐文件", summary.files],
+        ] as const)
+      : ([
           ["笔记本", summary.books],
           ["照片原片", summary.photos],
           ["素材", summary.materials],
@@ -43,8 +48,10 @@ function Counts({ summary }: { summary: Summary }) {
           ["自定义字体", summary.fonts],
           ["历史备份", summary.histories],
           ["回收站记录", summary.trash],
-        ] as const
-      ).map(([label, count]) => (
+        ] as const);
+  return (
+    <div className="full-backup-counts">
+      {entries.map(([label, count]) => (
         <span key={label}>
           {label}
           <strong>{count}</strong>
@@ -61,15 +68,11 @@ export default function FullBackup({
   onClose,
   onPrepare,
   onRestored,
-  onLegacyExport,
-  onLegacyImport,
 }: {
   open: boolean;
   onClose: () => void;
   onPrepare: () => Promise<number>;
   onRestored: () => Promise<void>;
-  onLegacyExport: () => Promise<void>;
-  onLegacyImport: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null),
     working = useRef(false);
@@ -77,9 +80,12 @@ export default function FullBackup({
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [preview, setPreview] = useState<Preview | null>(null),
-    [download, setDownload] = useState<{ token: string; url: string; summary: Summary } | null>(
-      null,
-    ),
+    [download, setDownload] = useState<{
+      token: string;
+      url: string;
+      scope: BackupScope;
+      summary: Summary;
+    } | null>(null),
     [restored, setRestored] = useState(false),
     [refreshNeeded, setRefreshNeeded] = useState(false);
   const discard = (token: string) =>
@@ -111,21 +117,30 @@ export default function FullBackup({
     setError("");
     onClose();
   }
-  async function exportAll() {
+  async function exportBackup(scope: BackupScope) {
     await work(async () => {
-      setMessage("正在保存手帐并打包全部资料…");
+      setMessage(scope === "all" ? "正在保存手帐并打包全部资料…" : "正在保存并打包手帐资料…");
       if (download) await discard(download.token);
       setDownload(null);
       const revision = await onPrepare();
-      const value = await result<{ token: string; url: string; summary: Summary }>(
+      const value = await result<{
+        token: string;
+        url: string;
+        scope: BackupScope;
+        summary: Summary;
+      }>(
         await fetch("/api/backup/export", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ revision }),
+          body: JSON.stringify({ revision, scope }),
         }),
       );
       setDownload(value);
-      setMessage("备份已打包并校验，请下载保存。");
+      setMessage(
+        scope === "all"
+          ? "全部资料已打包并校验，请下载保存。"
+          : "手帐及其引用文件已打包并校验，请下载保存。",
+      );
     });
   }
   async function inspect(file?: File) {
@@ -136,7 +151,7 @@ export default function FullBackup({
       setPreview(null);
       if (download) await discard(download.token);
       setDownload(null);
-      setMessage("正在读取备份，检查全部文件和图片引用…");
+      setMessage("正在读取备份，检查文件和图片引用…");
       const value = await result<Preview>(
         await fetch("/api/backup/preview", {
           method: "POST",
@@ -186,17 +201,25 @@ export default function FullBackup({
       <DialogContent className="journal-dialog full-backup-dialog" aria-busy={busy}>
         <DialogTitle>备份与恢复</DialogTitle>
         <DialogDescription>
-          一份备份带走笔记、照片原片、素材与分类、处理记录、自定义字体、历史备份和照片回收站。AI
-          密钥不包含在内。
+          请选择备份全部资料，或只备份手帐及其实际引用的图片和字体。AI 密钥始终不包含在内。
         </DialogDescription>
         <div className="row">
-          <button className="primary" disabled={busy} onClick={() => void exportAll()}>
+          <button className="primary" disabled={busy} onClick={() => void exportBackup("all")}>
             <Download />
             备份全部资料
           </button>
+          <button className="outline" disabled={busy} onClick={() => void exportBackup("journals")}>
+            <Download />
+            仅备份手帐
+          </button>
+        </div>
+        <p className="microcopy">
+          “仅手帐”不包含整套素材库、照片库、处理记录、历史备份或照片回收站。
+        </p>
+        <div className="row">
           <button className="outline" disabled={busy} onClick={() => input.current?.click()}>
             <FolderOpen />
-            选择完整备份
+            选择备份文件恢复
           </button>
         </div>
         <input
@@ -208,9 +231,10 @@ export default function FullBackup({
         />
         {download && (
           <section className="full-backup-preview">
-            <Counts summary={download.summary} />
+            <p>{download.scope === "all" ? "全部资料备份" : "仅手帐备份"}</p>
+            <Counts summary={download.summary} scope={download.scope} />
             <a className="primary" href={download.url} download>
-              下载完整备份
+              {download.scope === "all" ? "下载全部资料备份" : "下载手帐备份"}
             </a>
             <p className="microcopy">打包完成后请保存文件；下载链接在 30 分钟后过期。</p>
           </section>
@@ -218,11 +242,15 @@ export default function FullBackup({
         {preview && (
           <section className="full-backup-preview">
             <p>
-              备份时间：{new Date(preview.createdAt).toLocaleString()} · v{preview.appVersion}
+              {preview.scope === "all" ? "全部资料备份" : "仅手帐备份"} · 备份时间：
+              {new Date(preview.createdAt).toLocaleString()} · v{preview.appVersion}
             </p>
-            <Counts summary={preview.summary} />
+            <Counts summary={preview.summary} scope={preview.scope} />
             <p className="full-backup-titles">
-              {preview.summary.titles.join(" · ") || "没有笔记本，仍可恢复素材与照片。"}
+              {preview.summary.titles.join(" · ") ||
+                (preview.scope === "all"
+                  ? "没有笔记本，仍可恢复素材与照片。"
+                  : "这份备份中没有笔记本。")}
             </p>
             <button
               className="primary"
@@ -262,28 +290,6 @@ export default function FullBackup({
             {error}
           </p>
         )}
-        <details>
-          <summary>旧版手帐备份</summary>
-          <p className="microcopy">
-            旧版 JSON
-            备份包含手帐及其引用图片，不包含完整素材库、照片库和字体。原有导入方式继续可用。
-          </p>
-          <div className="row">
-            <button className="outline" disabled={busy} onClick={() => void work(onLegacyExport)}>
-              导出旧版手帐备份
-            </button>
-            <button
-              className="outline"
-              disabled={busy}
-              onClick={() => {
-                close();
-                onLegacyImport();
-              }}
-            >
-              导入旧版 JSON
-            </button>
-          </div>
-        </details>
         <div className="row">
           <button className="outline" disabled={busy} onClick={close}>
             关闭

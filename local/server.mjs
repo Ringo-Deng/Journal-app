@@ -17,7 +17,7 @@ import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEP
 import { createPhotoMaskStore, photoTrashProtection, references } from './photo-mask.mjs';
 import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
-import {createFullBackup, recoverBackupTransaction} from './full-backup.mjs';
+import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -583,13 +583,15 @@ async function generate(input) {
 let catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});
 let pendingMaterialReopen=null;
 let backupMaintenance=false, backupRecoveryRequired=false, activeDataRequests=0;
-async function backupSnapshot(includeBuiltins=false){
+async function backupSnapshot(scope='all'){
+  if(scope==='journals')return journalBackupSnapshot(structuredClone(state),structuredClone(userFonts));
+  const includeBuiltins=scope==='all';
   const histories=[];
   const listing=await journalHistory.list();
   if(listing.warning)throw error('部分历史备份无法读取，请先处理后再进行完整备份。',409);
   for(const item of listing.entries)histories.push(await journalHistory.read(item.id));
   const snapshot={state:structuredClone(state),assets:includeBuiltins?await rawLibrary():structuredClone(customAssets),materialJobs:structuredClone(materialJobs),pinterestImports:structuredClone(pinterestImports),catalog:await readJSON('material-catalog.json',null),classificationJobs:await readJSON('material-classification-jobs.json',[]),photos:await readJSON('photo-library.json',[]),fonts:structuredClone(userFonts),trash:await readJSON('photo-trash.json',{entries:[],deletedSources:[]}),histories,previous:await readJSON('journal.previous.json',null)};
-  if(!includeBuiltins)snapshot.imports=await readJSON('backup-imports.json',[]);
+  if(scope==='restore')snapshot.imports=await readJSON('backup-imports.json',[]);
   return snapshot;
 }
 const fullBackup=createFullBackup({data,publicDir:resolve(root,'public'),appVersion:JSON.parse(await readFile(resolve(root,'package.json'),'utf8')).version,validateState,getSnapshot:backupSnapshot,

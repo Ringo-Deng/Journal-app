@@ -6,6 +6,38 @@ import { backupToken, fail, readArchive, writeArchive } from "./backup-archive.m
 import { commitRestore, planRestore, summaryOf, validateSnapshot } from "./backup-restore.mjs";
 
 export { recoverBackupTransaction } from "./backup-restore.mjs";
+export function journalBackupSnapshot(state, fonts = []) {
+  const usedFontIds = new Set();
+  function findFonts(value) {
+    if (Array.isArray(value)) value.forEach(findFonts);
+    else if (value && typeof value === "object")
+      for (const [key, item] of Object.entries(value)) {
+        if (key === "fontFamily" && typeof item === "string")
+          for (const match of item.matchAll(/Journal User ([a-f0-9]{24})/g))
+            usedFontIds.add(match[1]);
+        findFonts(item);
+      }
+  }
+  findFonts(state);
+  return {
+    state: structuredClone(state),
+    assets: [],
+    materialJobs: [],
+    pinterestImports: [],
+    catalog: {
+      revision: 0,
+      autoManaged: true,
+      taxonomy: { groups: [], labels: { content: [], style: [], color: [] } },
+      overrides: {},
+    },
+    classificationJobs: [],
+    photos: [],
+    fonts: structuredClone(fonts.filter((font) => usedFontIds.has(font.id))),
+    histories: [],
+    previous: null,
+    trash: { entries: [], deletedSources: [] },
+  };
+}
 export function createFullBackup({
   data,
   publicDir,
@@ -79,19 +111,22 @@ export function createFullBackup({
     async handle(path, req, res, json, body) {
       if (path === "/api/backup/export" && req.method === "POST") {
         const input = await body(req);
+        const scope = input.scope ?? "all";
+        if (!["all", "journals"].includes(scope)) throw fail("备份范围无效。");
         const directory = await stage();
         try {
           const exported = await exclusive(async () => {
-            const snapshot = await getSnapshot(true);
+            const snapshot = await getSnapshot(scope);
             if (input.revision !== snapshot.state.revision)
               throw fail("其他窗口更新了资料，请先刷新后再备份。", 409);
             validateSnapshot(snapshot, validateState);
-            return writeArchive({ data, publicDir, directory, snapshot, appVersion });
+            return writeArchive({ data, publicDir, directory, snapshot, appVersion, scope });
           });
           const token = save({ ...exported, directory, kind: "export" });
           return json(res, {
             token,
             url: `/api/backup/download/${token}`,
+            scope,
             summary: summaryOf(exported.manifest.snapshot, exported.manifest.files),
           });
         } catch (e) {
@@ -117,6 +152,7 @@ export function createFullBackup({
           const token = save({ ...staged, kind: "import" });
           return json(res, {
             token,
+            scope: staged.manifest.scope,
             alreadyImported,
             createdAt: staged.manifest.createdAt,
             appVersion: staged.manifest.appVersion,
@@ -138,7 +174,7 @@ export function createFullBackup({
         res.writeHead(200, {
           "Content-Type": "application/octet-stream",
           "Content-Length": info.size,
-          "Content-Disposition": `attachment; filename="shiguang-${s.manifest.createdAt.slice(0, 10)}.shiguang-backup"`,
+          "Content-Disposition": `attachment; filename="shiguang-${s.manifest.scope === "journals" ? "journals" : "all"}-${s.manifest.createdAt.slice(0, 10)}.shiguang-backup"`,
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
         });
@@ -157,7 +193,7 @@ export function createFullBackup({
         try {
           const input = await body(req);
           const result = await exclusive(async () => {
-            const current = await getSnapshot(false);
+            const current = await getSnapshot("restore");
             if (input.revision !== current.state.revision)
               throw fail("其他窗口更新了手帐，请刷新后重新确认恢复。", 409);
             if (current.imports.some((entry) => entry.id === s.id))

@@ -17,7 +17,7 @@ import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
 import { pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
-import { notebookUploads, remapNotebookUploads, copyNotebooks } from '@/lib/journal-backup';
+import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
 import {resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
@@ -348,7 +348,6 @@ export default function Home() {
   const canvas = useRef<HTMLDivElement>(null),
     fileInput = useRef<HTMLInputElement>(null),
     canvasPhotoInput=useRef<HTMLInputElement>(null),
-    importInput = useRef<HTMLInputElement>(null),
     replaceInput = useRef<HTMLInputElement>(null),
     bgInput = useRef<HTMLInputElement>(null),
     bgPreview = useRef<HTMLDivElement>(null),
@@ -1637,7 +1636,7 @@ export default function Home() {
   }
   async function prepareFullBackup() {
     if(busy||uploading||writing.current)throw Error('手帐正在保存或处理，请稍后重试。');
-    if(saveBlocked.current)throw Error('请先处理保存冲突；可用旧版导出保留本窗口内容。');
+    if(saveBlocked.current)throw Error('请先处理保存冲突；可导出本窗口内容作为应急副本。');
     if(dirty.current)pending.current=booksRef.current;
     await flush();
     if(pending.current||writing.current||saveBlocked.current)throw Error('手帐尚未保存，请先重试保存。');
@@ -1713,45 +1712,6 @@ export default function Home() {
       await flush();
     }catch(e){toast((e as Error).message);}
     finally{setRecoveringSave(false);}
-  }
-  async function importBackup(file?: File) {
-    if (!file) return;
-    try {
-      const input = JSON.parse(await file.text());
-      if (
-        input.format !== 'shiguang-v1' ||
-        !Array.isArray(input.books) ||
-        input.books.length > 240
-      )
-        throw Error('不是有效的拾光备份文件。');
-      const mapping: Record<string, string> = {};
-      for (const [path, data] of Object.entries(input.images || {})) {
-        mapping[path] = (
-          await api<{ src: string }>('/upload', send('POST', { data }))
-        ).src;
-      }
-      const restored = (input.books as Book[]).map(b => ({...remapNotebookUploads(b,mapping),id:uid()}));
-      await api(
-        '/validate',
-        send('POST', {
-          books: [
-            ...books,
-            ...restored,
-          ],
-        }),
-      );
-      change((all) =>
-        [
-          ...all,
-          ...restored,
-        ],
-      );
-      toast('备份已导入。');
-    } catch (e) {
-      toast((e as Error).message);
-    } finally {
-      if (importInput.current) importInput.current.value = '';
-    }
   }
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -2542,13 +2502,6 @@ export default function Home() {
         accept="image/jpeg,image/png,image/webp"
         hidden
         onChange={(e) => void upload(e.target.files, true)}
-      />
-      <input
-        ref={importInput}
-        type="file"
-        accept="application/json"
-        hidden
-        onChange={(e) => void importBackup(e.target.files?.[0])}
       />
       <Dialog open={!!designPreview} onOpenChange={v=>!v&&setDesignPreview(null)}>
         <DialogContent className="journal-dialog design-preview-dialog">
@@ -3467,7 +3420,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
       <PhotoTrash open={photoTrashOpen} onClose={()=>setPhotoTrashOpen(false)} onPrepare={preparePhotoSave} onRestore={restoreTrashPhoto}/>
-      <FullBackup open={modal==='backup'} onClose={()=>setModal(null)} onPrepare={prepareFullBackup} onRestored={receiveFullBackup} onLegacyExport={exportBackup} onLegacyImport={()=>importInput.current?.click()}/>
+      <FullBackup open={modal==='backup'} onClose={()=>setModal(null)} onPrepare={prepareFullBackup} onRestored={receiveFullBackup}/>
       <JournalHistory open={modal==='history'} onClose={()=>setModal(null)} onRestore={restoreNotebookCopies}/>
       {notice && (
         <output className="toast">

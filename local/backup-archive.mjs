@@ -42,9 +42,10 @@ export async function fileHash(root, path) {
     await file.close();
   }
 }
-export async function collectResources(data, snapshot) {
+export async function collectResources(data, snapshot, scope = "all") {
+  if (!["all", "journals"].includes(scope)) throw fail("备份范围无效。");
   const paths = new Set();
-  for (const directory of directories) {
+  for (const directory of scope === "all" ? directories : []) {
     let entries;
     try {
       if (!(await lstat(join(data, directory))).isDirectory()) throw fail("资料目录无效。");
@@ -97,11 +98,19 @@ export function referencedResources(value) {
   for (const photo of value.photos || []) paths.add(`photo-thumbnails/${photo.id}.webp`);
   return paths;
 }
-export async function writeArchive({ data, publicDir, directory, snapshot, appVersion }) {
+export async function writeArchive({
+  data,
+  publicDir,
+  directory,
+  snapshot,
+  appVersion,
+  scope = "all",
+}) {
+  if (!["all", "journals"].includes(scope)) throw fail("备份范围无效。");
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const files = [];
   let total = 0;
-  for (const path of await collectResources(data, snapshot)) {
+  for (const path of await collectResources(data, snapshot, scope)) {
     let input;
     try {
       input = await safeFile(path.startsWith("materials/") ? publicDir : data, path);
@@ -135,6 +144,7 @@ export async function writeArchive({ data, publicDir, directory, snapshot, appVe
     format: BACKUP_FORMAT,
     createdAt: new Date().toISOString(),
     appVersion,
+    scope,
     snapshot,
     files,
   };
@@ -195,11 +205,13 @@ export async function readArchive(input, directory) {
     manifest?.format !== BACKUP_FORMAT ||
     !Number.isFinite(Date.parse(manifest.createdAt)) ||
     typeof manifest.appVersion !== "string" ||
+    (manifest.scope !== undefined && !["all", "journals"].includes(manifest.scope)) ||
     !manifest.snapshot ||
     !Array.isArray(manifest.files) ||
     manifest.files.length > MAX_FILES
   )
-    throw fail("不是支持的拾光完整备份。");
+    throw fail("不是支持的拾光备份。");
+  manifest.scope ||= "all";
   const paths = new Set();
   let total = 0;
   for (const file of manifest.files) {
