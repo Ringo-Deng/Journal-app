@@ -3318,12 +3318,19 @@ export default function Home() {
         <DialogContent className="journal-dialog page-index-dialog">
           <DialogTitle>页面与记录索引</DialogTitle>
           <DialogDescription>
-            {book?.title || '当前笔记本'} · 包含扉页、手工拼贴与空白跨页，点击预览直接跳转。
+            {book?.title || '当前笔记本'} · 包含封面、扉页与全部跨页，点击预览直接跳转。
           </DialogDescription>
-          {book && (book.flyleaf || book.spreads.length) ? (
+          {book ? (
             <div className="page-index-grid">
+              <button className="page-index-item" aria-label="跳转到封面" aria-current={!opened?'page':undefined}
+                onClick={()=>{setSelected(null);setOpened(false);setModal(null);}}
+              >
+                <div className="page-index-preview" style={{aspectRatio:bookFormat(book).ratio}} aria-hidden="true"><ReadingJpgImage book={book} assets={assets} index={null} alt=""/></div>
+                <strong>封面</strong>
+                <small>{book.title}</small>
+              </button>
               {[...(book.flyleaf?[{sheet:book.flyleaf,index:-1}]:[]),...book.spreads.map((sheet,index)=>({sheet,index}))].map(({sheet,index})=><button
-                className="page-index-item" key={sheet.id} aria-label={index===-1?'跳转到扉页':`跳转到第 ${index+1} 跨页`} aria-current={index===page?'page':undefined}
+                className="page-index-item" key={sheet.id} aria-label={index===-1?'跳转到扉页':`跳转到第 ${index+1} 跨页`} aria-current={opened&&index===page?'page':undefined}
                 onClick={()=>{setSelected(null);setPage(index);setOpened(true);setModal(null);}}
               >
                 <div className="page-index-preview" style={{aspectRatio:bookFormat(book).ratio}} aria-hidden="true"><ReadingJpgImage book={book} assets={assets} index={index===-1?0:index+(book.flyleaf?1:0)} alt=""/></div>
