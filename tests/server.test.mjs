@@ -130,6 +130,7 @@ test('photo library imports, deduplicates, lists, backs up and protects selected
   const first=await fetch(base+query,{method:'POST',headers:{'content-type':'image/png'},body:bytes});assert.equal(first.status,200);const imported=await first.json();assert.equal(imported.duplicate,false);assert.match(imported.item.src,/^\/uploads\/photo-[a-f0-9]{32}\.webp$/);
   const repeated=await fetch(base+query,{method:'POST',headers:{'content-type':'image/png'},body:bytes});assert.equal(repeated.status,200);assert.equal((await repeated.json()).duplicate,true);
   const photos=await call('/api/photos');assert.equal(photos.status,200);assert.ok(photos.data.items.some(item=>item.id===imported.item.id));assert.equal(photos.data.items.find(item=>item.id===imported.item.id).capturedAt,'2026-08-09T10:11:12.000Z');
+  const display=await fetch(base+imported.item.src);assert.equal(display.status,200);assert.equal(display.headers.get('content-type'),'image/webp');
   const thumbnail=await fetch(base+imported.item.thumbnailSrc);assert.equal(thumbnail.status,200);assert.equal(thumbnail.headers.get('content-type'),'image/webp');
   const backup=await fetch(base+'/api/photos/backup');assert.equal(backup.status,200);const archive=await backup.text();assert.match(archive,/shiguang-photo-library-v1/);assert.match(archive,/"type":"complete"/);
   const restored=await fetch(base+'/api/photos/restore',{method:'POST',headers:{'content-type':'application/x-shiguang-photo-library'},body:archive});assert.equal(restored.status,200);assert.ok((await restored.json()).duplicates>=1);

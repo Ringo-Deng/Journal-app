@@ -44,6 +44,7 @@ const data = process.env.JOURNAL_DATA_DIR || resolve(root, 'data');
 const configData = process.env.JOURNAL_CONFIG_DIR || data;
 const port = Number(process.env.JOURNAL_PORT || 4329);
 const webPort = Number(process.env.JOURNAL_WEB_PORT || 4330);
+const UPLOAD_SOURCE = /^\/uploads\/(?:[a-f0-9-]+|photo-[a-f0-9]{32})\.(?:jpg|png|webp)$/;
 await mkdir(resolve(data, 'uploads'), { recursive: true, mode: 0o700 });
 await mkdir(configData, { recursive: true, mode: 0o700 });
 const userFontsDir = resolve(data, 'user-fonts');
@@ -501,7 +502,7 @@ async function generate(input) {
     content = [{ type: 'text', text: userText }];
     for (let i = 0; i < input.days.length; i++) {
       for (const photo of (input.days[i].photos || []).slice(0, 6)) {
-        if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(photo)) continue;
+        if (!UPLOAD_SOURCE.test(photo)) continue;
         const buffer = await readFile(resolve(data, photo.slice(1)));
         content.push(
           { type: 'text', text: `第${i + 1}天的照片：` },
@@ -854,7 +855,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/materials/source' && req.method === 'POST') {
       const input = await body(req);
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || '')) throw error('请选择本机已保存的素材原图。');
+      if (!UPLOAD_SOURCE.test(input.src || '')) throw error('请选择本机已保存的素材原图。');
       try { await stat(resolve(data, input.src.slice(1))); } catch { throw error('找不到原图，请重新导入。', 404); }
       const replaceAssetId=String(input.replaceAssetId||'');
       const replaceAsset=replaceAssetId?customAssets.find(asset=>asset.id===replaceAssetId):null;
@@ -878,7 +879,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/materials/add-item' && req.method === 'POST') {
       const input = await body(req);
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || '')) throw error('裁切图片无效。');
+      if (!UPLOAD_SOURCE.test(input.src || '')) throw error('裁切图片无效。');
       const width = Number(input.width), height = Number(input.height);
       if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1 || width > 20000 || height > 20000) throw error('裁切尺寸无效。');
       try { await stat(resolve(data, input.src.slice(1))); } catch { throw error('找不到裁切图片。', 404); }
@@ -890,7 +891,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/materials/point' && req.method === 'POST') {
       const input = await body(req);
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || ''))
+      if (!UPLOAD_SOURCE.test(input.src || ''))
         throw error('请先导入素材图片。');
       const source = resolve(data, input.src.slice(1));
       try { await stat(source); } catch { throw error('找不到原图，请重新导入。', 404); }
@@ -958,7 +959,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/materials/segment' && req.method === 'POST') {
       const input = await body(req);
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || ''))
+      if (!UPLOAD_SOURCE.test(input.src || ''))
         throw error('请先导入素材图片。');
       try {await stat(resolve(data,input.src.slice(1)))}catch{throw error('找不到原图，请重新导入。',404)}
       const requestedMode = ['auto', 'ai', 'paper', 'dense', 'panels', 'single', 'crop'].includes(input.mode)
@@ -1141,7 +1142,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/cutout' && req.method === 'POST') {
       const input = await body(req);
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(input.src || ''))
+      if (!UPLOAD_SOURCE.test(input.src || ''))
         throw error('请选择本机上传的照片。');
       if (!nativeCapabilities.cutout) throw error('当前系统暂不支持本机主体抠图；原图不会被修改，可继续使用自由裁切。', 501);
       const name = randomUUID() + '.png';
@@ -1165,7 +1166,7 @@ const server = http.createServer(async (req, res) => {
     if (!['GET', 'HEAD'].includes(req.method))
       throw error('不支持此操作。', 405);
     if (path.startsWith('/uploads/')) {
-      if (!/^\/uploads\/[a-f0-9-]+\.(jpg|png|webp)$/.test(path))
+      if (!UPLOAD_SOURCE.test(path))
         throw error('图片不存在。', 404);
       return await serve(res, path, data);
     }
