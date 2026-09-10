@@ -29,7 +29,7 @@ export async function renderPhotoMask(bytes,input){
   return sharp(Buffer.from(svg),{unlimited:true,limitInputPixels:4096*4096}).png().toBuffer();
 }
 /** All methods execute on the existing journal write queue. */
-export function createPhotoMaskStore({data,atomic,getState}){
+export function createPhotoMaskStore({data,atomic,getState,getProtectedSources=async()=>[]}){
   let store;
   async function load(){
     if(store)return;
@@ -59,7 +59,7 @@ export function createPhotoMaskStore({data,atomic,getState}){
     if(store.deletedSources.some(src=>references(state,src)))throw failure('本次内容引用了已彻底删除的照片，无法保存。请撤销该操作或重新导入原图。',409);
   }
   async function isReferenced(entry){
-    if(references(getState(),entry.src)||store.entries.some(other=>other.id!==entry.id&&references(other,entry.src)))return true;
+    if((await getProtectedSources()).includes(entry.src)||references(getState(),entry.src)||store.entries.some(other=>other.id!==entry.id&&references(other,entry.src)))return true;
     // Unreadable snapshots fail closed: never infer that a damaged backup has no references.
     try{
       try{if(references(JSON.parse(await readFile(join(data,'journal.previous.json'),'utf8')),entry.src))return true;}catch(e){if(e.code!=='ENOENT')throw e;}

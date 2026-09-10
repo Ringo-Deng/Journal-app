@@ -11,6 +11,7 @@ import './reading-back-cover-fixes.css';
 import './reading-format-fit.css';
 import './material-library-refresh.css';
 import './material-studio-stability.css';
+import './photo-library.css';
 import './notebook-cover-previews.css';
 import './editor-reliability.css';
 import './editor-rounded-transition.css';

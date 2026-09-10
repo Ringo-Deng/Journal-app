@@ -1035,22 +1035,13 @@ export default function Home() {
       if (!list.length) throw Error(insertOnCanvas?'当前跨页已满，请先添加新页。':'每篇记录最多 6 张照片。');
       const added: string[] = [];
       for (const file of list) {
-        if (file.size > 10 * 1024 * 1024)
-          throw Error('单张照片请控制在 10 MB 以内。');
-        const data = await new Promise<string>((ok, fail) => {
-          const r = new FileReader();
-          r.onload = () =>
-            typeof r.result === 'string'
-              ? ok(r.result)
-              : fail(Error('照片读取失败'));
-          r.onerror = () => fail(Error('照片读取失败。'));
-          r.readAsDataURL(file);
-        });
-        const result = await api<{ src: string }>(
-          '/upload',
-          send('POST', { data }),
-        );
-        added.push(result.src);
+        if (file.size > 80 * 1024 * 1024)
+          throw Error('单张照片请控制在 80 MB 以内。');
+        const params=new URLSearchParams({filename:file.name,lastModified:String(file.lastModified)});
+        const response=await fetch('/api/photos/import?'+params,{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+        const result=await response.json() as {item?:{src:string};error?:string};
+        if(!response.ok||!result.item)throw Error(result.error||'照片保存失败。');
+        added.push(result.item.src);
       }
       if(insertOnCanvas&&book){
         const additions:Piece[]=added.map((src,i)=>({id:uid(),kind:'photo',src,photoOriginal:src,x:(page===-1?58:8)+(i%3)*28,y:12+Math.floor(i/3)*18,w:24,rotation:0,locked:false,frame:'plain'}));
@@ -1291,6 +1282,16 @@ export default function Home() {
     if(page>=0&&!book.spreads.length)change(all=>all.map(b=>b.id===book.id?addBlankSpread(b):b),false);
     changeSpread(s=>({...s,elements:[...s.elements,...pieces]}));
     setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setSelected(pieces.length===1?pieces[0].id:null);toast(`已将${list.length}件素材放入手帐，可拖动调整。`);return true;
+  }
+  function insertPhotoLibrary(sources:string[]){
+    if(!book||!sources.length){toast('请先打开一本手帐。');return false}
+    const current=spread;
+    if((current?.elements.length||0)+sources.length>300){toast('当前跨页空间不足，请减少选择或翻到新页。');return false}
+    const side=page===-1?1:0;
+    const pieces:Piece[]=sources.map((src,index)=>({id:uid(),kind:'photo',src,photoOriginal:src,x:side*50+7+(index%8)*5,y:11+(Math.floor(index/8)%9)*6,w:24,rotation:(index%3-1)*1.5,locked:false,frame:'plain'}));
+    if(page>=0&&!book.spreads.length)change(all=>all.map(item=>item.id===book.id?addBlankSpread(item):item),false);
+    changeSpread(currentSpread=>({...currentSpread,elements:[...currentSpread.elements,...pieces]}));
+    setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setModal(null);setMultiIds(pieces.length>1?pieces.map(piece=>piece.id):[]);setSelected(pieces[0]?.id||null);toast(`已将 ${pieces.length} 张照片放入当前跨页，可继续调整。`);return true;
   }
   function savePaper() {
     if (!book) return;
@@ -1871,6 +1872,7 @@ export default function Home() {
     const ia = recent.indexOf(a.id), ib = recent.indexOf(b.id);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
+  const photoProtectedSources=[...new Set([books,...history.current,...future.current].flatMap(notebookUploads))];
   const swatchDark = (c: string) =>
     parseInt(c.slice(1, 3), 16) * 0.299 +
       parseInt(c.slice(3, 5), 16) * 0.587 +
@@ -3004,6 +3006,8 @@ export default function Home() {
         onClose={() => setModal(null)}
         onImport={() => setModal('material-import')}
         onImported={setAssets}
+        onInsertPhotos={insertPhotoLibrary}
+        photoProtectedSources={photoProtectedSources}
         notice={materialStudioNotice}
       />
       <Dialog

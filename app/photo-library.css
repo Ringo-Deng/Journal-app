@@ -1,0 +1,44 @@
+.material-studio .studio-section-tabs{display:inline-flex;gap:3px;padding:3px;border:1px solid #d6dacd;border-radius:8px;background:#f3f3ea;flex:none;}
+.material-studio .studio-section-tabs button{border:0;border-radius:5px;background:transparent;color:#74806a;padding:5px 11px;min-height:26px;}
+.material-studio .studio-section-tabs button.active{background:#fffef8;color:#405037;box-shadow:0 1px 4px #4b54341c;}
+.photo-library{display:flex;flex:1;min-height:0;flex-direction:column;gap:9px;position:relative;}
+.photo-library-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0 9px;border-bottom:1px solid #e0e2d8;}
+.photo-library-tools>div{display:flex;flex-direction:column;margin-right:auto;min-width:160px;}
+.photo-library-tools strong{font:18px 'Songti SC',serif;color:#405037;}
+.photo-library-tools small{font-size:10px;color:#89927f;margin-top:2px;}
+.photo-library-tools button,.photo-library-selection button{font-size:12px;min-height:31px;padding:6px 9px;gap:5px;}
+.photo-library-tools svg,.photo-library-selection svg{width:14px;height:14px;}
+.photo-library-selection{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;background:#f2f3e9;}
+.photo-library-selection>span{font-size:12px;color:#64705a;margin-right:auto;}
+.photo-library-scroll{flex:1;min-height:0;overflow:auto;padding:2px 5px 16px 1px;scrollbar-gutter:stable;}
+.photo-month{margin-bottom:18px;}
+.photo-month>h3{position:sticky;top:0;z-index:2;display:flex;align-items:baseline;gap:7px;margin:0 0 8px;padding:6px 2px;background:#fffdf7;color:#46543e;font-size:13px;font-weight:600;}
+.photo-month>h3 small{font-size:10px;color:#939b8a;font-weight:400;}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;}
+.photo-grid article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:7px;border:1px solid #dfe2d8;border-radius:8px;background:#fafaf4;min-width:0;}
+.photo-grid article.chosen{border-color:#789365;box-shadow:0 0 0 1px #789365;}
+.photo-grid article>label{grid-column:1/-1;position:relative;display:block;height:132px;border-radius:5px;overflow:hidden;background:#e8e8df;cursor:pointer;}
+.photo-grid article>label:hover{box-shadow:inset 0 0 0 2px #809c6a;}
+.photo-grid article>label:focus-within{outline:2px solid #809c6a;outline-offset:2px;}
+.photo-grid article>label img{width:100%;height:100%;display:block;object-fit:cover;user-select:none;}
+.photo-grid article [data-slot=checkbox]{position:absolute;top:7px;left:7px;background:#fff;}
+.photo-grid article>div{display:flex;min-width:0;flex-direction:column;padding-left:2px;}
+.photo-grid article>div span{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4e5947;}
+.photo-grid article>div small{font-size:9px;color:#969d8d;margin-top:3px;white-space:nowrap;}
+.photo-grid article>button{font-size:10px;padding:3px 5px;align-self:center;gap:3px;}
+.photo-grid article>button svg{width:12px;height:12px;}
+.photo-library-empty{height:100%;min-height:220px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#89927f;font-size:12px;}
+.photo-library-empty>svg{width:34px;height:34px;}
+.photo-library-empty strong{font:18px 'Songti SC',serif;color:#596650;}
+.photo-load-more{display:flex;margin:2px auto 0;font-size:12px;}
+.photo-library-status{min-height:24px;padding-top:7px;border-top:1px solid #e0e2d8;color:#66765a;font-size:11px;line-height:1.5;}
+.photo-preview-overlay{position:absolute;inset:0;z-index:15;display:grid;place-items:center;padding:24px;background:#34382f99;backdrop-filter:blur(3px);}
+.photo-preview-card{position:relative;width:min(900px,92%);max-height:95%;display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:#fffdf7;box-shadow:0 18px 60px #18201466;}
+.photo-preview-card>img{width:100%;min-height:0;max-height:calc(100dvh - 230px);object-fit:contain;background:#e7e7df;border-radius:6px;}
+.photo-preview-card>div{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.photo-preview-card>div strong{font-size:13px;overflow-wrap:anywhere;}
+.photo-preview-card>div span{font-size:11px;color:#7e8777;}
+.photo-preview-card>footer{display:flex;justify-content:flex-end;gap:8px;}
+.photo-preview-card>footer button{font-size:12px;}
+.photo-preview-close{position:absolute;right:18px;top:18px;z-index:2;width:32px;height:32px;padding:6px;border-radius:50%;background:#fffdf7dd;box-shadow:0 2px 8px #0002;}
+@media(max-width:760px){.photo-library-tools{align-items:stretch;}.photo-library-tools>div{width:100%;}.photo-library-selection{flex-wrap:wrap;}.photo-library-selection>span{width:100%;}.photo-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}.photo-grid article>label{height:110px;}.photo-preview-overlay{padding:8px;}.photo-preview-card{width:100%;}.photo-preview-card>footer{flex-wrap:wrap;}}

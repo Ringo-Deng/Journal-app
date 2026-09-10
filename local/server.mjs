@@ -14,7 +14,8 @@ import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
 import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
-import { createPhotoMaskStore, photoTrashProtection } from './photo-mask.mjs';
+import { createPhotoMaskStore, photoTrashProtection, references } from './photo-mask.mjs';
+import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
@@ -28,12 +29,15 @@ import {
   stat,
   copyFile,
   unlink,
+  readdir,
+  lstat,
 } from 'node:fs/promises';
 import { resolve, dirname, extname, sep, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { inflateRawSync } from 'node:zlib';
+import { StringDecoder } from 'node:string_decoder';
 import { access, constants as fsConstants } from 'node:fs/promises';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = process.env.JOURNAL_DATA_DIR || resolve(root, 'data');
@@ -113,9 +117,9 @@ function validFont(buffer,ext){
   if(ext==='.woff2')return head.toString('ascii')==='wOF2';
   return false;
 }
-async function rawBody(req,max=80*1024*1024){
+async function rawBody(req,max=80*1024*1024,tooLarge='字体文件过大。'){
   let size=0;const chunks=[];
-  for await(const chunk of req){size+=chunk.length;if(size>max)throw error('字体文件过大。',413);chunks.push(chunk);}
+  for await(const chunk of req){size+=chunk.length;if(size>max)throw error(tooLarge,413);chunks.push(chunk);}
   return Buffer.concat(chunks);
 }
 async function persistFont(buffer,originalName){
@@ -198,7 +202,18 @@ async function withMaterialColors(assets){
 }
 async function library(){const assets=await rawLibrary();return catalogService?catalogService.decorate(assets):assets;}
 let writeQueue = Promise.resolve();
-const photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state});
+async function photoReferencedOutsideLibrary(src){
+  if(references(state,src)||references(customAssets,src)||references(materialJobs,src)||references(pinterestImports,src))return true;
+  try{
+    try{if(references(JSON.parse(await readFile(resolve(data,'journal.previous.json'),'utf8')),src))return true}catch(e){if(e.code!=='ENOENT')throw e}
+    let files=[];try{files=await readdir(resolve(data,'journal-history'))}catch(e){if(e.code!=='ENOENT')throw e}
+    for(const name of files){if(!name.endsWith('.json'))continue;const path=resolve(data,'journal-history',name);if(!(await lstat(path)).isFile())throw Error('Invalid history');if(references(JSON.parse(await readFile(path,'utf8')),src))return true}
+    try{if(references(JSON.parse(await readFile(resolve(data,'photo-trash.json'),'utf8')),src))return true}catch(e){if(e.code!=='ENOENT')throw e}
+  }catch{return true}
+  return false;
+}
+const photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
+const photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
 function photoTask(fn){const task=writeQueue.then(fn);writeQueue=task.catch(()=>{});return task;}
 const publicSettings = () => ({
   baseUrl: settings.baseUrl,
@@ -234,6 +249,29 @@ async function body(req) {
   } catch {
     throw error('请求格式不正确。');
   }
+}
+async function restorePhotoBackup(req){
+  const decoder=new StringDecoder('utf8');let pending='',lineNumber=0,restored=0,duplicates=0,complete=false,expected=-1;
+  const consume=async line=>{
+    if(!line.trim())return;
+    lineNumber++;
+    let record;try{record=JSON.parse(line)}catch{throw error('照片库备份文件已损坏。')}
+    if(lineNumber===1){if(record.format!=='shiguang-photo-library-v1')throw error('不是有效的拾光照片库备份。');return}
+    if(record.type==='complete'){if(complete||!Number.isInteger(record.count)||record.count<0)throw error('照片库备份结束标记无效。');complete=true;expected=record.count;return}
+    if(complete||record.type!=='photo')throw error('照片库备份记录无效。');
+    if(lineNumber>50002)throw error('照片库备份中的照片数量过多。',413);
+    const result=await photoLibrary.restoreRecord(record);if(result.duplicate)duplicates++;else restored++;
+  };
+  for await(const chunk of req){
+    pending+=decoder.write(chunk);
+    if(pending.length>120*1024*1024)throw error('照片库备份中有单张照片超过 80 MB。',413);
+    let newline;
+    while((newline=pending.indexOf('\n'))>=0){const line=pending.slice(0,newline);pending=pending.slice(newline+1);await consume(line)}
+  }
+  pending+=decoder.end();if(pending.trim())await consume(pending);
+  if(!lineNumber)throw error('照片库备份是空文件。');
+  if(!complete||expected!==restored+duplicates)throw error('照片库备份不完整；已读到的照片均已安全保留，可重新导入同一备份继续恢复。');
+  return {restored,duplicates,total:restored+duplicates};
 }
 function validateState(s) {
   if (!s || !Array.isArray(s.books) || s.books.length > 240)
@@ -585,6 +623,35 @@ const server = http.createServer(async (req, res) => {
         for(const entry of entries)imported.push(await persistFont(entry.data,entry.name));
       }else imported.push(await persistFont(buffer,filename));
       return json(res,{fonts:[...new Map(imported.map(font=>[font.id,fontPublic(font)])).values()]});
+    }
+    if(path==='/api/photos'&&req.method==='GET'){
+      const reconciled=await photoLibrary.reconcile(journalPhotoSources(state));
+      const result=await photoLibrary.list(Number(url.searchParams.get('offset')||0),Number(url.searchParams.get('limit')||60));
+      return json(res,{...result,...(reconciled.skipped?{warning:`有 ${reconciled.skipped} 张旧照片暂时无法读取，未改变原手帐。`}:{})});
+    }
+    if(path==='/api/photos/import'&&req.method==='POST'){
+      const name=String(url.searchParams.get('filename')||'照片').trim(),lastModified=url.searchParams.get('lastModified')||'';
+      const buffer=await rawBody(req,80*1024*1024+1,'单张照片不能超过 80 MB。');
+      const result=await photoLibrary.import(buffer,{name,lastModified});
+      return json(res,result);
+    }
+    if(path==='/api/photos/backup'&&req.method==='GET'){
+      res.writeHead(200,{'Content-Type':'application/x-shiguang-photo-library; charset=utf-8','Content-Disposition':`attachment; filename="shiguang-photo-library-${new Date().toISOString().slice(0,10)}.shiguang-photos"`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+      res.write(JSON.stringify({format:'shiguang-photo-library-v1',exportedAt:new Date().toISOString()})+'\n');
+      let count=0;for await(const record of photoLibrary.backupRecords()){res.write(JSON.stringify({type:'photo',...record})+'\n');count++}
+      res.write(JSON.stringify({type:'complete',count})+'\n');
+      res.end();return;
+    }
+    if(path==='/api/photos/restore'&&req.method==='POST')return json(res,await restorePhotoBackup(req));
+    const thumbnailMatch=/^\/api\/photos\/thumbnail\/([a-f0-9]{64})$/.exec(path);
+    if(thumbnailMatch&&req.method==='GET'){
+      const bytes=await photoLibrary.thumbnail(thumbnailMatch[1]);
+      res.writeHead(200,{'Content-Type':'image/webp','Cache-Control':'private, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'});res.end(bytes);return;
+    }
+    const photoMatch=/^\/api\/photos\/([a-f0-9]{64})$/.exec(path);
+    if(photoMatch&&req.method==='DELETE'){
+      const protectedSources=photoTrashProtection(req.headers['content-type']?await body(req):{});
+      return json(res,await photoLibrary.remove(photoMatch[1],protectedSources));
     }
     if(path==='/api/photo-mask'&&req.method==='POST'){const input=await body(req);return json(res,await photoTask(()=>photoMasks.generate(input)));}
     if(path==='/api/photo-trash'&&req.method==='GET')return json(res,await photoTask(()=>photoMasks.list()));

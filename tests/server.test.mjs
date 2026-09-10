@@ -124,6 +124,18 @@ test('rejects foreign origins and invalid uploads', async () => {
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.ok((await res.arrayBuffer()).byteLength > 30);
 });
+test('photo library imports, deduplicates, lists, backs up and protects selected sources',async()=>{
+  const bytes=Buffer.from(png.split(',')[1],'base64');
+  const query='/api/photos/import?filename='+encodeURIComponent('旅行照片.png')+'&lastModified='+Date.parse('2026-08-09T10:11:12Z');
+  const first=await fetch(base+query,{method:'POST',headers:{'content-type':'image/png'},body:bytes});assert.equal(first.status,200);const imported=await first.json();assert.equal(imported.duplicate,false);assert.match(imported.item.src,/^\/uploads\/photo-[a-f0-9]{32}\.webp$/);
+  const repeated=await fetch(base+query,{method:'POST',headers:{'content-type':'image/png'},body:bytes});assert.equal(repeated.status,200);assert.equal((await repeated.json()).duplicate,true);
+  const photos=await call('/api/photos');assert.equal(photos.status,200);assert.ok(photos.data.items.some(item=>item.id===imported.item.id));assert.equal(photos.data.items.find(item=>item.id===imported.item.id).capturedAt,'2026-08-09T10:11:12.000Z');
+  const thumbnail=await fetch(base+imported.item.thumbnailSrc);assert.equal(thumbnail.status,200);assert.equal(thumbnail.headers.get('content-type'),'image/webp');
+  const backup=await fetch(base+'/api/photos/backup');assert.equal(backup.status,200);const archive=await backup.text();assert.match(archive,/shiguang-photo-library-v1/);assert.match(archive,/"type":"complete"/);
+  const restored=await fetch(base+'/api/photos/restore',{method:'POST',headers:{'content-type':'application/x-shiguang-photo-library'},body:archive});assert.equal(restored.status,200);assert.ok((await restored.json()).duplicates>=1);
+  const incomplete=await fetch(base+'/api/photos/restore',{method:'POST',headers:{'content-type':'application/x-shiguang-photo-library'},body:archive.split('\n').slice(0,-2).join('\n')});assert.equal(incomplete.status,400);assert.match((await incomplete.json()).error,/不完整/);
+  const blocked=await fetch(base+'/api/photos/'+imported.item.id,{method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({protectedSources:[imported.item.src]})});assert.equal(blocked.status,409);
+});
 test('API key stays local and missing settings do not pretend to run AI', async () => {
   assert.equal(
     (await call('/api/generate', { days: [{ raw: '今天喝了拿铁。' }] }, 'POST'))
