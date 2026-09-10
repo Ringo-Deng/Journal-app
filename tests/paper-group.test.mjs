@@ -3,150 +3,249 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {paperGroupContent,validatePaperSelection,placePaperGroup,paperGroupSlots,paperGroupCompositions} from '../local/paper-group-layout.mjs';
+import sharp from 'sharp';
+import {paperGroupContent,validatePaperSelection,placePaperGroup,paperGroupSlots} from '../local/paper-group-layout.mjs';
 import {generatePaperGroup} from '../local/paper-group.mjs';
+import {paperShapes} from '../local/paper-art.mjs';
 import {referenceLayoutGuide} from '../local/reference-layout-guide.mjs';
 import {bounds,intersects,layoutIssues} from '../lib/layout-safety.mjs';
 import {appendDay,regenerateSpread,defaultBook} from '../lib/journal.ts';
-const source=[{id:'title',kind:'text',role:'title',text:'海边的一天',x:5,y:10,w:30},{id:'body',kind:'text',role:'body',text:'下午去海边散步，沿着沙滩走了一圈，在岸边坐到太阳落下。',x:5,y:20,w:30,colorRuns:[{start:0,end:2,color:'#123456'}]}];
+
+const source=[
+ {id:'title',kind:'text',role:'title',text:'海边的一天',x:5,y:10,w:30},
+ {id:'body',kind:'text',role:'body',text:'沿着沙滩走了一圈，在岸边等日落。',x:5,y:20,w:30,colorRuns:[{start:0,end:2,color:'#123456'}]},
+];
 const input={days:[],elements:source,ratio:1.43,headerSpace:12};
-const ids=['asset-001','asset-085','asset-057','asset-083','asset-075','asset-026'];
-const categories=['花卉','植物','蝴蝶','纸张','邮票','植物'];
-const candidates=ids.map((id,i)=>({id,name:id,src:`/materials/${id}-cut.png`,width:100,height:160,category:categories[i]}));
-const selection={palette:{backPaper:'#D8E0D0',frontPaper:'#F5F0E1',ink:'#6B5B4A',tape:'#C8D5B9'},stickers:['hero','leaf','butterfly','script','accent','sprig'].map((slot,i)=>({slot,assetId:ids[i]}))};
-const papers=['/uploads/a.png','/uploads/b.png'];
-const make=(extra={})=>placePaperGroup(paperGroupContent({...input,...extra}),selection,candidates,papers,{...input,...extra});
+const ids=['asset-001','asset-085','asset-057','asset-075','asset-026','asset-002'];
+const candidates=[
+ ...ids.map((id,i)=>({id,name:id,src:`/materials/${id}-cut.png`,width:100,height:160,category:i===3?'邮票':'植物'})),
+ {id:'asset-035',name:'植物学古籍',src:'/materials/asset-035-cut.png',width:955,height:1249,category:'纸张'},
+ {id:'asset-081',name:'透明旧日手稿',src:'/materials/asset-081-cut.png',width:960,height:730,category:'纸张'},
+];
+const selection={
+ palette:{backPaper:'#D8E0D0',frontPaper:'#FFF8E8',ink:'#302B24',tape:'#C8D5B9'},
+ writing:{shape:'torn',pattern:'plain',width:20,align:'center'},
+ papers:[],stickers:[{slot:'hero',assetId:ids[0],width:6},{slot:'accent',assetId:ids[1],width:5}],tapes:[],
+};
+const generatedBack={shape:'rect',pattern:'grid',color:'#B8CED8',position:'top',width:20,height:18,rotation:-3};
+const paperSources=['/uploads/back-a.png','/uploads/back-b.png','/uploads/writing.png'];
+const sheets=elements=>elements.filter(p=>p.frame==='collage-paper');
+const make=(chosen=selection,extra={},assets=candidates)=>placePaperGroup(paperGroupContent({...input,...extra}),chosen,assets,paperSources,{...input,...extra});
+const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-9,`${actual} != ${expected}`);
 
-test('short writing keeps source identity, becomes one group with two overlapping papers and varied edge stickers',()=>{
- const before=structuredClone(input),result=make();
- assert.deepEqual(input,before);
- assert.equal(new Set(result.map(p=>p.groupId)).size,1);
- assert.deepEqual(result.filter(p=>p.kind==='text').map(p=>[p.sourceId,p.text]),source.map(p=>[p.id,p.text]));
- const paper=result.filter(p=>p.frame==='collage-paper'),stickers=result.filter(p=>p.kind==='asset'&&p.frame!=='collage-paper');
- assert.equal(paper.length,2);assert.ok(intersects(bounds(paper[0]),bounds(paper[1])));assert.equal(stickers.length,8);
- assert.ok(stickers.every(s=>paper.some(p=>intersects(bounds(s),bounds(p)))));
- assert.deepEqual(layoutIssues(result),[]);
- assert.ok(result.every(p=>bounds(p).y>=14));
+function assertWritingInside(elements,ratio) {
+ const front=sheets(elements).find(p=>p.stackOrder===3);
+ assert.ok(front);
+ for(const text of elements.filter(p=>p.kind==='text')) {
+  const box=bounds(text,ratio);
+  assert.ok(box.x>=front.x&&box.x+box.w<=front.x+front.w);
+  assert.ok(box.y>=front.y&&box.y+box.h<=front.y+front.h);
+  assert.ok(front.stackOrder<text.stackOrder);
+ }
+}
+
+test('one, two and three sheets use selected materials and keep source identity without changing input',()=>{
+ for(const papers of [[],[generatedBack],[{assetId:'asset-035',position:'left',width:18,rotation:-3},{...generatedBack,position:'bottom'}]]) {
+  const chosen={...selection,papers},before=structuredClone(input),out=make(chosen);
+  assert.deepEqual(input,before);
+  assert.equal(sheets(out).length,papers.length+1);
+  assert.equal(new Set(out.map(p=>p.groupId)).size,1);
+  assert.deepEqual(out.filter(p=>p.kind==='text').map(p=>[p.sourceId,p.text]),source.map(p=>[p.id,p.text]));
+  assert.deepEqual(layoutIssues(out,input.ratio,input.headerSpace),[]);
+  assertWritingInside(out,input.ratio);
+  assert.ok(out.every(p=>bounds(p).y>=input.headerSpace+2-1e-9));
+ }
 });
 
-test('placement prefers requested side, avoids occupied content, and fails without modifying a full spread',()=>{
- assert.ok(make({entrySide:'right'}).every(p=>p.x>=50));
- const occupied=[{kind:'photo',x:0,y:0,w:50,h:100}];
- assert.ok(make({occupiedElements:occupied}).every(p=>p.x>=50));
- const full=[...occupied,{kind:'photo',x:50,y:0,w:50,h:100}];const before=structuredClone(full);
- assert.throws(()=>make({occupiedElements:full}),/空白页/);assert.deepEqual(full,before);
- const first=make();const next=make({occupiedElements:first});
- assert.ok(next.every(p=>first.every(q=>!intersects(bounds(p),bounds(q),1))));
- assert.notEqual(first[0].groupId,next[0].groupId);
+test('writing height follows actual text and selected width instead of a fixed large note',()=>{
+ const body=text=>[{id:'body',kind:'text',role:'body',text,x:5,y:20,w:30}];
+ const short=make(selection,{elements:body('看海。')}),long=make(selection,{elements:body('沿着沙滩走了一圈，在岸边等太阳慢慢落下。')});
+ const front=out=>sheets(out).find(p=>p.stackOrder===3);
+ assert.ok(front(short).h<front(long).h);
+ assert.ok(front(short).h<12,'one short line should not create a half-page writing rectangle');
+ const narrow=make({...selection,writing:{...selection.writing,width:16}},{elements:body('沿着沙滩走了一圈，在岸边等日落。')});
+ const wide=make({...selection,writing:{...selection.writing,width:28,align:'left'}},{elements:body('沿着沙滩走了一圈，在岸边等日落。')});
+ assert.ok(front(narrow).w<front(wide).w);
+ assert.ok(front(narrow).h>=front(wide).h);
+ assert.equal(wide.find(p=>p.kind==='text').textAlign,'left');
+ for(const out of [short,long,narrow,wide])assert.deepEqual(layoutIssues(out),[]);
 });
 
-test('long text, photos, locked-only content, explicit minimal style and per-paragraph frames retain existing layout path',()=>{
- for(const extra of [{elements:[{...source[1],text:'很长的日记。'.repeat(200)}]},{elements:[...source,{kind:'photo'}]},{elements:source.map(p=>({...p,locked:true,groupId:'old'}))},{instruction:'不要贴纸，极简'},{requirements:{framed:true}}])assert.equal(paperGroupContent({...input,...extra}),null);
- assert.ok(paperGroupContent({days:[{title:'今日小记',raw:'散步看海。',photos:[]}],elements:[]}));
- assert.equal(paperGroupContent({days:[{raw:'看海',photos:['/uploads/a.png']}],elements:[]}),null);
-});
-
-test('rejects invalid references, repeated slots, unreadable colors, excessive stamps and invalid design choices',()=>{
- assert.deepEqual(validatePaperSelection(selection,candidates),selection);
- assert.throws(()=>validatePaperSelection({...selection,palette:{...selection.palette,ink:selection.palette.frontPaper}},candidates),/对比/);
- assert.throws(()=>validatePaperSelection({...selection,stickers:selection.stickers.map(p=>({...p,assetId:'unknown'}))},candidates));
- assert.throws(()=>validatePaperSelection({...selection,stickers:[...selection.stickers.slice(0,4),selection.stickers[0]]},candidates));
- assert.throws(()=>validatePaperSelection(selection,candidates.map(a=>({...a,category:'邮票'}))),/邮票/);
- for(const extra of [{composition:'unknown'},{composition:'constructor'},{paperPattern:'<svg>'},{stickers:[null,null]},{stickers:selection.stickers.slice(1)}])assert.throws(()=>validatePaperSelection({...selection,...extra},candidates));
- const pair={...selection,composition:'stacked',paperPattern:'dots',stickers:selection.stickers.slice(0,2)};
- assert.deepEqual(validatePaperSelection(pair,candidates.map(a=>({...a,category:'同系列'}))),pair);
-});
-
-test('new compositions preserve a continuous writing area across formats and narrow/wide materials',()=>{
- const slots=Object.keys(paperGroupSlots);
- for(const composition of ['diagonal','stacked'])for(const ratio of [.8,1,1.43,1.8])for(const aspect of [.2,.5,1,2,4]) {
+test('all shapes and page ratios keep writing safe without reducing fonts or changing source text',()=>{
+ const writing=[{id:'body',kind:'text',role:'body',text:'今天去海边玩耍了。',x:5,y:20,w:30}];
+ for(const shape of Object.keys(paperShapes))for(const ratio of [.8,1,1.43,1.8])for(const aspect of [.2,1,4]) {
   const assets=candidates.map(a=>({...a,width:100*aspect,height:100}));
-  // Largest accepted writing area: decoration must fit around it without reducing font size.
-  const writing=[{kind:'text',sourceId:'body',text:'保留整块书写空间',x:18,y:39,w:17,h:21,rotation:0,fontSize:16}];
-  const before=structuredClone(writing),request={days:[],ratio,headerSpace:12,entrySide:'right'};
-  const out=placePaperGroup(writing,{...selection,composition},assets,papers,request);
-  assert.deepEqual(writing,before);
-  assert.deepEqual(layoutIssues(out,ratio,12),[],`${composition}/${ratio}/${aspect}`);
-  assert.ok(out.every(p=>bounds(p,ratio).y>=14-1e-9));
-  assert.ok(out.every(p=>bounds(p,ratio).x>=52&&bounds(p,ratio).x+bounds(p,ratio).w<=98));
-  assert.deepEqual(out.filter(p=>p.kind==='text').map(p=>[p.sourceId,p.text,p.w,p.h,p.fontSize]),writing.map(p=>[p.sourceId,p.text,p.w,p.h,p.fontSize]));
-  const sheets=out.filter(p=>p.frame==='collage-paper');
-  assert.ok(out.filter(p=>p.kind==='asset'&&p.frame!=='collage-paper').every(s=>sheets.some(p=>intersects(bounds(s,ratio),bounds(p,ratio)))));
-  assert.equal(out.filter(p=>p.assetId).length,slots.length);
+  const chosen={...selection,writing:{...selection.writing,shape,width:18},stickers:Object.keys(paperGroupSlots).map((slot,i)=>({slot,assetId:ids[i],width:6}))};
+  const out=make(chosen,{ratio,elements:writing,entrySide:'right'},assets),context=`${shape}/${ratio}/${aspect}`;
+  assert.deepEqual(layoutIssues(out,ratio,12),[],context);
+  assert.ok(out.every(p=>bounds(p,ratio).x>=52&&bounds(p,ratio).x+bounds(p,ratio).w<=98),context);
+  assertWritingInside(out,ratio);
+  const text=out.find(p=>p.kind==='text');
+  assert.equal(text.text,writing[0].text);assert.equal(text.sourceId,writing[0].id);assert.equal(text.fontSize,16);
+  if(shape==='oval') {
+   const front=sheets(out).find(p=>p.stackOrder===3),box=bounds(text,ratio);
+   for(const x of [box.x,box.x+box.w])for(const y of [box.y,box.y+box.h]) {
+    assert.ok(((x-front.x-front.w/2)/(front.w/2))**2+((y-front.y-front.h/2)/(front.h/2))**2<.94,context);
+   }
+  }
  }
 });
 
-test('composition choices change paper geometry and focal position, and all reject a full page without mutation',()=>{
- const content=paperGroupContent(input),occupiedElements=[{kind:'photo',x:0,y:0,w:100,h:100}];
- const signatures=[];
- for(const composition of Object.keys(paperGroupCompositions)) {
-  const selected={...selection,composition,stickers:[selection.stickers[0],selection.stickers[4]]};
-  const out=placePaperGroup(content,selected,candidates,papers,input);
-  const hero=out.find(p=>p.assetId===ids[0]),writing=out.find(p=>p.kind==='text');
-  assert.equal(hero.y>writing.y,composition==='diagonal');
-  signatures.push(JSON.stringify(out.filter(p=>p.frame==='collage-paper').map(p=>[p.x,p.y,p.w,p.h,p.rotation])));
-  const before=structuredClone(occupiedElements);
-  assert.throws(()=>placePaperGroup(content,selected,candidates,papers,{...input,occupiedElements}),/空白页/);
-  assert.deepEqual(occupiedElements,before);
+test('real sheets retain asset sources and aspect ratios, including tall images and transparent manuscripts',()=>{
+ for(const ratio of [.8,1,1.43,1.8])for(const size of [[955,1249],[100,500],[500,100]]) {
+  const assets=candidates.map(a=>a.id==='asset-081'?{...a,width:size[0],height:size[1]}:a);
+  const chosen=validatePaperSelection({...selection,papers:[{assetId:'asset-081',position:'top',width:20,rotation:0}]},assets);
+  const out=make(chosen,{ratio},assets),real=sheets(out).find(p=>p.assetId==='asset-081'),front=sheets(out).find(p=>p.stackOrder===3);
+  assert.equal(real.src,'/materials/asset-081-cut.png');assert.equal(real.stretch,false);
+  near(real.h/real.w,size[1]/size[0]*ratio);assert.ok(real.h<=48);assert.ok(real.w<=20);
+  assert.ok(real.stackOrder<front.stackOrder);assert.equal(front.assetId,undefined);assert.equal(front.stretch,true);
+  assert.deepEqual(layoutIssues(out,ratio,12),[]);assertWritingInside(out,ratio);
  }
- assert.equal(new Set(signatures).size,3);
 });
 
-test('new entry and redesign preserve group geometry, latest text, color runs and locked manual items',()=>{
- const elements=make();const result={elements,headerReserved:true,theme:'herbarium',layout:'collage',days:[{title:'今日小记',text:'散步',assetIds:[]}]};
+test('requested side and occupied groups are respected, and a full spread fails without mutation',()=>{
+ assert.ok(make(selection,{entrySide:'right'}).every(p=>p.x>=50));
+ assert.ok(make(selection,{instruction:'请放在右页'}).every(p=>p.x>=50));
+ const occupied=[{kind:'photo',x:0,y:0,w:50,h:100}];
+ assert.ok(make(selection,{occupiedElements:occupied}).every(p=>p.x>=50));
+ const full=[...occupied,{kind:'photo',x:50,y:0,w:50,h:100}],before=structuredClone(full);
+ assert.throws(()=>make(selection,{occupiedElements:full}),{code:'group_space'});assert.deepEqual(full,before);
+ const first=make(),next=make(selection,{occupiedElements:first});
+ assert.ok(next.every(p=>first.every(q=>!intersects(bounds(p),bounds(q),1))));assert.notEqual(first[0].groupId,next[0].groupId);
+ const locked={id:'locked',kind:'photo',x:0,y:0,w:50,h:100,locked:true,groupId:'old-group'};
+ assert.ok(make(selection,{elements:[...source,locked]}).every(p=>p.x>=50));
+});
+
+test('unsupported content retains the existing route and existing groups remain protected',()=>{
+ for(const extra of [{elements:[{...source[1],text:'很长的日记。'.repeat(200)}]},{elements:[...source,{kind:'photo'}]},{elements:source.map(p=>({...p,locked:true,groupId:'old'}))},{instruction:'不要贴纸，极简'},{requirements:{framed:true}},{requirements:{paragraphCount:2}},{ratio:.7},{ratio:2}])assert.equal(paperGroupContent({...input,...extra}),null);
+ const fresh=paperGroupContent({days:[{title:'今日小记',raw:'散步看海。',photos:[]}],elements:[]});
+ assert.deepEqual(fresh.map(p=>[p.dayIndex,p.text]),[[0,'今日小记'],[0,'散步看海。']]);
+ assert.equal(paperGroupContent({days:[{raw:'看海',photos:['/uploads/a.png']}],elements:[]}),null);
+ assert.deepEqual(paperGroupContent({...input,elements:[...source,{...source[1],id:'old',groupId:'kept'}]}).map(p=>p.sourceId),source.map(p=>p.id));
+});
+
+test('selection rejects old template replies, invalid references, unsafe values and low contrast',()=>{
+ assert.deepEqual(validatePaperSelection(selection,candidates),selection);
+ const invalid=[
+  null,[],{palette:selection.palette,stickers:selection.stickers},
+  {...selection,writing:undefined},{...selection,papers:undefined},
+  ...['constructor','__proto__','missing'].flatMap(name=>[
+   {...selection,writing:{...selection.writing,shape:name}},
+   {...selection,writing:{...selection.writing,pattern:name}},
+   {...selection,papers:[{...generatedBack,position:name}]},
+   {...selection,stickers:[{slot:name,assetId:ids[0],width:6}]},
+  ]),
+  ...[NaN,Infinity,-Infinity,'20',null,15,29].map(width=>({...selection,writing:{...selection.writing,width}})),
+  {...selection,writing:{...selection.writing,align:'justify'}},
+  {...selection,palette:{...selection.palette,ink:selection.palette.frontPaper}},
+  {...selection,palette:{...selection.palette,frontPaper:'red'}},
+  {...selection,papers:[null]},
+  {...selection,papers:[{...generatedBack,rotation:NaN}]},
+  {...selection,papers:[{...generatedBack,height:Infinity}]},
+  {...selection,papers:[generatedBack,generatedBack,generatedBack]},
+  {...selection,papers:[{assetId:'unknown',position:'top',width:20}]},
+  {...selection,papers:[{assetId:ids[0],position:'top',width:20}]},
+  {...selection,papers:[{assetId:'asset-035',position:'top',width:20},{assetId:'asset-035',position:'bottom',width:20}]},
+  {...selection,papers:[{assetId:'asset-035',position:'top',width:20}],stickers:[{slot:'hero',assetId:'asset-035',width:6}]},
+  {...selection,stickers:[null]},
+  {...selection,stickers:[]},
+  {...selection,stickers:[{slot:'accent',assetId:ids[0],width:6}]},
+  {...selection,stickers:[{slot:'hero',assetId:'unknown',width:6}]},
+  {...selection,stickers:[{slot:'hero',assetId:ids[0],width:NaN}]},
+  {...selection,stickers:[selection.stickers[0],selection.stickers[0]]},
+  {...selection,tapes:[null]},{...selection,tapes:[{position:'left',width:6}]},
+  {...selection,tapes:[{position:'top',width:Infinity}]},
+ ];
+ for(const reply of invalid)assert.throws(()=>validatePaperSelection(reply,candidates),JSON.stringify(reply));
+ assert.throws(()=>validatePaperSelection(selection,candidates.map(a=>({...a,category:'邮票'}))),/邮票/);
+ // Pale pattern marks must still satisfy contrast, even when the base paper does.
+ assert.throws(()=>validatePaperSelection({...selection,writing:{...selection.writing,pattern:'dots'},palette:{...selection.palette,frontPaper:'#FFFFFF',ink:'#767676'}},candidates),/对比/);
+});
+
+test('append and redesign preserve new paper geometry, latest writing, color runs and locked manual items',()=>{
+ const elements=make({...selection,papers:[{assetId:'asset-035',position:'top',width:20,rotation:-2}]}),result={elements,headerReserved:true,theme:'herbarium',layout:'collage',days:[{title:'今日小记',text:'散步',assetIds:[]}]};
  const book=defaultBook(),day={id:'day',date:book.month+'-09',raw:'散步',text:'散步',title:'今日小记',photos:[]};
  const appended=appendDay(book,day,result,[],0,0,12);
- assert.deepEqual(appended.spreads[0].elements.map(p=>[p.x,p.y,p.h,p.fontSize,p.groupId]),elements.map(p=>[p.x,p.y,p.h,p.fontSize,p.groupId]));
+ const geometry=pieces=>pieces.map(p=>[p.x,p.y,p.w,p.h,p.fontSize,p.groupId,p.stackOrder,p.src,p.assetId]);
+ assert.deepEqual(geometry(appended.spreads[0].elements),geometry(elements));
  const locked={id:'manual',kind:'photo',src:'/uploads/photo.png',x:60,y:10,w:20,locked:true,groupId:'manual-group'};
- const spread={id:'spread',theme:'herbarium',days:[],elements:[...source,locked]};
+ const spread={id:'spread',theme:'herbarium',days:[],elements:[...source,locked]},before=structuredClone(spread);
  const applied=regenerateSpread(spread,{...result,days:[]},[]);
- assert.deepEqual(applied.elements.find(p=>p.id==='manual'),locked);
+ assert.deepEqual(spread,before);assert.deepEqual(applied.elements.find(p=>p.id==='manual'),locked);
  assert.deepEqual(applied.elements.find(p=>p.id==='body').colorRuns,source[1].colorRuns);
  assert.equal(applied.elements.find(p=>p.id==='body').text,source[1].text);
+ assert.deepEqual(geometry(applied.elements.filter(p=>p.id!=='manual')),geometry(elements));
 });
 
-test('real asset thumbnails and generated paper files survive composition; invalid model output retries',async()=>{
- const root=new URL('../',import.meta.url).pathname,dir=await mkdtemp(join(tmpdir(),'paper-group-unit-'));
- try{
-  const all=JSON.parse(await readFile(join(root,'public/materials/manifest.json')));let calls=0;
-  const diagnostic={};
-  const result=await generatePaperGroup(input,all,{root,data:dir,vision:true,diagnostic,requestAI:async messages=>{
-   calls++;assert.equal(messages[1].content[1].type,'image_url');
-   assert.ok(messages[0].content.includes(referenceLayoutGuide));
-   const payload=JSON.parse(messages[1].content[0].text);
-   assert.ok(payload.candidates.length>=4);
-   // This fixture uses candidates actually present in the visual shortlist.
-   const used=new Set();
-   const selected=selection.stickers.map(s=>{const a=payload.candidates.find(a=>a.id===s.assetId&&!used.has(a.id))||payload.candidates.find(a=>a.category===categories[ids.indexOf(s.assetId)]&&!used.has(a.id));used.add(a.id);return {...s,assetId:a.id};});
-   if(calls===1)return {palette:{}};
-   return {...selection,stickers:selected.map(s=>({slot:s.slot,assetIndex:payload.candidates.find(a=>a.id===s.assetId).index}))};
-  }});
-  assert.equal(calls,2);assert.equal(diagnostic.imageCount,1);assert.equal(result.headerReserved,true);
-  for(const paper of result.elements.filter(p=>p.frame==='collage-paper'))assert.ok((await readFile(join(dir,paper.src))).length>100);
-  assert.deepEqual(layoutIssues(result.elements),[]);
- }finally{await rm(dir,{recursive:true,force:true});}
-});
+const root=new URL('../',import.meta.url).pathname;
+async function readLibrary(){return JSON.parse(await readFile(join(root,'public/materials/manifest.json')));}
+function modelSelection(payload,extra={}) {
+ const asset=payload.candidates.find(a=>!a.paper&&!/邮票|stamp/i.test(a.category+' '+a.name));
+ assert.ok(asset);
+ return {...selection,stickers:[{slot:'hero',assetIndex:asset.index,width:5}],...extra};
+}
 
-test('AI choices reach real paper rendering with distinct patterns and two-material compositions',async()=>{
- const root=new URL('../',import.meta.url).pathname,dir=await mkdtemp(join(tmpdir(),'paper-pattern-unit-'));
+test('visual shortlist reserves actual papers and resolves numbered real paper and decoration choices',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'paper-group-unit-'));
  try {
-  const all=JSON.parse(await readFile(join(root,'public/materials/manifest.json'))),sources=new Set();
-  // A tiny same-category library still supports a focal piece and an accent.
-  const library=all.filter(a=>ids.slice(0,2).includes(a.id)).map(a=>({...a,category:'同系列'}));
-  assert.equal(library.length,2);
-  for(const paperPattern of ['grid','dots','ruled','plain']) {
-   const diagnostic={};
-   const out=await generatePaperGroup(input,library,{root,data:dir,vision:false,diagnostic,requestAI:async messages=>{
-    const payload=JSON.parse(messages[1].content);
-    assert.equal(typeof payload.compositions.diagonal,'string');
-    return {...selection,composition:'diagonal',paperPattern,palette:{backPaper:'#174E80',frontPaper:'#FFF6DA',ink:'#302B24',tape:'#E8AA36'},stickers:[{slot:'hero',assetIndex:1},{slot:'accent',assetIndex:2}]};
-   }});
-   assert.equal(diagnostic.composition,'diagonal');assert.equal(diagnostic.paperPattern,paperPattern);
-   assert.deepEqual(layoutIssues(out.elements),[]);
-   const sheets=out.elements.filter(p=>p.frame==='collage-paper');
-   sources.add(sheets[0].src);
-   assert.ok((await readFile(join(dir,sheets[0].src))).length>100);
+  const library=await readLibrary(),diagnostic={};let calls=0;
+  const result=await generatePaperGroup(input,library,{root,data:dir,vision:true,diagnostic,requestAI:async messages=>{
+   calls++;assert.equal(messages[1].content[1].type,'image_url');assert.ok(messages[0].content.includes(referenceLayoutGuide));
+   const payload=JSON.parse(messages[1].content[0].text),paper=payload.candidates.find(a=>a.paper&&a.id==='asset-081');
+   assert.ok(paper,'transparent manuscript is available as a real back sheet');
+   const paperCount=payload.candidates.filter(a=>a.paper).length;
+   assert.ok(payload.candidates.length<=24);assert.ok(paperCount>0&&paperCount<=8);
+   assert.ok(payload.candidates.slice(0,paperCount).every(a=>a.paper),'paper candidates retain their reserved shortlist positions');
+   if(calls===1)return {palette:selection.palette,stickers:selection.stickers};
+   assert.match(messages.at(-1).content,/writing.*papers/);
+   return modelSelection(payload,{papers:[{assetIndex:paper.index,position:'top',width:20,rotation:-2}]});
+  }});
+  assert.equal(calls,2);assert.equal(diagnostic.imageCount,1);assert.equal(diagnostic.paperCount,2);assert.equal(diagnostic.realPaperCount,1);
+  assert.equal(result.headerReserved,true);assert.deepEqual(layoutIssues(result.elements),[]);
+  for(const paper of sheets(result.elements)) {
+   const file=join(paper.src.startsWith('/uploads/')?dir:join(root,'public'),paper.src);
+   assert.ok((await readFile(file)).length>100);
+   if(paper.assetId){assert.equal(paper.assetId,'asset-081');assert.equal(paper.src,'/materials/asset-081-cut.png');}
+   else assert.match(paper.src,/^\/uploads\/[0-9a-f]{64}\.png$/);
   }
-  assert.equal(sources.size,4);
- }finally{await rm(dir,{recursive:true,force:true});}
+ } finally {await rm(dir,{recursive:true,force:true});}
+});
+
+test('writing shapes and patterns reach actual PNGs and leave every writing corner opaque',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'paper-shapes-unit-'));
+ try {
+  const library=(await readLibrary()).filter(a=>a.id===ids[0]),sources=new Set();
+  for(const shape of Object.keys(paperShapes))for(const pattern of ['plain','grid','dots','ruled']) {
+   const diagnostic={};
+   const out=await generatePaperGroup({...input,elements:[source[1]]},library,{root,data:dir,vision:false,diagnostic,requestAI:async messages=>{
+    const payload=JSON.parse(messages[1].content);assert.ok(payload.shapes[shape]);assert.ok(payload.patterns[pattern]);
+    return modelSelection(payload,{writing:{...selection.writing,shape,pattern,width:18}});
+   }});
+   assert.equal(diagnostic.writingShape,shape);assert.equal(diagnostic.writingPattern,pattern);assert.equal(diagnostic.paperCount,1);
+   assert.deepEqual(layoutIssues(out.elements),[]);
+   const paper=sheets(out.elements)[0];sources.add(paper.src);
+   const {data,info}=await sharp(await readFile(join(dir,paper.src))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+   const alpha=(x,y)=>data[(Math.min(info.height-1,Math.max(0,Math.round(y)))*info.width+Math.min(info.width-1,Math.max(0,Math.round(x))))*info.channels+3];
+   for(const text of out.elements.filter(p=>p.kind==='text'))for(const x of [text.x,text.x+text.w])for(const y of [text.y,text.y+text.h]) {
+    assert.equal(alpha((x-paper.x)/paper.w*info.width,(y-paper.y)/paper.h*info.height),255,`${shape}/${pattern}: writing corner is opaque`);
+   }
+   assert.equal(alpha(0,0),0,'paper keeps transparent cut edges');
+  }
+  assert.equal(sources.size,16,'distinct shape and pattern choices must change actual generated files');
+ } finally {await rm(dir,{recursive:true,force:true});}
+});
+
+test('invalid model indices are rejected twice instead of falling back to an old or arbitrary paper',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'paper-indices-unit-'));
+ try {
+  const library=(await readLibrary()).filter(a=>[ids[0],'asset-035'].includes(a.id));
+  for(const assetIndex of [0,-1,999,1.5,'1',null,NaN])for(const target of ['papers','stickers']) {
+   let calls=0;
+   await assert.rejects(()=>generatePaperGroup(input,library,{root,data:dir,vision:false,requestAI:async messages=>{
+    calls++;const payload=JSON.parse(messages[1].content),valid=modelSelection(payload);
+    return target==='papers'?{...valid,papers:[{assetIndex,position:'top',width:20}]}:{...valid,stickers:[{slot:'hero',assetIndex,width:5}]};
+   }}));
+   assert.equal(calls,2,`${target}: ${assetIndex}`);
+  }
+ } finally {await rm(dir,{recursive:true,force:true});}
 });
