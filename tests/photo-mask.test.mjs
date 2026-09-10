@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import {mkdtemp,mkdir,writeFile,readdir,rename,rm,stat,symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,randomBytes} from 'node:crypto';
 import {PHOTO_MASK_SHAPES,validateMaskInput,maskImageRect,rotatedMaskBounds,maskOutputSize,maskPath} from '../lib/photo-mask.mjs';
 import {renderPhotoMask,createPhotoMaskStore,PHOTO_IN_USE,photoTrashProtection} from '../local/photo-mask.mjs';
 import {applyMaskToBooks,restorePhotoMask} from '../lib/photo-mask-state.ts';
@@ -87,4 +87,15 @@ test('deletion checks current books, previous, all history and other recycle rec
 test('other trash records protect the same original and corrupt metadata fails closed repeatedly',async t=>{
  const f=await fixture(t),a=await f.store.generate(input());await f.store.generate(input());f.state={revision:2,books:applyMaskToBooks(f.state.books,draft(),a.src)};await assert.rejects(f.store.remove(a.id),{status:409});
  await writeFile(join(f.data,'photo-trash.json'),'{');const store=f.create();await assert.rejects(store.list());await assert.rejects(store.list());
+});
+
+test('detailed photos whose embedded PNG exceeds the SVG text limit still generate safely',async t=>{
+ const f=await fixture(t);
+ const bytes=await sharp(randomBytes(2560*1440*3),{raw:{width:2560,height:1440,channels:3}}).png().toBuffer();
+ assert.ok(bytes.toString('base64').length>10000000,'fixture must exceed the default XML text limit');
+ await writeFile(join(f.data,src.slice(1)),bytes);
+ const before=structuredClone(f.state),result=await f.store.generate(input({shape:'heart',photoRotation:35,flipX:true}));
+ const {data,info}=await sharp(join(f.data,result.src.slice(1))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ assert.equal(Math.max(info.width,info.height),4096);assert.equal(data[3],0);assert.equal(data[(Math.floor(info.height/2)*info.width+Math.floor(info.width/2))*4+3],255);
+ assert.deepEqual(f.state,before);assert.equal((await readdir(join(f.data,'uploads'))).length,2);
 });

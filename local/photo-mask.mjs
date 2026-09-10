@@ -22,7 +22,11 @@ export async function renderPhotoMask(bytes,input){
   const r=maskImageRect(normalized.info.width,normalized.info.height,width,height,input.crop,input.cropY,input.cropZoom,input.photoRotation);
   const transform=`rotate(${input.photoRotation??0} ${width/2} ${height/2}) translate(${input.flipX?width:0} ${input.flipY?height:0}) scale(${input.flipX?-1:1} ${input.flipY?-1:1})`;
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><clipPath id="shape"><path transform="scale(${width/100} ${height/100})" d="${maskPath(input.shape)}"/></clipPath></defs><g clip-path="url(#shape)"><image x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" preserveAspectRatio="none" transform="${transform}" xlink:href="data:image/png;base64,${normalized.data.toString('base64')}"/></g></svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  // The SVG is built here from fixed paths, validated numbers and a decoded PNG.
+  // Detailed photos exceed libxml's default 10 MB text-node limit when embedded.
+  // Relax that parser limit only for this generated document, never source images;
+  // retain the source's 50 MP cap and the output's maximum 4096 px long edge.
+  return sharp(Buffer.from(svg),{unlimited:true,limitInputPixels:4096*4096}).png().toBuffer();
 }
 /** All methods execute on the existing journal write queue. */
 export function createPhotoMaskStore({data,atomic,getState}){
