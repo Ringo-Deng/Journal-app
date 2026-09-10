@@ -3,12 +3,40 @@ import {bounds, estimatedHeight, intersects} from '../lib/layout-safety.mjs';
 import {isEmptyTextHint} from './editorial.mjs';
 
 export const paperGroupSlots = {
-  hero: {x:4.5,y:23,rotation:-9,w:12,h:25,description:'左上较大主素材，花枝或其他符合主题的主体'},
-  leaf: {x:8,y:56,rotation:-7,w:9,h:16,description:'左下中等植物或不同款式配角'},
-  butterfly: {x:33,y:25,rotation:9,w:10,h:14,description:'右上轻巧点缀，如蝴蝶、小图案'},
+  hero: {x:4.5,y:23,rotation:-9,w:12,h:25,description:'较大主素材，建立主题焦点，不限定植物或人物'},
+  leaf: {x:8,y:56,rotation:-7,w:9,h:16,description:'纸边中等配角，与主素材呼应，不限定植物'},
+  butterfly: {x:33,y:25,rotation:9,w:10,h:14,description:'对角轻巧点缀，不限定蝴蝶'},
   script: {x:21,y:26,rotation:-6,w:10,h:10,description:'上缘小手写纸片、标签或票据'},
   accent: {x:33,y:62,rotation:9,w:5.5,h:10,description:'右下小点缀，可用一张邮票'},
   sprig: {x:37.5,y:46,rotation:8,w:6,h:14,description:'右缘细长轻盈素材'},
+};
+
+// These are local composition choices, not new saved state. Missing choices keep older replies working.
+export const paperGroupCompositions = {
+  layered: '错位叠纸：主素材在左上，纸边小点缀与中央便签形成一组',
+  diagonal: '对角呼应：较大主素材移到左下，右上方轻点缀呼应，中央连续书写',
+  stacked: '上下叠接：上部露出短幅花纹纸，下部长便签承载文字，连接处叠贴',
+};
+
+const compositionGeometry = {
+  diagonal: {
+    papers: [{x:10,y:29,w:29,h:39,rotation:-9},{x:13,y:32,w:27,h:36,rotation:2}],
+    slots: {
+      hero:{x:7.5,y:55,w:11,h:22,rotation:-8},leaf:{x:9,y:27,w:8,h:13,rotation:-7},
+      butterfly:{x:34,y:27,w:9,h:12,rotation:8},script:{x:21,y:27,w:9,h:8,rotation:-5},
+      accent:{x:33,y:66,w:5,h:9,rotation:8},sprig:{x:37,y:47,w:6,h:14,rotation:5},
+    },
+    tapes:[{x:15,y:31,w:8,h:3.2,rotation:-9},{x:26,y:66,w:9,h:3,rotation:7}],
+  },
+  stacked: {
+    papers: [{x:11,y:25,w:28,h:38,rotation:-3},{x:12,y:34,w:28,h:36,rotation:2}],
+    slots: {
+      hero:{x:8,y:28,w:11,h:22,rotation:-5},leaf:{x:9,y:63,w:8,h:13,rotation:-4},
+      butterfly:{x:34,y:63,w:8,h:12,rotation:5},script:{x:21,y:25,w:10,h:8,rotation:-2},
+      accent:{x:34,y:30,w:5.5,h:9,rotation:5},sprig:{x:37,y:47,w:6,h:14,rotation:6},
+    },
+    tapes:[{x:15,y:33,w:8,h:3.2,rotation:-6},{x:24,y:67,w:9,h:3,rotation:4}],
+  },
 };
 
 // Small writing groups have a real capacity. Longer writing/photos retain the existing layout path.
@@ -35,35 +63,39 @@ export function paperGroupContent(input) {
 }
 
 export function validatePaperSelection(output, candidates) {
+  if (output?.composition !== undefined && !Object.hasOwn(paperGroupCompositions, output.composition)) throw Error('请选择提供的叠纸构图。');
+  if (output?.paperPattern !== undefined && !['grid','dots','ruled','plain'].includes(output.paperPattern)) throw Error('请选择格纹、圆点、横线或素色底纸。');
   const palette=output?.palette;
   if (['backPaper','frontPaper','ink','tape'].some(k=>!/^#[a-f0-9]{6}$/i.test(palette?.[k]||''))) throw Error('底纸配色不完整，请重新选择六位色值。');
   const luminance=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4).reduce((n,c,i)=>n+c*[.2126,.7152,.0722][i],0);
   const a=luminance(palette.frontPaper),b=luminance(palette.ink);
   if ((Math.max(a,b)+.05)/(Math.min(a,b)+.05)<4.5) throw Error('文案与便签颜色对比不足，请使用清晰可读的配色。');
   const stickers=output.stickers;
-  if (!Array.isArray(stickers)||stickers.length<4||stickers.length>Object.keys(paperGroupSlots).length||new Set(stickers.map(s=>s.slot)).size!==stickers.length||new Set(stickers.map(s=>s.assetId)).size!==stickers.length) throw Error('请选择至少四款不重复的周边素材，每个位置放一款。');
+  if (!Array.isArray(stickers)||stickers.length<2||stickers.length>Object.keys(paperGroupSlots).length||stickers.some(s=>!s||typeof s!=='object')||new Set(stickers.map(s=>s.slot)).size!==stickers.length||new Set(stickers.map(s=>s.assetId)).size!==stickers.length||!stickers.some(s=>s.slot==='hero')) throw Error('请选择一个主素材 hero 和一至五款不重复的周边素材，每个位置放一款。');
   const chosen=stickers.map(s=>{
     const asset=candidates.find(a=>a.id===s.assetId);
-    if (!asset || !paperGroupSlots[s.slot]) throw Error('选择了候选列表之外的素材或位置。');
+    if (!asset || !Object.hasOwn(paperGroupSlots,s.slot)) throw Error('选择了候选列表之外的素材或位置。');
     return asset;
   });
   if (chosen.filter(a=>/邮票|stamp/i.test(a.category+' '+a.name)).length>1) throw Error('邮票只能作为一处小点缀，请混选其他款式。');
-  if (new Set(candidates.map(a=>a.category)).size>=3 && new Set(chosen.map(a=>a.category)).size<3) throw Error('素材款式过于单一，请混选至少三类素材。');
-  return {palette,stickers};
+  return {palette,stickers,...(output.composition?{composition:output.composition}:{}),...(output.paperPattern?{paperPattern:output.paperPattern}:{})};
 }
 
 export function placePaperGroup(content, selection, candidates, paperSources, input, groupId=randomUUID()) {
   const ratio=input.ratio || 1.43;
-  const papers=[
-    {kind:'asset',src:paperSources[0],x:9,y:28,w:30,h:39,rotation:-7,stackOrder:1},
-    {kind:'asset',src:paperSources[1],x:13,y:31,w:27,h:36,rotation:3,stackOrder:2},
-  ].map(p=>({...p,frame:'collage-paper',stretch:true,shadow:.15}));
+  const composition=selection.composition || 'layered';
+  const geometry=compositionGeometry[composition];
+  const papers=(geometry?.papers||[
+    {x:9,y:28,w:30,h:39,rotation:-7},
+    {x:13,y:31,w:27,h:36,rotation:3},
+  ]).map((p,i)=>({...p,kind:'asset',src:paperSources[i],stackOrder:i+1,frame:'collage-paper',stretch:true,shadow:.15}));
   const stickers=selection.stickers.map(({assetId,slot})=>{
-    const a=candidates.find(p=>p.id===assetId),s=paperGroupSlots[slot];
+    const a=candidates.find(p=>p.id===assetId),s=geometry?.slots[slot]||paperGroupSlots[slot];
     const w=Math.min(s.w,s.h*a.width/a.height/ratio);
     return {kind:'asset',assetId,src:a.src,x:s.x,y:s.y,w,h:w*a.height/a.width*ratio,rotation:s.rotation,frame:'plain',stackOrder:4};
   });
-  stickers.push(...[{x:14.5,y:31,w:8,h:3.2,rotation:-14},{x:22,y:65,w:9,h:3,rotation:7}].map(p=>({kind:'asset',material:'tape',src:'/materials/collage-paper.svg',...p,color:selection.palette.tape,opacity:.78,stackOrder:7,tapeEdge:'torn'})));
+  const tapePositions=geometry?.tapes||[{x:14.5,y:31,w:8,h:3.2,rotation:-14},{x:22,y:65,w:9,h:3,rotation:7}];
+  stickers.push(...tapePositions.map(p=>({kind:'asset',material:'tape',src:'/materials/collage-paper.svg',...p,color:selection.palette.tape,opacity:.78,stackOrder:7,tapeEdge:'torn'})));
   const text=content.map(p=>({...p,color:selection.palette.ink,stackOrder:10}));
   // Try smaller peripheral pieces before rejecting an unsafe selection; never shrink writing.
   for (const sticker of stickers) {

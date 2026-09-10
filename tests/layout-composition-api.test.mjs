@@ -34,7 +34,8 @@ test('AI composition request -> preview -> application -> save/read retains cont
   await call('/api/settings', {baseUrl: `http://127.0.0.1:${mock.address().port}/v1`, model: 'layout-test', apiKey: 'isolated-test-key', vision: false}, 'PUT');
   const spread = {id: 'spread', theme: 'archive', days: [], elements: [
     {id: 'title', kind: 'text', role: 'title', text: '周末散步', x: 6, y: 8, w: 35, fontSize: 28, rotation: 0, locked: false},
-    {id: 'body', kind: 'text', role: 'body', text: '下午在公园散步，回来喝了一杯茶。', x: 6, y: 30, w: 35, fontSize: 18, rotation: 0, locked: false},
+    // Keep this fixture on the general composition path; short text now uses paper groups.
+    {id: 'body', kind: 'text', role: 'body', text: '下午在公园散步，回来喝了一杯茶。'.repeat(6), x: 6, y: 30, w: 35, fontSize: 18, rotation: 0, locked: false},
   ]};
   const book = {id: 'book', month: '2026-09', title: '隔离排版测试', cover: 'walnut', spreads: [spread]};
   const saved = await call('/api/state', {revision: 0, books: [book]}, 'PUT');

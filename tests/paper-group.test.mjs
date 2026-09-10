@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {paperGroupContent,validatePaperSelection,placePaperGroup} from '../local/paper-group-layout.mjs';
+import {paperGroupContent,validatePaperSelection,placePaperGroup,paperGroupSlots,paperGroupCompositions} from '../local/paper-group-layout.mjs';
 import {generatePaperGroup} from '../local/paper-group.mjs';
+import {referenceLayoutGuide} from '../local/reference-layout-guide.mjs';
 import {bounds,intersects,layoutIssues} from '../lib/layout-safety.mjs';
 import {appendDay,regenerateSpread,defaultBook} from '../lib/journal.ts';
 const source=[{id:'title',kind:'text',role:'title',text:'海边的一天',x:5,y:10,w:30},{id:'body',kind:'text',role:'body',text:'下午去海边散步，沿着沙滩走了一圈，在岸边坐到太阳落下。',x:5,y:20,w:30,colorRuns:[{start:0,end:2,color:'#123456'}]}];
@@ -45,12 +46,50 @@ test('long text, photos, locked-only content, explicit minimal style and per-par
  assert.equal(paperGroupContent({days:[{raw:'看海',photos:['/uploads/a.png']}],elements:[]}),null);
 });
 
-test('rejects invalid references, repeated slots, unreadable colors, excessive stamps and single-style selections',()=>{
+test('rejects invalid references, repeated slots, unreadable colors, excessive stamps and invalid design choices',()=>{
  assert.deepEqual(validatePaperSelection(selection,candidates),selection);
  assert.throws(()=>validatePaperSelection({...selection,palette:{...selection.palette,ink:selection.palette.frontPaper}},candidates),/对比/);
  assert.throws(()=>validatePaperSelection({...selection,stickers:selection.stickers.map(p=>({...p,assetId:'unknown'}))},candidates));
  assert.throws(()=>validatePaperSelection({...selection,stickers:[...selection.stickers.slice(0,4),selection.stickers[0]]},candidates));
  assert.throws(()=>validatePaperSelection(selection,candidates.map(a=>({...a,category:'邮票'}))),/邮票/);
+ for(const extra of [{composition:'unknown'},{composition:'constructor'},{paperPattern:'<svg>'},{stickers:[null,null]},{stickers:selection.stickers.slice(1)}])assert.throws(()=>validatePaperSelection({...selection,...extra},candidates));
+ const pair={...selection,composition:'stacked',paperPattern:'dots',stickers:selection.stickers.slice(0,2)};
+ assert.deepEqual(validatePaperSelection(pair,candidates.map(a=>({...a,category:'同系列'}))),pair);
+});
+
+test('new compositions preserve a continuous writing area across formats and narrow/wide materials',()=>{
+ const slots=Object.keys(paperGroupSlots);
+ for(const composition of ['diagonal','stacked'])for(const ratio of [.8,1,1.43,1.8])for(const aspect of [.2,.5,1,2,4]) {
+  const assets=candidates.map(a=>({...a,width:100*aspect,height:100}));
+  // Largest accepted writing area: decoration must fit around it without reducing font size.
+  const writing=[{kind:'text',sourceId:'body',text:'保留整块书写空间',x:18,y:39,w:17,h:21,rotation:0,fontSize:16}];
+  const before=structuredClone(writing),request={days:[],ratio,headerSpace:12,entrySide:'right'};
+  const out=placePaperGroup(writing,{...selection,composition},assets,papers,request);
+  assert.deepEqual(writing,before);
+  assert.deepEqual(layoutIssues(out,ratio,12),[],`${composition}/${ratio}/${aspect}`);
+  assert.ok(out.every(p=>bounds(p,ratio).y>=14-1e-9));
+  assert.ok(out.every(p=>bounds(p,ratio).x>=52&&bounds(p,ratio).x+bounds(p,ratio).w<=98));
+  assert.deepEqual(out.filter(p=>p.kind==='text').map(p=>[p.sourceId,p.text,p.w,p.h,p.fontSize]),writing.map(p=>[p.sourceId,p.text,p.w,p.h,p.fontSize]));
+  const sheets=out.filter(p=>p.frame==='collage-paper');
+  assert.ok(out.filter(p=>p.kind==='asset'&&p.frame!=='collage-paper').every(s=>sheets.some(p=>intersects(bounds(s,ratio),bounds(p,ratio)))));
+  assert.equal(out.filter(p=>p.assetId).length,slots.length);
+ }
+});
+
+test('composition choices change paper geometry and focal position, and all reject a full page without mutation',()=>{
+ const content=paperGroupContent(input),occupiedElements=[{kind:'photo',x:0,y:0,w:100,h:100}];
+ const signatures=[];
+ for(const composition of Object.keys(paperGroupCompositions)) {
+  const selected={...selection,composition,stickers:[selection.stickers[0],selection.stickers[4]]};
+  const out=placePaperGroup(content,selected,candidates,papers,input);
+  const hero=out.find(p=>p.assetId===ids[0]),writing=out.find(p=>p.kind==='text');
+  assert.equal(hero.y>writing.y,composition==='diagonal');
+  signatures.push(JSON.stringify(out.filter(p=>p.frame==='collage-paper').map(p=>[p.x,p.y,p.w,p.h,p.rotation])));
+  const before=structuredClone(occupiedElements);
+  assert.throws(()=>placePaperGroup(content,selected,candidates,papers,{...input,occupiedElements}),/空白页/);
+  assert.deepEqual(occupiedElements,before);
+ }
+ assert.equal(new Set(signatures).size,3);
 });
 
 test('new entry and redesign preserve group geometry, latest text, color runs and locked manual items',()=>{
@@ -73,6 +112,7 @@ test('real asset thumbnails and generated paper files survive composition; inval
   const diagnostic={};
   const result=await generatePaperGroup(input,all,{root,data:dir,vision:true,diagnostic,requestAI:async messages=>{
    calls++;assert.equal(messages[1].content[1].type,'image_url');
+   assert.ok(messages[0].content.includes(referenceLayoutGuide));
    const payload=JSON.parse(messages[1].content[0].text);
    assert.ok(payload.candidates.length>=4);
    // This fixture uses candidates actually present in the visual shortlist.
@@ -84,5 +124,29 @@ test('real asset thumbnails and generated paper files survive composition; inval
   assert.equal(calls,2);assert.equal(diagnostic.imageCount,1);assert.equal(result.headerReserved,true);
   for(const paper of result.elements.filter(p=>p.frame==='collage-paper'))assert.ok((await readFile(join(dir,paper.src))).length>100);
   assert.deepEqual(layoutIssues(result.elements),[]);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('AI choices reach real paper rendering with distinct patterns and two-material compositions',async()=>{
+ const root=new URL('../',import.meta.url).pathname,dir=await mkdtemp(join(tmpdir(),'paper-pattern-unit-'));
+ try {
+  const all=JSON.parse(await readFile(join(root,'public/materials/manifest.json'))),sources=new Set();
+  // A tiny same-category library still supports a focal piece and an accent.
+  const library=all.filter(a=>ids.slice(0,2).includes(a.id)).map(a=>({...a,category:'同系列'}));
+  assert.equal(library.length,2);
+  for(const paperPattern of ['grid','dots','ruled','plain']) {
+   const diagnostic={};
+   const out=await generatePaperGroup(input,library,{root,data:dir,vision:false,diagnostic,requestAI:async messages=>{
+    const payload=JSON.parse(messages[1].content);
+    assert.equal(typeof payload.compositions.diagonal,'string');
+    return {...selection,composition:'diagonal',paperPattern,palette:{backPaper:'#174E80',frontPaper:'#FFF6DA',ink:'#302B24',tape:'#E8AA36'},stickers:[{slot:'hero',assetIndex:1},{slot:'accent',assetIndex:2}]};
+   }});
+   assert.equal(diagnostic.composition,'diagonal');assert.equal(diagnostic.paperPattern,paperPattern);
+   assert.deepEqual(layoutIssues(out.elements),[]);
+   const sheets=out.elements.filter(p=>p.frame==='collage-paper');
+   sources.add(sheets[0].src);
+   assert.ok((await readFile(join(dir,sheets[0].src))).length>100);
+  }
+  assert.equal(sources.size,4);
  }finally{await rm(dir,{recursive:true,force:true});}
 });
