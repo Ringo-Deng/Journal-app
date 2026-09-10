@@ -35,6 +35,7 @@ export function readingJpgInput(book: Book, assets: Asset[], index: number | nul
       paperFeel: book.paperFeel,
       paperStyle: book.paperStyle,
       paperColor: book.paperColor,
+      paperRulingSize: book.paperRulingSize,
       paperBg: book.paperBg,
       header: book.header,
     },

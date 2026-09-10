@@ -2289,11 +2289,14 @@ button {
   pointer-events: none;
   border-radius: inherit;
 }
+.ruling-small{--paper-line-gap:24px;--paper-line-offset:8px;--paper-grid-gap:18px;}
+.ruling-medium{--paper-line-gap:32px;--paper-line-offset:12px;--paper-grid-gap:24px;}
+.ruling-large{--paper-line-gap:40px;--paper-line-offset:16px;--paper-grid-gap:30px;}
 .paper-grid .paper-ruling {
   background-image:
     linear-gradient(var(--ruling) 1px, transparent 1px),
     linear-gradient(90deg, var(--ruling) 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-size: var(--paper-grid-gap,24px) var(--paper-grid-gap,24px);
 }
 .paper-dots .paper-ruling {
   background-image: radial-gradient(
@@ -3082,11 +3085,17 @@ fieldset.book-tools{border-top:0;}
 .paper-bg-layer img{position:absolute;max-width:none;max-height:none;}
 
 /* 横线纸。 */
-.paper-lines .paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 31px,var(--ruling) 31px 32px);background-position:0 12px;}
+.paper-lines .paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 calc(var(--paper-line-gap,32px) - 1px),var(--ruling) calc(var(--paper-line-gap,32px) - 1px) var(--paper-line-gap,32px));background-position:0 var(--paper-line-offset,12px);}
 
 /* 内页设置与自定义背景。 */
 .paper-options-four{grid-template-columns:repeat(4,1fr);}
 .paper-options-four .paper-swatch{height:84px;}
+.ruling-size-field{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.ruling-size-field>span{font-size:12px;color:#555f50;}
+.ruling-size-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.ruling-size-options button{min-height:36px;padding:7px 10px;border:1px solid #d8dccf;border-radius:8px;background:#fffef9;color:#65705d;font-size:12px;}
+.ruling-size-options button.chosen{border-color:#6f855f;background:#e4ebda;color:#3f5138;box-shadow:0 0 0 2px #758b6120;}
+.ruling-size-hint{font-size:11px;line-height:1.55;color:#8a8f82;}
 .cover-paper-colors{margin-top:10px;}
 .bg-field{border-top:1px solid #e2e4d9;margin-top:14px;padding-top:6px;}
 .bg-preview{position:relative;width:100%;aspect-ratio:var(--spread-ratio,1.43);overflow:hidden;border:1px solid #d3d6cc;border-radius:4px;background:#fff;touch-action:none;cursor:grab;}
@@ -3268,8 +3277,8 @@ fieldset.book-tools{border-top:0;}
 .notebook-page-layer>.paper-ruling{position:absolute;inset:0;}
 .notebook-page-header{position:absolute;top:0;left:0;width:100%;white-space:pre-wrap;line-height:1.35;padding-top:1.5%;overflow:hidden;}
 .notebook-page-layer.paper-blank>.paper-ruling{background-image:none;}
-.notebook-page-layer.paper-lines>.paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 31px,var(--ruling) 31px 32px);background-size:auto;}
-.notebook-page-layer.paper-grid>.paper-ruling{background-image:linear-gradient(var(--ruling) 1px,transparent 1px),linear-gradient(90deg,var(--ruling) 1px,transparent 1px);background-size:24px 24px;}
+.notebook-page-layer.paper-lines>.paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 calc(var(--paper-line-gap,32px) - 1px),var(--ruling) calc(var(--paper-line-gap,32px) - 1px) var(--paper-line-gap,32px));background-size:auto;}
+.notebook-page-layer.paper-grid>.paper-ruling{background-image:linear-gradient(var(--ruling) 1px,transparent 1px),linear-gradient(90deg,var(--ruling) 1px,transparent 1px);background-size:var(--paper-grid-gap,24px) var(--paper-grid-gap,24px);}
 .notebook-page-layer.paper-dots>.paper-ruling{background-image:radial-gradient(var(--ruling) 1px,transparent 1px);background-size:18px 18px;}
 
 /* Quiet labeled navigation and a single editing toolbar. */

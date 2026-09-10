@@ -105,31 +105,34 @@ test('local layout preserves source text without invented events', () => {
   const raw = '下雨。';
   assert.equal(localResult([{ raw }]).days[0].text, raw);
 });
-test('paper style and color persist independently of AI and default to cream blank pages', async () => {
+test('paper style, color and ruling size persist independently of AI and keep legacy pages medium', async () => {
   const { paperSettings, applyPaper } = await import('../lib/journal.ts');
-  const paperAppearance=(book,spread)=>{const {style,color}=paperSettings(book,spread);return {style,color};};
+  const paperAppearance=(book,spread)=>{const {style,color,rulingSize}=paperSettings(book,spread);return {style,color,rulingSize};};
   let b = newBook('2026-09');
-  assert.deepEqual(paperAppearance(b), { style: 'blank', color: '#f3ecd9' });
-  b = applyPaper(b, 'dots', '#e8eef5');
+  assert.deepEqual(paperAppearance(b), { style: 'blank', color: '#f3ecd9', rulingSize: 'medium' });
+  b = applyPaper(b, 'dots', '#e8eef5', undefined, 'small');
   b = appendDay(b, day('2026-09-01'), localResult([day('2026-09-01')]), assets);
   assert.deepEqual(paperAppearance(b, b.spreads[0]), {
     style: 'dots',
     color: '#e8eef5',
+    rulingSize: 'small',
   });
-  b = applyPaper(b, 'grid', '#fffdf4', b.spreads[0].id);
+  b = applyPaper(b, 'grid', '#fffdf4', b.spreads[0].id, 'large');
   const s = regenerateSpread(
     b.spreads[0],
     localResult(b.spreads[0].days, 'rose'),
     assets,
   );
-  assert.deepEqual(paperAppearance(b, s), { style: 'grid', color: '#fffdf4' });
+  assert.deepEqual(paperAppearance(b, s), { style: 'grid', color: '#fffdf4', rulingSize: 'large' });
   assert.ok(!s.elements.some((p) => p.role === 'date'));
   b = applyPaper(b, 'blank', '#ffffff');
   assert.deepEqual(paperAppearance(b, b.spreads[0]), {
     style: 'blank',
     color: '#ffffff',
+    rulingSize: 'small',
   });
   assert.throws(() => applyPaper(b, 'grid', 'bad'));
+  assert.throws(() => applyPaper(b, 'grid', '#ffffff', undefined, 'huge'));
 });
 
 test('new entries and local regeneration never inject default stickers', () => {

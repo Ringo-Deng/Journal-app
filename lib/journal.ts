@@ -79,6 +79,7 @@ export type Day = {
   photos: string[];
 };
 export type PaperStyle = 'blank' | 'lines' | 'grid' | 'dots';
+export type PaperRulingSize = 'small' | 'medium' | 'large';
 export type PaperBg = { src: string; x: number; y: number; scale: number };
 export type PaperTemplate = PaperBg & { id: string; name: string };
 export type HeaderConfig = {
@@ -94,7 +95,7 @@ export type HeaderConfig = {
 };
 export type PaperFeel = { texture: number; spine: number; edge: number };
 export type CollageTemplate = { id: string; name: string; elements: Piece[]; ratio: number };
-export type PageSettings = { paperFeel?: PaperFeel; paperStyle?: PaperStyle; paperColor?: string; paperBg?: PaperBg | null; header?: HeaderConfig; date?: string };
+export type PageSettings = { paperFeel?: PaperFeel; paperStyle?: PaperStyle; paperColor?: string; paperRulingSize?: PaperRulingSize; paperBg?: PaperBg | null; header?: HeaderConfig; date?: string };
 export type Spread = {
   pages?: { left?: PageSettings; right?: PageSettings };
   id: string;
@@ -103,6 +104,7 @@ export type Spread = {
   paperFeel?: PaperFeel;
   paperStyle?: PaperStyle;
   paperColor?: string;
+  paperRulingSize?: PaperRulingSize;
   paperBg?: PaperBg | null;
   header?: HeaderConfig;
   date?: string;
@@ -121,6 +123,7 @@ export type Book = {
   paperFeel?: PaperFeel;
   paperStyle?: PaperStyle;
   paperColor?: string;
+  paperRulingSize?: PaperRulingSize;
   paperBg?: PaperBg;
   paperTemplates?: PaperTemplate[];
   collageTemplates?: CollageTemplate[];
@@ -316,9 +319,12 @@ export function paperSettings(book?: Book, spread?: Spread, side?: 'left' | 'rig
   const page = side ? spread?.pages?.[side] : undefined;
   const legacyFeel = spread?.paperFeel;
   const feel = page?.paperFeel || legacyFeel || book?.paperFeel || defaultPaperFeel();
+  const savedRulingSize = page?.paperRulingSize || spread?.paperRulingSize || book?.paperRulingSize;
+  const rulingSize: PaperRulingSize = savedRulingSize && ['small','medium','large'].includes(savedRulingSize) ? savedRulingSize : 'medium';
   return {
     style: page?.paperStyle || spread?.paperStyle || book?.paperStyle || 'blank',
     color: page?.paperColor || spread?.paperColor || book?.paperColor || '#f3ecd9',
+    rulingSize,
     background: page?.paperBg === null ? null : page?.paperBg || spread?.paperBg || book?.paperBg || null,
     header: page?.header || spread?.header || book?.header || defaultHeader(),
     date: page?.date || spread?.date,
@@ -366,8 +372,8 @@ export function applyPaperBg(book:Book,bg:PaperBg|null,spreadId?:string):Book{
   return{...book,paperBg:bg||undefined,spreads:book.spreads.map(s=>({...clearPageSettings(s,['paperBg']),paperBg:undefined}))};
 }
 export function blankSpread():Spread{return{id:uid(),theme:'herbarium',date:today(),days:[],elements:[]}}
-export function newBook(month:string,cover='linen-oat',title='拾光集',format:BookFormat='standard',opts?:{paperStyle?:PaperStyle;paperColor?:string;header?:HeaderConfig}):Book{
-  return{id:uid(),month,title,cover,format,paperStyle:opts?.paperStyle,paperColor:opts?.paperColor,header:opts?.header?sanitizeHeader(opts.header):defaultHeader(),flyleaf:{id:uid(),theme:'herbarium',days:[],elements:[]},spreads:[blankSpread()]};
+export function newBook(month:string,cover='linen-oat',title='拾光集',format:BookFormat='standard',opts?:{paperStyle?:PaperStyle;paperColor?:string;paperRulingSize?:PaperRulingSize;header?:HeaderConfig}):Book{
+  return{id:uid(),month,title,cover,format,paperStyle:opts?.paperStyle,paperColor:opts?.paperColor,paperRulingSize:opts?.paperRulingSize,header:opts?.header?sanitizeHeader(opts.header):defaultHeader(),flyleaf:{id:uid(),theme:'herbarium',days:[],elements:[]},spreads:[blankSpread()]};
 }
 export const ensureFlyleaf=(book:Book):Book=>book.flyleaf?book:{...book,flyleaf:{id:uid(),theme:'herbarium',days:[],elements:[]}};
 export function localResult(days:Pick<Day,'raw'>[],theme='herbarium'):AIResult{return{theme,days:days.map(d=>({title:'今日小记',text:d.raw,assetIds:[]}))}}
@@ -418,9 +424,11 @@ export function regenerateSpread(spread:Spread,result:AIResult,assets:Asset[],va
   const signature=pieceKey;
   return{...spread,theme:result.theme,layout:result.layout||'collage',days:result.contentEdited?days.map(d=>{const paragraphs=newPieces.filter(p=>p.role==='body'&&p.dayId===d.id);return paragraphs.length?{...d,text:paragraphs.map(p=>p.text).join('\n\n')}:d}):days,elements:[...newPieces.filter(p=>!spread.removed?.includes(signature(p))).filter(p=>!locked.some(l=>l.id===p.id||signature(l)===signature(p))).filter(p=>!locked.some(l=>{if(result.elements||p.kind==='text')return false;return Math.abs(p.x-l.x)<Math.min(p.w,l.w)*.5&&Math.abs(p.y-l.y)<12;})),...locked]};
 }
-export function applyPaper(book:Book,style:PaperStyle,color:string,spreadId?:string):Book{
-  if(!['blank','lines','grid','dots'].includes(style)||!/^#[0-9a-f]{6}$/i.test(color))throw Error('内页设置无效');
-  return spreadId?{...book,spreads:book.spreads.map(s=>s.id===spreadId?{...clearPageSettings(s,['paperStyle','paperColor']),paperStyle:style,paperColor:color}:s)}:{...book,paperStyle:style,paperColor:color,spreads:book.spreads.map(s=>({...clearPageSettings(s,['paperStyle','paperColor']),paperStyle:undefined,paperColor:undefined}))};
+export function applyPaper(book:Book,style:PaperStyle,color:string,spreadId?:string,rulingSize?:PaperRulingSize):Book{
+  if(!['blank','lines','grid','dots'].includes(style)||!/^#[0-9a-f]{6}$/i.test(color)||rulingSize!==undefined&&!['small','medium','large'].includes(rulingSize))throw Error('内页设置无效');
+  const target=spreadId?book.spreads.find(s=>s.id===spreadId):undefined;
+  const size=rulingSize||paperSettings(book,target).rulingSize;
+  return spreadId?{...book,spreads:book.spreads.map(s=>s.id===spreadId?{...clearPageSettings(s,['paperStyle','paperColor','paperRulingSize']),paperStyle:style,paperColor:color,paperRulingSize:size}:s)}:{...book,paperStyle:style,paperColor:color,paperRulingSize:size,spreads:book.spreads.map(s=>({...clearPageSettings(s,['paperStyle','paperColor','paperRulingSize']),paperStyle:undefined,paperColor:undefined,paperRulingSize:undefined}))};
 }
 export function addBlankSpread(book:Book):Book{return{...book,spreads:[...book.spreads,blankSpread()]}}
 export function pageSpread(spread:Spread|undefined,side:'left'|'right'):Spread|undefined{return spread?{...spread,...spread.pages?.[side]}:undefined}

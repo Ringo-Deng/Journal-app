@@ -15,6 +15,10 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
  assert.match(page,/function notebookWithSettingsDraft/);
  assert.match(page,/if\(paperChanged\)next=applyPaper/);
+ assert.match(page,/线格大小/);
+ assert.match(page,/paperRulingSizes/);
+ assert.match(styles,/\.ruling-small\{--paper-line-gap:24px/);
+ assert.match(styles,/\.ruling-large\{--paper-line-gap:40px/);
  assert.match(page,/页眉高级样式/);
  assert.match(page,/用于页眉中的日期与星期变量，只修改当前所选页面/);
  assert.match(styles,/@media\(max-width:900px\)[^{]*\{[\s\S]*\.notebook-settings-layout\{grid-template-columns:1fr/);
@@ -28,7 +32,7 @@ test('whole-book settings reach existing and new pages without moving content or
  book.spreads[0].header={...defaultHeader(),text:'旧的单页页眉'};
  const before=structuredClone(book);
  const custom={...defaultHeader(),text:'旅行\n{日期} {星期} · {页码}',align:'left',fontSize:18,color:undefined,customFormat:undefined};
- let updated=applyHeader(applyPaperBg(applyPaper(book,'lines','#2b2b28'),{src:'/uploads/bg.png',x:-5,y:2,scale:120}),custom);
+ let updated=applyHeader(applyPaperBg(applyPaper(book,'lines','#2b2b28',undefined,'small'),{src:'/uploads/bg.png',x:-5,y:2,scale:120}),custom);
  updated=addBlankSpread(updated);
  assert.deepEqual(updated.spreads[0].elements,before.spreads[0].elements);
  assert.equal(updated.spreads[0].date,'2025-03-04');
@@ -36,6 +40,7 @@ test('whole-book settings reach existing and new pages without moving content or
  assert.deepEqual(headerOf(updated,updated.spreads[0]),custom);
  assert.deepEqual(headerOf(updated,updated.spreads[1]),custom);
  assert.equal(paperBgOf(updated,updated.spreads[1]).src,'/uploads/bg.png');
+ assert.equal(updated.paperRulingSize,'small');
  assert.deepEqual(book,before);
  const single=applyHeader(updated,{...custom,text:'仅当前页'},updated.spreads[0].id);
  assert.equal(headerOf(single,single.spreads[0]).text,'仅当前页');
@@ -125,15 +130,18 @@ test('left and right page overrides stay independent and whole-book changes clea
  const {patchPage,pageSpread,paperSettings}=await import('../lib/journal.ts');
  let book=newBook('2026-09');
  const id=book.spreads[0].id;
- book=patchPage(book,id,'right',{paperColor:'#2b2b28',paperStyle:'dots',header:{...defaultHeader(),text:'右页'},date:'2025-06-03',paperBg:{src:'/uploads/right.png',x:10,y:5,scale:110}});
+ book=patchPage(book,id,'right',{paperColor:'#2b2b28',paperStyle:'dots',paperRulingSize:'large',header:{...defaultHeader(),text:'右页'},date:'2025-06-03',paperBg:{src:'/uploads/right.png',x:10,y:5,scale:110}});
  assert.equal(paperSettings(book,pageSpread(book.spreads[0],'left')).color,'#f3ecd9');
  assert.equal(paperSettings(book,pageSpread(book.spreads[0],'right')).color,'#2b2b28');
+ assert.equal(paperSettings(book,pageSpread(book.spreads[0],'left')).rulingSize,'medium');
+ assert.equal(paperSettings(book,pageSpread(book.spreads[0],'right')).rulingSize,'large');
  assert.equal(headerOf(book,pageSpread(book.spreads[0],'right')).text,'右页');
  assert.equal(notebookUploads([book])[0],'/uploads/right.png');
  const restored=remapNotebookUploads(book,{'/uploads/right.png':'/uploads/new.png'});
  assert.equal(restored.spreads[0].pages.right.paperBg.src,'/uploads/new.png');
- const updated=applyPaper(book,'lines','#f7f1e3');
+ const updated=applyPaper(book,'lines','#f7f1e3',undefined,'small');
  assert.equal(paperSettings(updated,pageSpread(updated.spreads[0],'right')).color,'#f7f1e3');
+ assert.equal(paperSettings(updated,pageSpread(updated.spreads[0],'right')).rulingSize,'small');
  assert.equal(headerOf(updated,pageSpread(updated.spreads[0],'right')).text,'右页');
  assert.equal(updated.spreads[0].pages.right.date,'2025-06-03');
  const headed=applyHeader(updated,{...defaultHeader(),text:'整本'});

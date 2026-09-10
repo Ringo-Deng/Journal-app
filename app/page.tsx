@@ -23,7 +23,7 @@ import ReadingDeck from '@/components/reading-deck';
 import ReadingJpgImage from '@/components/reading-jpg-image';
 import PageTurn, {SpreadPreview} from '@/components/page-turn';
 import type { CSSProperties } from 'react';
-import { paperSettings, applyPaper, type PaperStyle } from '@/lib/journal';
+import { paperSettings, applyPaper, type PaperStyle, type PaperRulingSize } from '@/lib/journal';
 import MaterialStudio from '@/components/material-studio';
 import MaterialImporter from '@/components/material-importer';
 import MaterialLibrary from '@/components/material-library';
@@ -134,6 +134,11 @@ type Recognition = {
   start: () => void;
   stop: () => void;
 };
+const paperRulingSizes: { id: PaperRulingSize; name: string }[] = [
+  { id: 'small', name: '小' },
+  { id: 'medium', name: '中' },
+  { id: 'large', name: '大' },
+];
 async function api<T = unknown>(
   path: string,
   options?: RequestInit,
@@ -234,6 +239,7 @@ export default function Home() {
     [settingsSaving, setSettingsSaving] = useState(false);
   const [paperStyle, setPaperStyle] = useState<PaperStyle>('blank'),
     [paperColor, setPaperColor] = useState('#ffffff'),
+    [paperRulingSize, setPaperRulingSize] = useState<PaperRulingSize>('medium'),
     [paperScope, setPaperScope] = useState('book');
   const [bgForm, setBgForm] = useState<PaperBg | null>(null),
     [bgName, setBgName] = useState('我的内页');
@@ -305,6 +311,7 @@ export default function Home() {
     [coverAsset, setCoverAsset] = useState(''),
     [coverPaperStyle, setCoverPaperStyle] = useState<PaperStyle>('blank'),
     [coverPaperColor, setCoverPaperColor] = useState('#ffffff'),
+    [coverPaperRulingSize, setCoverPaperRulingSize] = useState<PaperRulingSize>('medium'),
     [coverHeaderOn, setCoverHeaderOn] = useState(true);
   const [coverTab, setCoverTab] = useState('cover');
   const [coverScope,setCoverScope]=useState('book');
@@ -886,6 +893,7 @@ export default function Home() {
     const paper = paperSettings(b, current);
     setCoverPaperStyle(paper.style);
     setCoverPaperColor(paper.color);
+    setCoverPaperRulingSize(paper.rulingSize);
     setCoverHeaderOn(headerOf(b, current).enabled);
     setCoverHeader({...headerOf(b, current)});
     const currentBackground = paperBgOf(b, current) || null;
@@ -1138,12 +1146,13 @@ export default function Home() {
       all.map((b) =>
         b.id === book.id
           ? (paperScope === 'left' || paperScope === 'right') && spread
-            ? patchPage(b,spread.id,paperScope,{paperStyle,paperColor})
+            ? patchPage(b,spread.id,paperScope,{paperStyle,paperColor,paperRulingSize})
             : applyPaper(
               b,
               paperStyle,
               paperColor,
               paperScope === 'spread' && page >= 0 ? spread?.id : undefined,
+              paperRulingSize,
             )
           : b,
       ),
@@ -1418,7 +1427,7 @@ export default function Home() {
     const b=books.find(b=>b.id===editingBookId);
     const current=scope==='book'?undefined:scope==='spread'?spread:pageSpread(spread,scope==='right'?'right':'left');
     const paper=paperSettings(b,current),header=headerOf(b,current),background=paperBgOf(b,current)||null;
-    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverBg(background);setPaperAdvancedOpen(!!background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
+    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverPaperRulingSize(paper.rulingSize);setCoverBg(background);setPaperAdvancedOpen(!!background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
     setCoverDate(current?.date||current?.days[0]?.date||spread?.date||spread?.days[0]?.date||today());
   }
   function notebookWithSettingsDraft(existing: Book) {
@@ -1434,7 +1443,7 @@ export default function Home() {
     const currentPaper=paperSettings(existing,target);
     const currentHeader=sanitizeHeader({...headerOf(existing,target)});
     const currentBackground=paperBgOf(existing,target)||null;
-    const paperChanged=currentPaper.style!==coverPaperStyle||currentPaper.color!==coverPaperColor;
+    const paperChanged=currentPaper.style!==coverPaperStyle||currentPaper.color!==coverPaperColor||currentPaper.rulingSize!==coverPaperRulingSize;
     const headerChanged=JSON.stringify(currentHeader)!==JSON.stringify(header);
     const backgroundChanged=JSON.stringify(currentBackground)!==JSON.stringify(coverBg);
     const dateTarget=canScope
@@ -1447,14 +1456,14 @@ export default function Home() {
     let next:Book={...existing,title:coverTitle.trim()||'未命名笔记本',cover:coverType,coverAsset,format:coverFormat,paperTemplates:coverTemplates};
     if(canScope&&(coverScope==='left'||coverScope==='right')){
       const patch:Parameters<typeof patchPage>[3]={};
-      if(paperChanged){patch.paperStyle=coverPaperStyle;patch.paperColor=coverPaperColor;}
+      if(paperChanged){patch.paperStyle=coverPaperStyle;patch.paperColor=coverPaperColor;patch.paperRulingSize=coverPaperRulingSize;}
       if(headerChanged)patch.header=header;
       if(backgroundChanged)patch.paperBg=coverBg;
       if(dateChanged)patch.date=coverDate;
       if(Object.keys(patch).length)next=patchPage(next,spread.id,coverScope,patch);
     }else{
       const id=canScope&&coverScope==='spread'?spread.id:undefined;
-      if(paperChanged)next=applyPaper(next,coverPaperStyle,coverPaperColor,id);
+      if(paperChanged)next=applyPaper(next,coverPaperStyle,coverPaperColor,id,coverPaperRulingSize);
       if(headerChanged)next=applyHeader(next,header,id);
       if(backgroundChanged)next=applyPaperBg(next,coverBg,id);
       if(canScope&&dateChanged)next={...next,spreads:next.spreads.map(item=>item.id===spread.id?{...item,date:coverDate}:item)};
@@ -1467,7 +1476,7 @@ export default function Home() {
       change(all=>all.map(item=>item.id===existing.id?notebookWithSettingsDraft(item):item));
     }else{
       const header=sanitizeHeader({...coverHeader,enabled:coverHeaderOn});
-      const b={...newBook(today().slice(0,7),coverType,coverTitle.trim()||'未命名笔记本',coverFormat,{paperStyle:coverPaperStyle,paperColor:coverPaperColor,header}),coverAsset,paperBg:coverBg||undefined,paperTemplates:coverTemplates};
+      const b={...newBook(today().slice(0,7),coverType,coverTitle.trim()||'未命名笔记本',coverFormat,{paperStyle:coverPaperStyle,paperColor:coverPaperColor,paperRulingSize:coverPaperRulingSize,header}),coverAsset,paperBg:coverBg||undefined,paperTemplates:coverTemplates};
       change(all=>[...all,b]);enterBook(b);setPage(-1);setOpened(false);setView('workbench');
     }
     setModal(null);toast(existing?'笔记本设置已更新。':'已创建新笔记本。');
@@ -2377,7 +2386,7 @@ export default function Home() {
             <Pick
               label="内页应用范围"
               value={paperScope}
-              onChange={v=>{setPaperScope(v);const current=paperSettings(book,v==='book'?undefined:pageSpread(spread,v==='right'?'right':'left'));setPaperStyle(current.style);setPaperColor(current.color);}}
+              onChange={v=>{setPaperScope(v);const current=paperSettings(book,v==='book'?undefined:v==='spread'?spread:pageSpread(spread,v==='right'?'right':'left'));setPaperStyle(current.style);setPaperColor(current.color);setPaperRulingSize(current.rulingSize);}}
               items={[
                 { id: 'book', name: '整本手帐（所有正文页，含已有页面）' },
                 ...(page >= 0 && spread ? [{ id: 'spread', name: '当前跨页' },{id:'left',name:'仅当前左页'},{id:'right',name:'仅当前右页'}] : []),
@@ -2399,7 +2408,7 @@ export default function Home() {
                 onClick={() => setPaperStyle(p.id)}
               >
                 <div
-                  className={`paper-swatch paper-${p.id}`}
+                  className={`paper-swatch paper-${p.id} ruling-${paperRulingSize}`}
                   style={
                     {
                       backgroundColor: paperColor,
@@ -2413,6 +2422,19 @@ export default function Home() {
               </button>
             ))}
           </div>
+          {(paperStyle === 'lines' || paperStyle === 'grid') && (
+            <div className="field ruling-size-field">
+              <span>线格大小</span>
+              <div className="ruling-size-options" role="group" aria-label="线格大小">
+                {paperRulingSizes.map((size) => (
+                  <button key={size.id} className={paperRulingSize === size.id ? 'chosen' : ''} aria-pressed={paperRulingSize === size.id} onClick={() => setPaperRulingSize(size.id)}>
+                    {size.name}
+                  </button>
+                ))}
+              </div>
+              <small className="ruling-size-hint">小号更密，中号保持原来的间距，大号更疏。</small>
+            </div>
+          )}
           <div className="field">
             <span>纸张颜色</span>
             <div className="paper-colors">
@@ -2925,7 +2947,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <div
-                    className={`settings-paper paper-${coverPaperStyle}`}
+                    className={`settings-paper paper-${coverPaperStyle} ruling-${coverPaperRulingSize}`}
                     style={{
                       backgroundColor: coverPaperColor,
                       color: swatchDark(coverPaperColor) ? '#f5f5ed' : '#343b34',
@@ -3064,13 +3086,26 @@ export default function Home() {
                             { id: 'dots', name: '点阵' },
                           ] as const).map((option) => (
                             <button key={option.id} className={coverPaperStyle === option.id ? 'chosen' : ''} onClick={() => setCoverPaperStyle(option.id)}>
-                              <div className={`paper-swatch paper-${option.id}`} style={{ backgroundColor: coverPaperColor, '--ruling': swatchDark(coverPaperColor) ? '#ffffff35' : '#47556945' } as CSSProperties}>
+                              <div className={`paper-swatch paper-${option.id} ruling-${coverPaperRulingSize}`} style={{ backgroundColor: coverPaperColor, '--ruling': swatchDark(coverPaperColor) ? '#ffffff35' : '#47556945' } as CSSProperties}>
                                 <div className="paper-ruling" />
                               </div>
                               <span>{option.name}</span>
                             </button>
                           ))}
                         </div>
+                        {(coverPaperStyle === 'lines' || coverPaperStyle === 'grid') && (
+                          <div className="ruling-size-field">
+                            <span>线格大小</span>
+                            <div className="ruling-size-options" role="group" aria-label="线格大小">
+                              {paperRulingSizes.map((size) => (
+                                <button key={size.id} className={coverPaperRulingSize === size.id ? 'chosen' : ''} aria-pressed={coverPaperRulingSize === size.id} onClick={() => setCoverPaperRulingSize(size.id)}>
+                                  {size.name}
+                                </button>
+                              ))}
+                            </div>
+                            <small className="ruling-size-hint">小号更密，中号保持原来的间距，大号更疏。</small>
+                          </div>
+                        )}
                         <div className="paper-colors cover-paper-colors">
                           {[
                             { c: '#ffffff', n: '纯白' },

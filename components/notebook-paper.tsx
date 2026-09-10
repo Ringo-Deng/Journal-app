@@ -11,7 +11,7 @@ export default function NotebookPaper({book,spread,pageIndex}:{book:Book;spread:
   const feel=current.paperFeel||book.paperFeel;
   const ink=pageInk(book,spread,side);
   const singleBackground=spread.pages?.[side]?.paperBg !== undefined;
-  return <div key={side} className={`notebook-page-layer ${side}-paper paper-${paper.style}`} style={{'--paper':paper.color,'--ink':ink,'--ruling':ink==='#f5f5ed'?'#ffffff35':'#47556925'} as CSSProperties}>
+  return <div key={side} className={`notebook-page-layer ${side}-paper paper-${paper.style} ruling-${paper.rulingSize}`} style={{'--paper':paper.color,'--ink':ink,'--ruling':ink==='#f5f5ed'?'#ffffff35':'#47556925'} as CSSProperties}>
     <div className="paper-ruling"/>
     {feel&&<div className="collage-paper-feel" style={{'--texture-strength':feel.texture,'--spine-strength':feel.spine,'--edge-strength':feel.edge} as CSSProperties}><div className="collage-paper-fibers"/><div className="collage-paper-edge"/><div className="collage-paper-spine"/></div>}
     {bg && <div className="paper-bg-layer"><img src={bg.src} alt="" draggable={false} style={{left:`${singleBackground?bg.x:bg.x*2-index*100}%`,top:`${bg.y}%`,width:`${singleBackground?bg.scale:bg.scale*2}%`}}/></div>}

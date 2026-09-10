@@ -80,7 +80,7 @@ test("photos, hidden assets and tape artwork do not depend on catalog image repl
 test("paper, format and cover appearance stay fresh without including saved template lists", () => {
   const changes = [
     { cover: "linen-forest" }, { format: "tn-regular" },
-    { paperStyle: "grid" }, { paperColor: "#112233" },
+    { paperStyle: "grid" }, { paperColor: "#112233" }, { paperRulingSize: "small" },
     { paperFeel: { texture: 30, spine: 40, edge: 50 } },
     { paperBg: { src: "/paper.png", x: 1, y: 2, scale: 100 } },
     { header: { enabled: true, text: "{页码}", fontSize: 14, dateFormat: "dot", align: "left", height: 7, margin: 6 } },

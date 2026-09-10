@@ -235,6 +235,10 @@ function validateState(s) {
   if (!s || !Array.isArray(s.books) || s.books.length > 240)
     throw error('手帐数据格式不正确。');
   const bookIds = new Set();
+  const checkPaperRulingSize = (settings) => {
+    if (settings?.paperRulingSize !== undefined && !['small', 'medium', 'large'].includes(settings.paperRulingSize))
+      throw error('内页线格大小无效。');
+  };
   for (const book of s.books) {
     if (
       !/^\d{4}-(0[1-9]|1[0-2])$/.test(book.month) ||
@@ -246,6 +250,7 @@ function validateState(s) {
     )
       throw error('笔记本格式不正确。');
     bookIds.add(book.id);
+    checkPaperRulingSize(book);
     /* 保留旧护照数据，但不接受未知开本。 */
     if (
       book.format !== undefined &&
@@ -253,6 +258,9 @@ function validateState(s) {
     )
       throw error('笔记本格式不正确。');
     const checkSpread = (spread) => {
+      checkPaperRulingSize(spread);
+      checkPaperRulingSize(spread.pages?.left);
+      checkPaperRulingSize(spread.pages?.right);
       if (
         !Array.isArray(spread.days) ||
         spread.days.length > 100 ||
