@@ -31,6 +31,7 @@ import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 import {buildSnapTargets,snapMoveBox,type SnapGuides} from '@/lib/snap-guides';
 import {leafFrame} from '@/lib/page-motion';
+import {clampSelectionMove,idsInSelectionRect,mergeSelection,selectionRect,selectionRectSize,type SelectionPoint,type SelectionRect} from '@/lib/selection-geometry';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
 /* oxlint-disable jsx-a11y/no-static-element-interactions -- Draggable canvas objects expose keyboard selection and coordinate controls. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -134,6 +135,14 @@ type Recognition = {
   start: () => void;
   stop: () => void;
 };
+type CanvasMarqueeGesture = {
+  pointerId:number;
+  start:SelectionPoint;
+  current:SelectionPoint;
+  baseSelection:string[];
+  toggle:boolean;
+  started:boolean;
+};
 const paperRulingSizes: { id: PaperRulingSize; name: string }[] = [
   { id: 'small', name: '小' },
   { id: 'medium', name: '中' },
@@ -193,6 +202,9 @@ export default function Home() {
   const [imageExportOpen,setImageExportOpen]=useState(false);
   const [multiIds,setMultiIds]=useState<string[]>([]);
   const [editingGroup,setEditingGroup]=useState<string|null>(null);
+  const canvasMarquee=useRef<CanvasMarqueeGesture|null>(null);
+  const [selectionMarquee,setSelectionMarquee]=useState<SelectionRect|null>(null);
+  const [selectionPreviewIds,setSelectionPreviewIds]=useState<string[]>([]);
   const [collageOpen,setCollageOpen]=useState(false);
   const [clipboardCutRequest,setClipboardCutRequest]=useState(0);
   const [clipboardPasteRequest,setClipboardPasteRequest]=useState(0);
@@ -201,9 +213,6 @@ export default function Home() {
   const [textRange,setTextRange]=useState<{id:string;start:number;end:number;text:string}|null>(null);
   const [templateName,setTemplateName]=useState('我的照片拼贴');
   const [clusterBox,setClusterBox]=useState<Box|undefined>();
-  const selectTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
-  const pendingSelection=useRef<Piece|null>(null);
-  useEffect(()=>()=>{if(selectTimer.current)clearTimeout(selectTimer.current);},[]);
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [books, setBooks] = useState<Book[]>([]),
     [bookId, setBookId] = useState(''),
@@ -345,7 +354,7 @@ export default function Home() {
     drag = useRef<{
       id:string; x:number; y:number; mode:string; box:Box;
       canvasW:number; canvasH:number; cx:number; cy:number;
-      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; snap?:ReturnType<typeof buildSnapTargets>;
+      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; snap?:ReturnType<typeof buildSnapTargets>; lastBox?:Box;
     } | null>(null);
   useEffect(() => {
     booksRef.current = books;
@@ -355,13 +364,13 @@ export default function Home() {
     piece = spread?.elements.find((e) => e.id === selected),
     activeTurn = turnRef.current;
   const activePieces=spread?.elements.filter(p=>multiIds.length?multiIds.includes(p.id):p.id===selected||!!piece?.groupId&&piece.groupId!==editingGroup&&p.groupId===piece.groupId)||[];
-  const activeUnitCount=new Set(activePieces.map(p=>p.groupId?`group:${p.groupId}`:`piece:${p.id}`)).size;
+  const activeUnitCount=new Set(activePieces.map(p=>editingGroup?`piece:${p.id}`:p.groupId?`group:${p.groupId}`:`piece:${p.id}`)).size;
   const multiSelection=activeUnitCount>1;
   const cluster=activePieces.length>1;
   const selectionLocked=activePieces.some(p=>p.locked);
   function setSelected(value:string|null){
     if(value!==selected)setCropping(false);
-    if(value===null){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
+    if(value===null){canvasMarquee.current=null;setSelectionMarquee(null);setSelectionPreviewIds([]);setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
     _setSelected(value);
   }
   const sheetAt = (b: Book, i: number) =>
@@ -547,13 +556,13 @@ export default function Home() {
     for(const el of els)observer.observe(el);observer.observe(paper);
     return()=>{cancelAnimationFrame(frame);observer.disconnect();};
   }); // Measure after each committed render; ResizeObserver handles fonts and viewport changes.
-  function commitSelectionIds(ids:string[]){
+  function commitSelectionIds(ids:string[],preserveEditingGroup=false){
     if(!spread)return;
     const unique=[...new Set(ids)].filter(id=>spread.elements.some(p=>p.id===id));
     if(!unique.length){setSelected(null);return;}
     const pieces=spread.elements.filter(p=>unique.includes(p.id));
-    const units=new Set(pieces.map(p=>p.groupId?`group:${p.groupId}`:`piece:${p.id}`));
-    setEditingGroup(null);
+    const units=new Set(pieces.map(p=>preserveEditingGroup?`piece:${p.id}`:p.groupId?`group:${p.groupId}`:`piece:${p.id}`));
+    if(!preserveEditingGroup)setEditingGroup(null);
     if(units.size<=1){
       setMultiIds([]);
       setSelected(pieces[0]?.id||null);
@@ -567,12 +576,54 @@ export default function Home() {
       ? spread.elements.filter(q=>q.groupId===p.groupId).map(q=>q.id)
       : [p.id];
   }
+  function pointOnCanvas(e:React.PointerEvent<HTMLDivElement>,paper:HTMLDivElement):SelectionPoint{
+    const bounds=paper.getBoundingClientRect();
+    return {x:Math.max(0,Math.min(paper.clientWidth,e.clientX-bounds.left-paper.clientLeft)),y:Math.max(0,Math.min(paper.clientHeight,e.clientY-bounds.top-paper.clientTop))};
+  }
+  function canvasSelectionGeometry(){
+    return (spread?.elements||[]).map(p=>({...pieceBox(p),id:p.id,groupId:p.groupId,locked:p.locked,hidden:isPieceHidden(p)}));
+  }
+  function canvasSelectionDown(e:React.PointerEvent<HTMLDivElement>){
+    if(!spread||reading||busy||turnRef.current||e.button!==0)return;
+    const target=e.target as Element;
+    if(target.closest('[data-piece-id],.selection-box,[data-editor-ui],button,input,textarea,select'))return;
+    if(inlineId||cropping){finishEditing();return;}
+    if(e.pointerType==='touch'){setSelected(null);return;}
+    const toggle=e.shiftKey||e.metaKey||e.ctrlKey;
+    if(toggle&&activePieces.some(p=>p.locked)){toast('锁定素材不能加入多选，请先解锁。');return;}
+    const start=pointOnCanvas(e,e.currentTarget);
+    const gesture:CanvasMarqueeGesture={pointerId:e.pointerId,start,current:start,baseSelection:activePieces.map(p=>p.id),toggle,started:false};
+    canvasMarquee.current=gesture;setSelectionMarquee(null);setSelectionPreviewIds([]);
+    e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function canvasSelectionMove(e:React.PointerEvent<HTMLDivElement>){
+    const gesture=canvasMarquee.current,paper=canvas.current;
+    if(!gesture||!paper||gesture.pointerId!==e.pointerId)return;
+    const current=pointOnCanvas(e,paper),rect=selectionRect(gesture.start,current),size=selectionRectSize(rect);
+    const started=gesture.started||Math.hypot(size.width,size.height)>=4;
+    const next={...gesture,current,started};canvasMarquee.current=next;
+    if(!started)return;
+    setSelectionMarquee(rect);setSelectionPreviewIds(idsInSelectionRect(canvasSelectionGeometry(),rect,editingGroup));
+  }
+  function finishCanvasSelection(e:React.PointerEvent<HTMLDivElement>){
+    const gesture=canvasMarquee.current;
+    if(!gesture||gesture.pointerId!==e.pointerId)return;
+    if(gesture.started){
+      const hits=idsInSelectionRect(canvasSelectionGeometry(),selectionRect(gesture.start,gesture.current),editingGroup);
+      commitSelectionIds(mergeSelection(gesture.baseSelection,hits,gesture.toggle),!!editingGroup);
+    }else if(!gesture.toggle)setSelected(null);
+    canvasMarquee.current=null;setSelectionMarquee(null);setSelectionPreviewIds([]);
+    if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+  function cancelCanvasSelection(e:React.PointerEvent<HTMLDivElement>){
+    if(canvasMarquee.current?.pointerId!==e.pointerId)return;
+    canvasMarquee.current=null;setSelectionMarquee(null);setSelectionPreviewIds([]);
+    if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
+  }
   function selectPiece(p:Piece,add=false) {
     if(panel!=='elements')setPanel(null);
     if(add){
-      if(selectTimer.current)clearTimeout(selectTimer.current);
-      const pending=pendingSelection.current;pendingSelection.current=null;
-      const current=pending?selectionIdsFor(pending):activePieces.map(q=>q.id),ids=selectionIdsFor(p);
+      const current=activePieces.map(q=>q.id),ids=selectionIdsFor(p);
       const adding=!current.includes(p.id);
       const currentPieces=spread?.elements.filter(q=>current.includes(q.id))||[];
       const incoming=spread?.elements.filter(q=>ids.includes(q.id))||[];
@@ -586,8 +637,6 @@ export default function Home() {
   }
   function toggleSidebarSelection(members:Piece[]){
     if(!members.length)return;
-    if(selectTimer.current)clearTimeout(selectTimer.current);
-    pendingSelection.current=null;
     const memberIds=members.map(p=>p.id),current=activePieces.map(p=>p.id),selectedCount=memberIds.filter(id=>current.includes(id)).length;
     if(selectedCount===memberIds.length){commitSelectionIds(current.filter(id=>!memberIds.includes(id)));return;}
     if(current.length&&(activePieces.some(p=>p.locked)||members.some(p=>p.locked))){toast('锁定素材不能加入多选，请先解锁。');return;}
@@ -595,8 +644,6 @@ export default function Home() {
     commitSelectionIds([...current,...memberIds]);
   }
   function toggleSidebarMember(p:Piece){
-    if(selectTimer.current)clearTimeout(selectTimer.current);
-    pendingSelection.current=null;
     const current=activePieces.map(q=>q.id),selectedHere=current.includes(p.id);
     if(selectedHere){
       const next=current.filter(id=>id!==p.id);
@@ -640,7 +687,7 @@ export default function Home() {
   function ungroupSelection(){
     const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta({...p,groupId:undefined,attachedTo:undefined},{groupName:undefined}):p)}));setMultiIds([]);setEditingGroup(null);toast('已解组。');
   }
-  function enterGroup(p:Piece){if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=null;setMultiIds([]);setSelected(p.id);setEditingGroup(p.groupId||null);if(p.kind==='text'){setTextRange(null);setInlineId(p.id);setInlineText(p.text||'');}}
+  function enterGroup(p:Piece){setMultiIds([]);setSelected(p.id);setEditingGroup(p.groupId||null);if(p.kind==='text'){setTextRange(null);setInlineId(p.id);setInlineText(p.text||'');}}
   function addPhotoAttachment(kind:'caption'|'tape'){
     if(!piece||piece.kind!=='photo'||!spread)return;
     const existing=kind==='caption'?spread.elements.find(p=>p.attachedTo===piece.id&&p.kind==='text'):undefined;
@@ -688,7 +735,7 @@ export default function Home() {
   }
   useEffect(()=>{
     if(!selected||reading)return;
-    const outside=(e:MouseEvent)=>{const target=e.target;if(!(target instanceof Element)||target.closest('[data-piece-id],.selection-box,[data-editor-ui],.side-panel,[role="dialog"],[role="alertdialog"]'))return;finishEditing();};
+    const outside=(e:MouseEvent)=>{const target=e.target;if(!(target instanceof Element)||target.closest('[data-piece-id],.selection-box,.open-book,[data-editor-ui],.side-panel,[role="dialog"],[role="alertdialog"]'))return;finishEditing();};
     document.addEventListener('click',outside);return()=>document.removeEventListener('click',outside);
   });
   function changeSize(axis:'w'|'h',value:number){
@@ -1086,14 +1133,27 @@ export default function Home() {
       toast('无法开启语音输入。');
     }
   }
+  function paintPointerMovePreview(d:NonNullable<typeof drag.current>,box:Box){
+    const paper=canvas.current;if(!paper)return;
+    const dx=box.x-d.box.x,dy=box.y-d.box.y;
+    for(const member of d.members){const node=selectedNode(member.id);node?.style.setProperty('--drag-x',`${dx}px`);node?.style.setProperty('--drag-y',`${dy}px`);}
+    const selection=paper.querySelector<HTMLElement>('[data-selection-box]');selection?.style.setProperty('--drag-x',`${dx}px`);selection?.style.setProperty('--drag-y',`${dy}px`);
+    paper.classList.add('is-moving-selection');
+  }
+  function clearPointerMovePreview(){
+    const paper=canvas.current;if(!paper)return;
+    paper.querySelectorAll<HTMLElement>('[data-piece-id],[data-selection-box]').forEach(node=>{node.style.removeProperty('--drag-x');node.style.removeProperty('--drag-y');});
+    paper.classList.remove('is-moving-selection');
+  }
   function pointerDown(e: React.PointerEvent, id: string, mode = 'move') {
     if (reading || inlineId === id || e.button !== 0 || busy || turnRef.current) return;
     e.stopPropagation();
     const p=spread?.elements.find(p=>p.id===id),paper=canvas.current;
     if(!p||!paper)return;
-    if(e.shiftKey&&mode==='move')return;
-    const members=multiIds.includes(id)?activePieces:p.groupId&&p.groupId!==editingGroup?spread!.elements.filter(q=>q.groupId===p.groupId):[p];
-    if(selectTimer.current)clearTimeout(selectTimer.current);
+    if((e.shiftKey||e.metaKey||e.ctrlKey)&&mode==='move')return;
+    const alreadyActive=activePieces.some(q=>q.id===id);
+    const members=alreadyActive?activePieces:p.groupId&&p.groupId!==editingGroup?spread!.elements.filter(q=>q.groupId===p.groupId):[p];
+    if(mode==='move'&&!alreadyActive)selectPiece(p);
     if(members.some(p=>p.locked))return;
     const r=paper.getBoundingClientRect(),cw=paper.clientWidth,ch=paper.clientHeight,boxes=members.map(pieceBox);
     const box=members.length>1?unionBoxes(boxes):boxes[0];
@@ -1118,17 +1178,28 @@ export default function Home() {
       const scale=Math.min(1,d.canvasW/box.w,d.canvasH/box.h);box.w*=scale;box.h*=scale;
       box.x=Math.max(0,Math.min(d.canvasW-box.w,box.x));box.y=Math.max(0,Math.min(d.canvasH-box.h,box.y));
     }else{
-      box.x=d.box.x+dx;box.y=d.box.y+dy;
+      const moveBounds=unionBoxes(d.boxes),limited=clampSelectionMove([{id:'moving',...moveBounds}],{x:dx,y:dy},{width:d.canvasW,height:d.canvasH},28);
+      box.x=d.box.x+limited.x;box.y=d.box.y+limited.y;
       if(!e.altKey&&d.snap){const snapped=snapMoveBox(box,d.snap,6);box={...box,...snapped.box};setSnapGuides(snapped.guides);}
       else setSnapGuides({});
+      const snappedLimited=clampSelectionMove([{id:'moving',...moveBounds}],{x:box.x-d.box.x,y:box.y-d.box.y},{width:d.canvasW,height:d.canvasH},28);
+      box.x=d.box.x+snappedLimited.x;box.y=d.box.y+snappedLimited.y;
     }
     if(d.mode!=='move')setSnapGuides({});
+    if(d.mode==='move'){d.lastBox=box;paintPointerMovePreview(d,box);return;}
     if(d.members.length>1){const transformed=transformCluster(d.members,d.boxes,d.box,box,d.canvasW,d.canvasH);const updates=new Map(transformed.map(p=>[p.id,p]));changeSpread(s=>({...s,elements:s.elements.map(p=>updates.get(p.id)||p)}),false);}
     else if(d.mode==='rotate')patchPiece(d.id,{rotation:box.rotation},false);
-    else if(d.mode==='move')patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100},false);
     else patchPiece(d.id,{x:box.x/d.canvasW*100,y:box.y/d.canvasH*100,w:box.w/d.canvasW*100,h:box.h/d.canvasH*100,stretch:true},false);
   }
-  function endPointerDrag(){drag.current=null;setSnapGuides({});}
+  function endPointerDrag(){
+    const d=drag.current;
+    if(d?.started&&d.mode==='move'&&d.lastBox){
+      const dx=(d.lastBox.x-d.box.x)/d.canvasW*100,dy=(d.lastBox.y-d.box.y)/d.canvasH*100,ids=new Set(d.members.map(p=>p.id));
+      changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,x:p.x+dx,y:p.y+dy}:p)}),false);
+    }
+    clearPointerMovePreview();drag.current=null;setSnapGuides({});
+  }
+  function cancelPointerDrag(){clearPointerMovePreview();drag.current=null;setSnapGuides({});}
   function insertLibraryAssets(list:Asset[]) {
     if(!book||!list.length)return false;
     const side=page===-1?1:0;
@@ -1598,6 +1669,8 @@ export default function Home() {
       } else if (!reading && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
+      } else if(!reading&&spread&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='a'){
+        e.preventDefault();setInlineId(null);commitSelectionIds(spread.elements.filter(p=>!p.locked&&!isPieceHidden(p)).map(p=>p.id));
       } else if (
         !reading &&
         (e.key === 'Delete' || e.key === 'Backspace') &&
@@ -1808,7 +1881,7 @@ export default function Home() {
         {!reading&&!libraryOpen&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
-            <span>{multiSelection?`已选 ${activeUnitCount} 个素材`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'⌘/Ctrl 或 Shift 点击可多选'}</span>
+            <span>{multiSelection?`已选 ${activeUnitCount} 个对象`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'空白拖框 · ⌘/Ctrl 或 Shift 追加'}</span>
             {cluster&&<><button className="quiet" disabled={selectionLocked} onClick={groupSelection}>编为一组</button><button className="quiet" disabled={selectionLocked||!piece.groupId} onClick={ungroupSelection}>解组</button><label>组合名称<input aria-label="组合名称" value={templateName} maxLength={40} onChange={e=>setTemplateName(e.target.value)}/></label><button className="quiet" onClick={saveCluster}>保存组合</button><button className="quiet" onClick={copyPiece}>复制组合</button><button className="quiet" disabled={selectionLocked} onClick={()=>setClipboardCutRequest(value=>value+1)}>剪切所选</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('top')}>组合置顶</button><button className="quiet" disabled={selectionLocked} onClick={()=>changeLayer('bottom')}>组合置底</button><button className="quiet" disabled={selectionLocked} onClick={removePiece}>删除所选</button><button className="quiet" onClick={()=>enterGroup(piece)}>编辑组内元素</button></>}
             {editingGroup&&<button className="quiet" onClick={()=>{setEditingGroup(null);setInlineId(null);}}>返回整个组合</button>}
             <button className="quiet" aria-pressed={selectionLocked} onClick={()=>patchSelection({locked:!selectionLocked})}>{selectionLocked?<Unlock/>:<Lock/>}{selectionLocked?'解锁所选':'锁定所选'}</button>
@@ -1816,7 +1889,7 @@ export default function Home() {
           </div>
           {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
           <CollageTools piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
-          </> : <span className="selection-toolbar-placeholder">选择素材后可在这里调整</span>}
+          </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
@@ -1966,7 +2039,7 @@ export default function Home() {
                         }
                       >
                     <div
-                      className={`open-book paper-${paper.style} ${isFlyleaf ? 'flyleaf-spread' : ''}`}
+                      className={`open-book paper-${paper.style} ${isFlyleaf ? 'flyleaf-spread' : ''} ${selectionMarquee?'is-marquee-active':''}`}
                       style={
                         {
                           '--paper': paper.color,
@@ -1975,6 +2048,10 @@ export default function Home() {
                         } as CSSProperties
                       }
                       ref={canvas}
+                      onPointerDown={canvasSelectionDown}
+                      onPointerMove={canvasSelectionMove}
+                      onPointerUp={finishCanvasSelection}
+                      onPointerCancel={cancelCanvasSelection}
                     >
                       {isFlyleaf ? (
                         <>
@@ -2008,13 +2085,13 @@ export default function Home() {
                               ? `编辑${p.role === 'title' ? '标题' : '文字'}`
                               : `编辑${p.kind === 'photo' ? '照片' : '素材'}`
                           }
-                          className={`piece piece-${p.kind} ${p.role || ''} ${activePieces.some(q=>q.id===p.id) ? 'selected' : ''} ${p.frame || ''} ${p.stretch?'piece-stretched':''} ${pieceClasses(p)} ${cropping&&selected===p.id?'is-cropping':''}`}
+                          className={`piece piece-${p.kind} ${p.role || ''} ${activePieces.some(q=>q.id===p.id) ? 'selected' : ''} ${selectionPreviewIds.includes(p.id)?'selection-preview':''} ${p.frame || ''} ${p.stretch?'piece-stretched':''} ${pieceClasses(p)} ${cropping&&selected===p.id?'is-cropping':''}`}
                           style={{
                             ...pieceAppearance(p),
                             left: `${p.x}%`,
                             top: `${p.y}%`,
                             width: `${p.w}%`,
-                            transform: `rotate(${p.rotation}deg)`,
+                            transform: `translate3d(var(--drag-x,0px),var(--drag-y,0px),0) rotate(${p.rotation}deg)`,
                             fontSize: `${(p.fontSize || 18) / 10}cqw`,
 
                             opacity: p.opacity ?? 1,
@@ -2025,12 +2102,12 @@ export default function Home() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (spread && !reading) {
-                              if(e.shiftKey||e.metaKey||e.ctrlKey)selectPiece(p,true);else{if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=p;selectTimer.current=setTimeout(()=>{selectPiece(p);pendingSelection.current=null;selectTimer.current=null;},350);}
+                              selectPiece(p,e.shiftKey||e.metaKey||e.ctrlKey);
                             }
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !reading && !p.locked) {
-                              if(e.shiftKey||e.metaKey||e.ctrlKey)selectPiece(p,true);else{if(selectTimer.current)clearTimeout(selectTimer.current);pendingSelection.current=p;selectTimer.current=setTimeout(()=>{selectPiece(p);pendingSelection.current=null;selectTimer.current=null;},350);}
+                              selectPiece(p,e.shiftKey||e.metaKey||e.ctrlKey);
                               if(p.kind==='text'){setInlineId(p.id);setInlineText(p.text||'')}
                             }
                           }}
@@ -2038,7 +2115,7 @@ export default function Home() {
                           onPointerDown={(e) => pointerDown(e, p.id)}
                           onPointerMove={pointerMove}
                           onPointerUp={endPointerDrag}
-                          onPointerCancel={endPointerDrag}
+                          onPointerCancel={cancelPointerDrag}
                         >
                           {p.kind === 'text' ? (
                             inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
@@ -2058,17 +2135,19 @@ export default function Home() {
                           )}
                         </div>
                       ))}
+                      {selectionMarquee&&<div className="canvas-selection-marquee" aria-hidden="true" style={{left:selectionMarquee.left,top:selectionMarquee.top,width:selectionMarquee.right-selectionMarquee.left,height:selectionMarquee.bottom-selectionMarquee.top}}/>}
                       {piece&&!isPieceHidden(piece)&&!reading&&!selectionLocked&&!cropping&&inlineId!==piece.id&&<div
+                        data-selection-box
                         className={`selection-box ${multiSelection?'multi-move-box':''}`}
-                        aria-label={multiSelection?'多选素材移动区域':'素材调整边框'}
-                        title={multiSelection?'按住框内任意空白处拖动全部所选素材':undefined}
-                        style={clusterBox?{left:clusterBox.x,top:clusterBox.y,width:clusterBox.w,height:clusterBox.h}:{left:`${piece.x}%`,top:`${piece.y}%`,width:`${selectionSize.w||piece.w}%`,height:`${selectionSize.h||piece.h||15}%`,transform:`rotate(${piece.rotation}deg)`}}
-                        onPointerDown={multiSelection?e=>pointerDown(e,piece.id,'move'):undefined}
+                        aria-label={multiSelection?'多选素材范围':'素材调整边框'}
+                        title={multiSelection?'拖动任意已选素材或边框，可移动全部所选素材':undefined}
+                        style={clusterBox?{left:clusterBox.x,top:clusterBox.y,width:clusterBox.w,height:clusterBox.h,transform:'translate3d(var(--drag-x,0px),var(--drag-y,0px),0)'}:{left:`${piece.x}%`,top:`${piece.y}%`,width:`${selectionSize.w||piece.w}%`,height:`${selectionSize.h||piece.h||15}%`,transform:`translate3d(var(--drag-x,0px),var(--drag-y,0px),0) rotate(${piece.rotation}deg)`}}
                         onPointerMove={pointerMove}
                         onPointerUp={endPointerDrag}
-                        onPointerCancel={endPointerDrag}
+                        onPointerCancel={cancelPointerDrag}
                       >
-                        <span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个 · 拖动框内移动`:cluster?'组合 · 等比缩放':piece.kind==='text'?'文字':piece.kind==='photo'?'照片':'素材'}</span>
+                        {multiSelection&&<><span className="selection-move-edge edge-top" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-right" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-bottom" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-left" onPointerDown={e=>pointerDown(e,piece.id,'move')}/></>}
+                        {(multiSelection||cluster)&&<span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个对象`: '组合 · 等比缩放'}</span>}
                         {!multiSelection&&resizeHandles.map(([handle,label])=><button key={handle} className={`resize-handle handle-${handle}`} aria-label={label} title={label+' · Shift 保持比例'} onPointerDown={e=>pointerDown(e,piece.id,'resize-'+handle)}/>)}
                         {!multiSelection&&<button className="rotate-handle" aria-label="拖动旋转" title="围绕中心旋转 · Shift 按 15° 吸附" onPointerDown={e=>pointerDown(e,piece.id,'rotate')}><RefreshCw/></button>}
                       </div>}

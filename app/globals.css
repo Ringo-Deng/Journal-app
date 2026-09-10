@@ -713,12 +713,15 @@ button {
   position: absolute;
   bottom: calc(100% + 6px);
   left: -5px;
-  background: #546649;
-  color: white;
+  background: rgba(255, 254, 249, .96);
+  color: #566052;
   font:
     12px 'PingFang SC',
     sans-serif;
-  padding: 3px 6px;
+  padding: 4px 7px;
+  border: 1px solid rgba(112, 122, 106, .32);
+  border-radius: 6px;
+  box-shadow: 0 3px 9px rgba(55, 65, 52, .12);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2814,7 +2817,7 @@ button {
 
 /* Independent selection chrome keeps the real stacking order visible. */
 .open-book .piece.selected{z-index:auto;outline-color:transparent;}
-.selection-box{position:absolute;z-index:80;outline:1px solid #687d59;outline-offset:3px;pointer-events:none;transform-origin:center;}
+.selection-box{position:absolute;z-index:80;outline:1px solid rgba(77,91,73,.82);outline-offset:2px;pointer-events:none;transform-origin:center;box-shadow:0 1px 3px rgba(55,66,52,.12);}
 .selection-box button{pointer-events:auto;touch-action:none;padding:0;}
 .selection-box .selection-label{bottom:calc(100% + 8px);left:0;}
 .selection-box .resize-handle{width:12px;height:12px;min-width:12px;border-radius:2px;background:#fffef8;box-shadow:0 1px 3px #25321f40;bottom:auto;right:auto;transform:translate(-50%,-50%);}
@@ -2822,6 +2825,10 @@ button {
 .selection-box .handle-nw{left:0;top:0;cursor:nwse-resize;}.selection-box .handle-n{left:50%;top:0;cursor:ns-resize;}.selection-box .handle-ne{left:100%;top:0;cursor:nesw-resize;}.selection-box .handle-e{left:100%;top:50%;cursor:ew-resize;}.selection-box .handle-se{left:100%;top:100%;cursor:nwse-resize;}.selection-box .handle-s{left:50%;top:100%;cursor:ns-resize;}.selection-box .handle-sw{left:0;top:100%;cursor:nesw-resize;}.selection-box .handle-w{left:0;top:50%;cursor:ew-resize;}
 .selection-box .rotate-handle{width:26px;height:26px;right:calc(50% - 13px);top:-45px;}
 .selection-box .rotate-handle::after{content:'';position:absolute;top:100%;left:50%;height:14px;border-left:1px solid #687d59;}
+.open-book.is-marquee-active{cursor:crosshair;}
+.open-book .piece.selection-preview{outline-color:#84aa7d;background-color:rgba(132,170,125,.1);}
+.canvas-selection-marquee{position:absolute;z-index:110;pointer-events:none;border:1px solid #6f9668;border-radius:3px;background:rgba(112,151,104,.1);box-shadow:0 0 0 1px rgba(255,255,255,.65) inset;}
+.open-book.is-moving-selection,.open-book.is-moving-selection .piece,.open-book.is-moving-selection .selection-move-edge{cursor:grabbing;}
 .piece-stretched>img{height:100%;max-height:none;object-fit:fill;aspect-ratio:auto;}
 .piece-photo.piece-stretched>img,.piece-asset.piece-stretched>img{height:100%;max-height:none;object-fit:fill;aspect-ratio:auto;}
 .compact-shell .work-area .book-scene{padding-top:150px;}
@@ -3607,15 +3614,18 @@ fieldset.book-tools{border-top:0;}
 
 .selection-box.multi-move-box{
   z-index:120;
-  pointer-events:auto;
-  cursor:move;
-  touch-action:none;
-  outline:1.5px dashed #62745b;
-  outline-offset:3px;
+  pointer-events:none;
+  cursor:default;
+  outline:1px solid rgba(77,91,73,.82);
+  outline-offset:2px;
   background:transparent;
 }
-.selection-box.multi-move-box:active{cursor:grabbing;}
 .selection-box.multi-move-box .selection-label{pointer-events:none;white-space:nowrap;}
+.selection-move-edge{position:absolute;z-index:1;pointer-events:auto;touch-action:none;cursor:grab;}
+.selection-move-edge.edge-top,.selection-move-edge.edge-bottom{left:-5px;right:-5px;height:10px;}
+.selection-move-edge.edge-top{top:-5px;}.selection-move-edge.edge-bottom{bottom:-5px;}
+.selection-move-edge.edge-left,.selection-move-edge.edge-right{top:5px;bottom:5px;width:10px;}
+.selection-move-edge.edge-left{left:-5px;}.selection-move-edge.edge-right{right:-5px;}
 
 .font-picker-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}.font-picker-row>label{flex:1 1 150px}.font-import-button{white-space:nowrap}.font-import-status{display:block;max-width:260px;color:var(--muted,#746d63);font-size:11px;line-height:1.45;margin-top:-2px}.font-import-status.is-error{color:#9b4b3d}
 
