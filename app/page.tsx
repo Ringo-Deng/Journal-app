@@ -2971,6 +2971,8 @@ export default function Home() {
         open={modal === 'material-import'}
         onClose={() => setModal(null)}
         onReady={(message) => {setMaterialStudioNotice(message);setModal('studio')}}
+        onImported={setAssets}
+        onOpenLibrary={() => {setModal(null);if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null)}}
       />
       <MaterialStudio
         open={modal === 'studio'}

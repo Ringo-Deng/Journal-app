@@ -19,6 +19,7 @@ import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
 import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
 import http from 'node:http';
+import sharp from 'sharp';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const run = promisify(execFile);
@@ -1088,6 +1089,38 @@ const server = http.createServer(async (req, res) => {
         materialJobs = materialJobs.filter((j) => j.id !== job.id);
         await atomic('material-jobs.json', materialJobs);
         return { ok: true, imported: job.items.filter((i) => i.imported).length };
+      });
+      return json(res, result);
+    }
+    if (path === '/api/materials/import-image' && req.method === 'POST') {
+      const input = await body(req);
+      if (!UPLOAD_SOURCE.test(input.src || '')) throw error('请选择本机已保存的素材图片。');
+      const source = resolve(data, input.src.slice(1));
+      try { await stat(source); } catch { throw error('找不到图片，请重新导入。', 404); }
+      let metadata;
+      try { metadata = await sharp(source, { limitInputPixels: 40_000_000 }).metadata(); }
+      catch { throw error('无法读取图片，请选择有效的 JPG、PNG 或 WebP。'); }
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format) || !metadata.width || !metadata.height || metadata.width > 20000 || metadata.height > 20000)
+        throw error('图片格式或尺寸不支持。');
+      // Browsers display EXIF orientation; store the corresponding visible dimensions without rewriting pixels.
+      const rotated = metadata.orientation >= 5 && metadata.orientation <= 8;
+      const result = await materialWrite(async () => {
+        const existing = customAssets.find(asset => asset.src === input.src && asset.sourceImage === input.src);
+        if (existing) return { added: 0, assets: await library() };
+        const pinRecord = pinterestBySrc(input.src);
+        const sourceMeta = pinterestSourceMeta(pinRecord);
+        const asset = {
+          id: randomUUID(), name: String(input.name || '导入素材').trim().slice(0, 80) || '导入素材',
+          category: '我的素材', tags: ['用户导入'], src: input.src,
+          sourceUrl: sourceMeta?.originalUrl || input.src, sourceImage: input.src,
+          ...(sourceMeta ? { source: sourceMeta } : {}), license: '用户导入', author: '我的素材',
+          width: rotated ? metadata.height : metadata.width,
+          height: rotated ? metadata.width : metadata.height,
+        };
+        const next = [...customAssets, asset];
+        await atomic('materials.json', next);
+        customAssets = next;
+        return { added: 1, assets: await library() };
       });
       return json(res, result);
     }
