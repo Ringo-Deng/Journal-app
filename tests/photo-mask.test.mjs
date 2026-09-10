@@ -27,7 +27,7 @@ async function fixture(t){
 test('four controlled shapes and finite parameters reject unknown paths and sizes',()=>{
  for(const shape of Object.keys(PHOTO_MASK_SHAPES)){assert.equal(validateMaskInput(input({shape})).shape,shape);assert.match(maskPath(shape),/^M /);assert.match(maskPath(shape),/Z$/);}
  assert.match(maskPath('star'),/Q /);assert.throws(()=>maskPath('triangle'));
- for(const patch of [{src:'/etc/passwd'},{src:'/uploads/../file.png'},{src:'/uploads/%2e%2e/file.png'},{shape:'__proto__'},{shape:'triangle'},{width:0},{height:-1},{width:Infinity},{height:NaN},{crop:-1},{cropY:101},{cropZoom:0},{photoRotation:181},{flipX:1},{revision:1.5},{width:1,height:200},{unknown:1}])assert.throws(()=>validateMaskInput(input(patch)),JSON.stringify(patch));
+ for(const patch of [{src:'/uploads/photo-'+ 'a'.repeat(31) +'.webp'},{src:'/uploads/photo-'+ 'a'.repeat(33) +'.webp'},{src:'/uploads/photo-'+ 'g'.repeat(32) +'.webp'},{src:'/uploads/photo-'+ 'a'.repeat(32) +'.webp/../file.png'},{src:'https://example.com/uploads/photo-'+ 'a'.repeat(32) +'.webp'},{src:'/etc/passwd'},{src:'/uploads/../file.png'},{src:'/uploads/%2e%2e/file.png'},{shape:'__proto__'},{shape:'triangle'},{width:0},{height:-1},{width:Infinity},{height:NaN},{crop:-1},{cropY:101},{cropZoom:0},{photoRotation:181},{flipX:1},{revision:1.5},{width:1,height:200},{unknown:1}])assert.throws(()=>validateMaskInput(input(patch)),JSON.stringify(patch));
  assert.deepEqual(maskOutputSize(100,50),{width:4096,height:2048});
 });
 test('wide, tall and square photos cover every rotated frame without extra zoom state',()=>{
