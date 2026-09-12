@@ -1,18 +1,19 @@
 'use client';
 /* oxlint-disable next/no-img-element -- Pinterest previews use URLs resolved by the local material service. */
-import {useRef,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {ImagePlus,Loader2} from 'lucide-react';
 import type {Asset} from '@/lib/journal';
 import {normalizePinterestResolvePayload} from '@/lib/pinterest-resolve-compat';
+import {preferredPinterestImage,verifyPinterestPreviews,type VerifiedPinterestImage} from '@/lib/pinterest-preview';
 import {Dialog,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
 
 type Job={source:string;items:{id:string}[];manualOnly?:boolean};
-type PinterestPreview={pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]};
+type PinterestPreview={pinId:string;previewUrl:string;originalUrl:string;images:VerifiedPinterestImage[]};
 
-async function request<T>(path:string,data?:unknown):Promise<T>{
- const response=await fetch('/api/materials'+path,data===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+async function request<T>(path:string,data?:unknown,signal?:AbortSignal):Promise<T>{
+ const response=await fetch('/api/materials'+path,data===undefined?{signal}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal});
  const result=await response.json() as T&{error?:string};
- if(!response.ok)throw Error(result.error||'素材导入失败');
+ if(!response.ok)throw Error(response.status===404&&result.error==='接口不存在。'?'素材服务仍是旧版本，请关闭并重新启动拾光后再导入。':result.error||'素材导入失败');
  return result;
 }
 
@@ -31,10 +32,14 @@ function localPinterestPinId(value:string){
 
 export default function MaterialImporter({open,onClose,onReady,onImported,onOpenLibrary}:{open:boolean;onClose:()=>void;onReady:(message:string,targetSource:string)=>void;onImported:(assets:Asset[])=>void;onOpenLibrary:()=>void}){
  const [mode,setMode]=useState<'whole'|'segment'>('whole'),[importedCount,setImportedCount]=useState(0);
- const file=useRef<HTMLInputElement>(null),pinterestSeq=useRef(0);
+ const file=useRef<HTMLInputElement>(null),pinterestSeq=useRef(0),pinterestController=useRef<AbortController|null>(null);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[progress,setProgress]=useState('');
  const [pinterestInput,setPinterestInput]=useState(''),[pinterestPreview,setPinterestPreview]=useState<PinterestPreview|null>(null),[pinterestSelected,setPinterestSelected]=useState(''),[pinterestStatus,setPinterestStatus]=useState('等待粘贴'),[pinterestResolving,setPinterestResolving]=useState(false);
  const selectedPinterestImage=pinterestPreview?.images.find(image=>image.downloadUrl===pinterestSelected);
+ useEffect(()=>{
+  if(!open&&pinterestController.current){pinterestController.current.abort();pinterestController.current=null;pinterestSeq.current++;setPinterestResolving(false);setPinterestStatus('读取已停止，重新粘贴链接即可重试。')}
+ },[open]);
+ useEffect(()=>()=>pinterestController.current?.abort(),[]);
 
  async function upload(files:FileList|null){
   if(!files?.length)return;
@@ -70,21 +75,26 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
  }
 
  async function recognizePinterest(value:string){
-  setPinterestInput(value);setPinterestSelected('');const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
+  pinterestController.current?.abort();pinterestController.current=null;
+  setPinterestInput(value);setPinterestSelected('');setMessage('');setImportedCount(0);const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
   if(!value.trim()){setPinterestPreview(null);setPinterestStatus('等待粘贴');setPinterestResolving(false);return}
   if(!pinId){setPinterestPreview(null);setPinterestStatus('未识别到 Pinterest Pin');setPinterestResolving(false);return}
   setPinterestPreview(null);setPinterestStatus(`已识别 Pin ${pinId} · 正在读取预览…`);setPinterestResolving(true);
+  const controller=new AbortController();pinterestController.current=controller;
   try{
-   const payload=await request<PinterestPreview>('/pinterest/resolve',{input:value});if(seq!==pinterestSeq.current)return;
+   const payload=await request<PinterestPreview>('/pinterest/resolve',{input:value},controller.signal);if(seq!==pinterestSeq.current)return;
    const normalized=normalizePinterestResolvePayload(payload);
    if(!normalized?.images.length)throw Error('没有读取到可用图片，请重新粘贴链接。');
-   const result={...payload,images:normalized.images};
-   setPinterestPreview(result);setPinterestSelected(result.images[0].downloadUrl);setPinterestStatus('已自动选好图片，导入时优先下载高清原图');
-  }catch(error){if(seq===pinterestSeq.current){setPinterestPreview(null);setPinterestStatus((error as Error).message)}}finally{if(seq===pinterestSeq.current)setPinterestResolving(false)}
+   setPinterestStatus('正在检查图片是否可用及分辨率…');
+   const images=await verifyPinterestPreviews(normalized.images,{signal:controller.signal});if(seq!==pinterestSeq.current)return;
+   const preferred=preferredPinterestImage(images);
+   setPinterestPreview({...payload,images});setPinterestSelected(preferred?.downloadUrl||'');
+   setPinterestStatus(preferred?'已选中可用图片中分辨率最高的一张，可直接换选。':'图片暂时无法加载，请重新粘贴链接重试。');
+  }catch(error){if(seq===pinterestSeq.current&&!controller.signal.aborted){setPinterestPreview(null);setPinterestStatus((error as Error).message)}}finally{if(seq===pinterestSeq.current){pinterestController.current=null;setPinterestResolving(false)}}
  }
 
  async function importPinterest(){
-  if(busy||pinterestResolving||!selectedPinterestImage||!pinterestInput.trim())return;
+  if(busy||pinterestResolving||!selectedPinterestImage?.available||!pinterestInput.trim())return;
   setBusy(true);setProgress('正在下载 Pinterest 最高质量素材图…');setMessage('');setImportedCount(0);
   try{
    const imported=await request<{src:string;name:string;duplicate:boolean;autoSegment:boolean;pinId:string}>('/pinterest/import',{input:pinterestInput,imageUrl:pinterestSelected});
@@ -124,14 +134,14 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
   <section className="material-import-pinterest" aria-label="Pinterest 素材导入">
    <label htmlFor="pinterest-material-input">Pinterest 链接、Pin ID 或嵌入代码</label>
    <textarea id="pinterest-material-input" placeholder={'粘贴 Pinterest 链接、Pin ID 或嵌入代码\n例如：<iframe src="https://assets.pinterest.com/ext/embed.html?id=…"></iframe>'} value={pinterestInput} disabled={busy} onChange={event=>void recognizePinterest(event.target.value)}/>
-   <span className={`pinterest-state ${pinterestPreview?'ready':''}`}>{pinterestResolving?'正在读取…':pinterestStatus}</span>
-   <div className="pinterest-preview">{pinterestPreview&&selectedPinterestImage?<>
-    <img className="pinterest-selected-image" src={selectedPinterestImage.previewUrl} alt="当前选中的 Pinterest 图片，完整预览" draggable={false}/>
-    <div className="pinterest-preview-caption"><strong>已选图片</strong><small>完整显示，不裁切；导入时优先使用此图的最高分辨率版本。</small></div>
-    {pinterestPreview.images.length>1&&<details className="pinterest-alternatives" key={pinterestPreview.pinId}>
-     <summary>换一张图片（{pinterestPreview.images.length} 张可选）</summary>
-     <div className="pinterest-image-choices" aria-label="Pinterest 候选图片">{pinterestPreview.images.map((image,index)=><button type="button" key={image.id} disabled={busy} aria-pressed={pinterestSelected===image.downloadUrl} aria-label={`选择图片 ${index+1}`} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>{setPinterestSelected(image.downloadUrl);setPinterestStatus('已手动选择图片，导入时优先下载高清原图')}}><img src={image.previewUrl} alt={`Pinterest 图片 ${index+1}`} loading="lazy" draggable={false}/><span>{pinterestSelected===image.downloadUrl?'已选择':`图片 ${index+1}`}</span></button>)}</div>
-    </details>}
+   <span className={`pinterest-state ${selectedPinterestImage?'ready':''}`} aria-live="polite">{pinterestStatus}</span>
+   <div className="pinterest-preview">{pinterestPreview?<>
+    {selectedPinterestImage&&<><img className="pinterest-selected-image" src={selectedPinterestImage.previewUrl} alt="当前选中的 Pinterest 图片，完整预览" draggable={false}/>
+    <div className="pinterest-preview-caption"><strong>已选图片</strong><small>{selectedPinterestImage.width} × {selectedPinterestImage.height} · 完整显示，导入时优先使用高清原图。</small></div></>}
+    {(pinterestPreview.images.length>1||!selectedPinterestImage)&&<div className="pinterest-alternatives">
+     <p>候选图片 · 点击即可换选</p>
+     <div className="pinterest-image-choices" aria-label="Pinterest 候选图片">{pinterestPreview.images.map((image,index)=><button type="button" key={image.id} disabled={busy||!image.available} aria-pressed={pinterestSelected===image.downloadUrl} aria-label={`选择图片 ${index+1}`} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>{setPinterestSelected(image.downloadUrl);setPinterestStatus('已手动选择图片，导入时优先下载高清原图')}}>{image.available?<img src={image.previewUrl} alt={`Pinterest 图片 ${index+1}`} draggable={false}/>:<span className="pinterest-image-unavailable">无法加载</span>}<span>{pinterestSelected===image.downloadUrl?'已选择':`图片 ${index+1}`}</span><small>{image.available?`${image.width} × ${image.height}`:'已跳过'}</small></button>)}</div>
+    </div>}
    </>:<div className="pinterest-placeholder">粘贴后会自动选图并显示完整预览</div>}</div>
    <button className="primary" disabled={busy||pinterestResolving||!pinterestPreview||!pinterestSelected} onClick={()=>void importPinterest()}>{busy?'正在导入…':mode==='whole'?'整图加入素材库':'导入并进入素材台'}</button>
   </section>
