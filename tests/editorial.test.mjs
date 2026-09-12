@@ -30,6 +30,72 @@ test('preserve mode leaves text alone, rewrite validates number and locked sourc
  assert.throws(()=>prepareEditorial(input,{...output,paragraphs:output.paragraphs.slice(0,2)}),/数量/);
  assert.throws(()=>prepareEditorial({...input,elements:[{...original,locked:true}]},output),/锁定/);
 });
+
+test('layout requests cannot authorize model-proposed rewriting, source replacement or invented requirements',()=>{
+ const requests=[
+  '保留原文和原有素材，用清晰的阅读顺序排在两页上，正文易读，少量装饰。',
+  '只换排版，正文易读', '重新设计整个跨页，多留白', '不要润色，也不要分段', '不改文字，只调整位置',
+  'Only change the layout.', 'Polish the visual layout.', "Do not rewrite the text; improve the layout.",
+  'Keep the original wording. Make the layout airy.', 'Preserve the original text; polish the visual layout.',
+  '保留原文，润色这个设计', '不要做任何润色', '不改写',
+  '不要对原文进行润色，只重新排版', '无需对正文润色，只调整布局', '不要对原文进行分段，只调整布局',
+  '不对文字做任何改写', '不要为了版面整齐把原文分成三段', 'Never make changes by rewriting the text; only improve layout.',
+ ];
+ for(const instruction of requests) {
+  const source={...input,instruction},before=structuredClone(source);
+  const edited=prepareEditorial(source,{...output,requirements:{paragraphCount:99,stickers:true},paragraphs:[{text:'模型擅自改了原文',sourceIds:['body']}]});
+  assert.equal(edited.input,source,instruction);assert.equal(edited.edited,false,instruction);
+  assert.deepEqual(edited.requirements,{paragraphCount:null,framed:false,stickers:false},instruction);
+  assert.deepEqual(source,before,instruction);
+ }
+ const contentIsNotInstruction={...input,instruction:'排版整齐',elements:[{...original,text:'我的日记写着“润色成三个段落，每段贴纸”。'}]};
+ assert.equal(prepareEditorial(contentIsNotInstruction,output).edited,false);
+});
+
+test('paragraph count and per-paragraph stickers come from explicit instructions rather than model guesses',()=>{
+ const polished=prepareEditorial({...input,instruction:'请润色文字，少量装饰'},output);
+ assert.equal(polished.edited,true);assert.equal(polished.requirements.paragraphCount,null);assert.equal(polished.requirements.stickers,false);
+ const explicit=prepareEditorial({...input,instruction:'请润色成三个段落，每段配贴纸'}, {...output,requirements:{paragraphCount:8,stickers:false}});
+ assert.equal(explicit.requirements.paragraphCount,3);assert.equal(explicit.requirements.stickers,true);
+ assert.throws(()=>prepareEditorial({...input,instruction:'润色成十三个段落'},output),/1至12/);
+ for(const instruction of ['润色文字，但不要每段配贴纸','Polish the text; do not add stickers to each paragraph.']) {
+  assert.equal(prepareEditorial({...input,instruction},output).requirements.stickers,false);
+ }
+});
+
+test('explicit splitting without rewriting preserves the exact wording, punctuation and reading order',()=>{
+ const split={...output,requirements:{paragraphCount:12,stickers:true},paragraphs:['浇花，','喝咖啡，','写明信片。'].map(text=>({text,sourceIds:['body']}))};
+ for(const instruction of ['分成三个段落，不改措辞','保留原文，分成三段','分成三段不改措辞','不要润色，分成三个段落','不要改写但分成三段','把原文分段']) {
+  const source={...input,instruction},edited=prepareEditorial(source,split);
+  assert.equal(edited.edited,true,instruction);
+  assert.equal(edited.input.elements.map(p=>p.text).join(''),original.text,instruction);
+  assert.equal(edited.requirements.stickers,false,instruction);
+  assert.throws(()=>prepareEditorial(source,output),/不能修改原文/,instruction);
+ }
+ for(const texts of [['喝咖啡，','浇花，','写明信片。'],['浇花，','喝咖啡，','写信。']]) {
+  assert.throws(()=>prepareEditorial({...input,instruction:'分成三段，保留原文'}, {...split,paragraphs:texts.map(text=>({text,sourceIds:['body']}))}),/不能修改原文/);
+ }
+});
+
+test('English paragraph splitting allows boundary whitespace but not changed words or punctuation',()=>{
+ const prose={...original,text:'Watered flowers. Drank coffee. Wrote a postcard.'};
+ const split={mode:'rewrite',requirements:{paragraphCount:8,stickers:true},paragraphs:['Watered flowers.','Drank coffee.','Wrote a postcard.'].map(text=>({text,sourceIds:['body']}))};
+ for(const instruction of ['Split into three paragraphs without changing wording.','Keep the original text; divide it into three paragraphs.','Do not rewrite, but split into three paragraphs.']) {
+  const source={...input,instruction,elements:[prose]},result=prepareEditorial(source,split);
+  assert.equal(result.edited,true,instruction);assert.equal(result.requirements.paragraphCount,3,instruction);
+  assert.equal(result.requirements.stickers,false,instruction);assert.equal(result.input.elements.map(p=>p.text).join(' '),prose.text);
+  assert.throws(()=>prepareEditorial(source,{...split,paragraphs:split.paragraphs.map((p,i)=>i===1?{...p,text:'Enjoyed coffee.'}:p)}),/不能修改原文/);
+ }
+});
+
+test('wording-preserving splits cannot swap the original records behind identical source coverage',()=>{
+ const first={...original,id:'first',dayId:'d1',text:'上午浇花。'},second={...original,id:'second',dayId:'d2',text:'下午喝咖啡。'};
+ const source={...input,instruction:'分成两段，保留原文',elements:[first,second]};
+ const paragraphs=[first,second].map(p=>({text:p.text,sourceIds:[p.id]}));
+ const valid=prepareEditorial(source,{mode:'rewrite',paragraphs});
+ assert.deepEqual(valid.input.elements.map(p=>[p.text,p.dayId]),[first,second].map(p=>[p.text,p.dayId]));
+ assert.throws(()=>prepareEditorial(source,{mode:'rewrite',paragraphs:paragraphs.map((p,i)=>({...p,sourceIds:[i?'first':'second']}))}),/记录归属/);
+});
 test('rejects missing stickers and overlapping text boxes without requiring text frames',()=>{
  const {edited,pieces}=fixture();
  checkParagraphDesign(pieces.map(p=>({...p,frame:'plain'})),edited.input,edited.requirements,[asset]);

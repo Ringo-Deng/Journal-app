@@ -13,6 +13,8 @@ export function validatePlan(elements, input, assets) {
     if (!p || !['text','asset','photo','doodle'].includes(p.kind)) throw Error('AI 页面元素类型无效。');
     let source = sources.find(s => s.id === p.sourceId);
     if(source?.kind==='text' && ['doodle','asset'].includes(p.kind)) {p={...p,sourceId:undefined,forParagraph:p.forParagraph||source.id};source=undefined;}
+    // Some providers place a known library ID in sourceId. Repair only this unambiguous case.
+    if(p.kind==='asset'&&!source&&!p.assetId&&assets.some(a=>a.id===p.sourceId))p={...p,assetId:p.sourceId,sourceId:undefined};
     const day = input.days[p.dayIndex];
     const w = number(p.w, 3, 44, 30);
     let x = number(p.x, 2, 98-w, 5);

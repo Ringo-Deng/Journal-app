@@ -8,6 +8,7 @@ import {paperGroupContent,validatePaperSelection,placePaperGroup,paperGroupSlots
 import {generatePaperGroup} from '../local/paper-group.mjs';
 import {paperShapes} from '../local/paper-art.mjs';
 import {referenceLayoutGuide} from '../local/reference-layout-guide.mjs';
+import {prepareDesignContext,finishDesignContext} from '../local/design-context.mjs';
 import {bounds,intersects,layoutIssues} from '../lib/layout-safety.mjs';
 import {appendDay,regenerateSpread,defaultBook} from '../lib/journal.ts';
 
@@ -32,6 +33,16 @@ const paperSources=['/uploads/back-a.png','/uploads/back-b.png','/uploads/writin
 const sheets=elements=>elements.filter(p=>p.frame==='collage-paper');
 const make=(chosen=selection,extra={},assets=candidates)=>placePaperGroup(paperGroupContent({...input,...extra}),chosen,assets,paperSources,{...input,...extra});
 const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-9,`${actual} != ${expected}`);
+
+test('short sentences do not strand the final character on its own line',()=>{
+ const elements=[{id:'sea',kind:'text',text:'今天去海边玩耍了',x:10,y:20,w:28}];
+ const result=make({...selection,writing:{...selection.writing,width:12},stickers:[]},{elements});
+ const writing=result.find(p=>p.kind==='text');
+ assert.equal(writing.text,elements[0].text);
+ assert.ok(writing.w>12&&writing.w<18);
+ assert.ok(writing.h<4,'the complete sentence fits one readable line');
+ assertWritingInside(result,1.43);
+});
 
 function assertWritingInside(elements,ratio) {
  const front=sheets(elements).find(p=>p.stackOrder===3);
@@ -69,6 +80,32 @@ test('writing height follows actual text and selected width instead of a fixed l
  assert.ok(front(narrow).h>=front(wide).h);
  assert.equal(wide.find(p=>p.kind==='text').textAlign,'left');
  for(const out of [short,long,narrow,wide])assert.deepEqual(layoutIssues(out),[]);
+});
+
+test('short phrases use small notes and allow no decoration or a single secondary accent',()=>{
+ const body={id:'brief',kind:'text',role:'body',text:'看海。',x:62,y:45,w:20};
+ for(const stickers of [[],[{slot:'accent',assetId:ids[1],width:3}]]) {
+  const chosen=validatePaperSelection({...selection,writing:{...selection.writing,width:6},stickers},candidates);
+  const out=make(chosen,{elements:[body],entrySide:'right'}),front=sheets(out).at(-1),text=out.find(p=>p.kind==='text');
+  assert.ok(front.w<=10&&front.h<12,'a three-character phrase should fit a narrow paper strip');
+  assert.equal(text.text,body.text);assert.equal(text.fontSize,16);assert.equal(text.sourceId,body.id);
+  assert.equal(out.filter(p=>p.assetId).length,stickers.length);
+  assert.deepEqual(layoutIssues(out),[]);assertWritingInside(out,1.43);
+ }
+ const overwide=make({...selection,writing:{...selection.writing,width:28},stickers:[]},{elements:[body]});
+ assert.ok(sheets(overwide).at(-1).w<12,'model width is a maximum, not a reason to oversize a short note');
+});
+
+test('placement prefers the current writing position and centers a fresh note away from page edges',()=>{
+ const chosen={...selection,papers:[],stickers:[]};
+ const body={id:'brief',kind:'text',role:'body',text:'看海。',x:62,y:65,w:10,fontSize:16,lineHeight:1.65};
+ const out=make(chosen,{elements:[body],entrySide:undefined}),text=out.find(p=>p.kind==='text');
+ near(text.x+text.w/2,body.x+body.w/2);near(text.y+text.h/2,body.y+bounds(body,1.43).h/2);
+ assert.ok(out.every(p=>p.x>=52),'existing right-page writing stays on that side by default');
+ const fresh=make(chosen,{elements:[],days:[{raw:'看海。',photos:[]}],entrySide:'left'}),front=sheets(fresh).at(-1);
+ near(front.x+front.w/2,25);assert.ok(front.y>25&&front.y<55,'a fresh short note has intentional surrounding whitespace');
+ const bottom=make(chosen,{elements:[body],instruction:'放在左页底部',entrySide:'right'});
+ assert.ok(bottom.every(p=>bounds(p).x+bounds(p).w<=48));near(Math.max(...bottom.map(p=>bounds(p).y+bounds(p).h)),96);
 });
 
 test('all shapes and page ratios keep writing safe without reducing fonts or changing source text',()=>{
@@ -116,6 +153,77 @@ test('requested side and occupied groups are respected, and a full spread fails 
  assert.ok(make(selection,{elements:[...source,locked]}).every(p=>p.x>=50));
 });
 
+test('horizontal search finds open space beside narrow blockers on both pages',()=>{
+ const occupied=[{kind:'asset',x:3,y:0,w:2,h:100},{kind:'asset',x:53,y:0,w:2,h:100}];
+ const before=structuredClone(occupied),out=make(selection,{occupiedElements:occupied});
+ assert.deepEqual(occupied,before);
+ assert.ok(out.every(p=>occupied.every(o=>!intersects(bounds(p),bounds(o),2))));
+ assert.deepEqual(layoutIssues(out),[]);
+ const right=make(selection,{occupiedElements:occupied,entrySide:'right'});
+ assert.ok(right.every(p=>p.x>=57),'side preference is retained while searching across the page');
+});
+
+test('an exact narrow opening is usable without relying on a two-percent grid',()=>{
+ const chosen={...selection,stickers:[]},extra={elements:[{id:'body',kind:'text',role:'body',text:'看海。',x:64,y:45,w:15}]};
+ const plain=make(chosen,extra),front=sheets(plain).at(-1),left=67.3;
+ const occupied=[{kind:'photo',x:0,y:0,w:50,h:100},{kind:'asset',x:50,y:0,w:left-52,h:100},{kind:'asset',x:left+front.w+2,y:0,w:100-left-front.w-2,h:100}];
+ const out=make(chosen,{...extra,occupiedElements:occupied});
+ near(sheets(out).at(-1).x,left);
+ assert.ok(out.every(p=>occupied.every(o=>!intersects(bounds(p),bounds(o),2))));
+});
+
+test('local compaction removes only new embellishments when a full design does not fit',()=>{
+ const elements=[{id:'brief',kind:'text',role:'body',text:'今天非常开心',x:62,y:44,w:20,colorRuns:[{start:0,end:2,color:'#123456'}]}];
+ const occupied=[{kind:'photo',x:0,y:0,w:50,h:100},{kind:'photo',x:50,y:0,w:50,h:40},{kind:'photo',x:50,y:54,w:50,h:46}];
+ const chosen={...selection,papers:[generatedBack,{...generatedBack,position:'bottom'}],tapes:[{position:'top',width:8}]},before=structuredClone({elements,occupied,chosen});
+ const out=make(chosen,{elements,occupiedElements:occupied}),text=out.find(p=>p.kind==='text');
+ assert.equal(out.length,2,'only the complete writing and its opaque sheet are needed in the tight opening');
+ assert.equal(text.text,elements[0].text);assert.equal(text.sourceId,elements[0].id);assert.equal(text.fontSize,16);assert.deepEqual(text.colorRuns,elements[0].colorRuns);
+ assert.deepEqual({elements,occupied,chosen},before);assertWritingInside(out,1.43);
+ assert.ok(out.every(p=>occupied.every(o=>!intersects(bounds(p),bounds(o),2))));
+});
+
+test('compaction also checks the final retained-group layout before accepting new decoration',()=>{
+ const original={id:'old',kind:'asset',assetId:'old',groupId:'old-group',x:2,y:3,w:96,h:69,locked:false};
+ const writing={id:'brief',kind:'text',role:'body',text:'今天非常开心',x:10,y:25,w:20,fontSize:16,locked:false};
+ const source={days:[],ratio:1.43,elements:[original,writing]},before=structuredClone(source);
+ const ctx=prepareDesignContext(source),content=paperGroupContent(ctx.input);
+ const chosen={...selection,stickers:[{slot:'hero',assetId:ids[0],width:8},{slot:'accent',assetId:ids[1],width:8}]};
+ assert.throws(()=>finishDesignContext(placePaperGroup(content,chosen,candidates,paperSources,ctx.input),ctx),{code:'design_space'});
+ let checks=0;
+ const out=placePaperGroup(content,chosen,candidates,paperSources,ctx.input,undefined,pieces=>{checks++;return finishDesignContext(pieces,ctx);});
+ const merged=finishDesignContext(out,ctx);
+ assert.ok(checks>1&&checks<=4,'retained groups participate in bounded local compaction');
+ const old=merged.elements.find(p=>p.sourceId===original.id),text=merged.elements.find(p=>p.sourceId===writing.id);
+ assert.deepEqual({...old,sourceId:undefined},{...original,sourceId:undefined});
+ assert.equal(text.text,writing.text);assert.equal(text.fontSize,16);assert.equal(out.filter(p=>p.kind==='text').length,1);
+ assert.deepEqual(source,before);
+ const failure=Object.assign(Error('source mismatch'),{code:'design_source'});let rejectedChecks=0;
+ assert.throws(()=>placePaperGroup(content,chosen,candidates,paperSources,ctx.input,undefined,()=>{rejectedChecks++;throw failure;}),error=>error===failure);
+ assert.equal(rejectedChecks,1,'content-validation errors must not be hidden by decoration fallback');
+});
+
+test('oversized optional layers are repaired locally while readable writing and real paper proportions survive',()=>{
+ const chosen={...selection,writing:{...selection.writing,shape:'oval',width:28},papers:[{assetId:'asset-035',position:'left',width:36,rotation:-12},{...generatedBack,position:'right',width:36,height:48,rotation:12}],stickers:Object.keys(paperGroupSlots).map((slot,i)=>({slot,assetId:ids[i],width:10}))};
+ const elements=[{id:'body',kind:'text',role:'body',text:'沿着海边散步，在岸边等太阳慢慢落下，今天心情很好。',x:5,y:20,w:30}];
+ const out=make(chosen,{elements}),text=out.find(p=>p.kind==='text');
+ assert.equal(text.fontSize,16);assert.equal(text.text,elements[0].text);assertWritingInside(out,1.43);
+ assert.deepEqual(layoutIssues(out),[]);
+ assert.ok(out.every(p=>bounds(p).x>=2&&bounds(p).x+bounds(p).w<=48));
+ const real=sheets(out).find(p=>p.assetId);
+ if(real)near(real.h/real.w,1249/955*1.43);
+});
+
+test('a narrow oval is widened instead of shrinking or dropping writing below a large header',()=>{
+ for(const [ratio,characters] of [[.8,90],[1,60],[1.8,30]]) {
+  const elements=[{id:'body',kind:'text',role:'body',text:'海'.repeat(characters),x:61,y:50,w:30}];
+  const chosen={...selection,writing:{...selection.writing,shape:'oval',width:6},stickers:[]};
+  const out=make(chosen,{ratio,headerSpace:23,elements}),text=out.find(p=>p.kind==='text');
+  assert.ok(text.w>6);assert.equal(text.fontSize,16);assert.equal(text.text,elements[0].text);
+  assert.deepEqual(layoutIssues(out,ratio,23),[]);assertWritingInside(out,ratio);
+ }
+});
+
 test('unsupported content retains the existing route and existing groups remain protected',()=>{
  for(const extra of [{elements:[{...source[1],text:'很长的日记。'.repeat(200)}]},{elements:[...source,{kind:'photo'}]},{elements:source.map(p=>({...p,locked:true,groupId:'old'}))},{instruction:'不要贴纸，极简'},{requirements:{paragraphCount:2}},{ratio:.7},{ratio:2}])assert.equal(paperGroupContent({...input,...extra}),null);
  assert.ok(paperGroupContent({...input,requirements:{framed:true}}),'retired text-frame request no longer blocks independent paper groups');
@@ -136,7 +244,7 @@ test('selection rejects old template replies, invalid references, unsafe values 
    {...selection,papers:[{...generatedBack,position:name}]},
    {...selection,stickers:[{slot:name,assetId:ids[0],width:6}]},
   ]),
-  ...[NaN,Infinity,-Infinity,'20',null,15,29].map(width=>({...selection,writing:{...selection.writing,width}})),
+  ...[NaN,Infinity,-Infinity,'20',null,5,29].map(width=>({...selection,writing:{...selection.writing,width}})),
   {...selection,writing:{...selection.writing,align:'justify'}},
   {...selection,palette:{...selection.palette,ink:selection.palette.frontPaper}},
   {...selection,palette:{...selection.palette,frontPaper:'red'}},
@@ -149,8 +257,7 @@ test('selection rejects old template replies, invalid references, unsafe values 
   {...selection,papers:[{assetId:'asset-035',position:'top',width:20},{assetId:'asset-035',position:'bottom',width:20}]},
   {...selection,papers:[{assetId:'asset-035',position:'top',width:20}],stickers:[{slot:'hero',assetId:'asset-035',width:6}]},
   {...selection,stickers:[null]},
-  {...selection,stickers:[]},
-  {...selection,stickers:[{slot:'accent',assetId:ids[0],width:6}]},
+  {...selection,stickers:undefined},
   {...selection,stickers:[{slot:'hero',assetId:'unknown',width:6}]},
   {...selection,stickers:[{slot:'hero',assetId:ids[0],width:NaN}]},
   {...selection,stickers:[selection.stickers[0],selection.stickers[0]]},
@@ -161,6 +268,29 @@ test('selection rejects old template replies, invalid references, unsafe values 
  assert.throws(()=>validatePaperSelection(selection,candidates.map(a=>({...a,category:'邮票'}))),/邮票/);
  // Pale pattern marks must still satisfy contrast, even when the base paper does.
  assert.throws(()=>validatePaperSelection({...selection,writing:{...selection.writing,pattern:'dots'},palette:{...selection.palette,frontPaper:'#FFFFFF',ink:'#767676'}},candidates),/对比/);
+});
+
+test('only unused palette fields may be omitted; required and explicitly invalid colors still fail',()=>{
+ const minimal={frontPaper:selection.palette.frontPaper,ink:selection.palette.ink};
+ for(const papers of [[],[generatedBack],[{assetId:'asset-035',position:'left',width:18,rotation:0}]]) {
+  const output={...selection,palette:minimal,papers,stickers:[],tapes:[]},before=structuredClone(output);
+  const chosen=validatePaperSelection(output,candidates);
+  assert.deepEqual(output,before);
+  assert.equal(chosen.palette.frontPaper,minimal.frontPaper);assert.equal(chosen.palette.ink,minimal.ink);
+  assert.match(chosen.palette.backPaper,/^#[a-f\d]{6}$/i);assert.match(chosen.palette.tape,/^#[a-f\d]{6}$/i);
+  assert.deepEqual(chosen.papers,output.papers);
+ }
+ const taped={...selection,palette:{...minimal,tape:'#ABCDEF'},tapes:[{position:'top',width:6}]};
+ assert.equal(validatePaperSelection(taped,candidates).palette.tape,'#ABCDEF');
+ assert.throws(()=>validatePaperSelection({...taped,palette:minimal},candidates),/tape/);
+ for(const field of ['frontPaper','ink']) {
+  const missing={...minimal};delete missing[field];
+  assert.throws(()=>validatePaperSelection({...selection,palette:missing},candidates),/颜色/);
+ }
+ for(const field of ['frontPaper','ink','backPaper','tape'])for(const value of [null,'','#abc','red','#12345678',{},123456]) {
+  assert.throws(()=>validatePaperSelection({...selection,palette:{...minimal,[field]:value},tapes:[]},candidates),/颜色|色值/);
+ }
+ assert.throws(()=>validatePaperSelection({...selection,palette:{frontPaper:'#FFFFFF',ink:'#FFFFFF'}},candidates),/对比/);
 });
 
 test('append and redesign preserve new paper geometry, latest writing, color runs and locked manual items',()=>{
@@ -233,6 +363,28 @@ test('writing shapes and patterns reach actual PNGs and leave every writing corn
    assert.equal(alpha(0,0),0,'paper keeps transparent cut edges');
   }
   assert.equal(sources.size,16,'distinct shape and pattern choices must change actual generated files');
+ } finally {await rm(dir,{recursive:true,force:true});}
+});
+
+test('paper-only designs work without a material library and recover locally with accurate output counts',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'paper-empty-library-'));
+ try {
+  const occupied=[{kind:'photo',x:0,y:0,w:50,h:100},{kind:'photo',x:50,y:0,w:50,h:40},{kind:'photo',x:50,y:54,w:50,h:46}];
+  const page={...input,elements:[{id:'brief',kind:'text',role:'body',text:'今天非常开心',x:62,y:44,w:20}],occupiedElements:occupied};
+  const diagnostic={};let calls=0;
+  const requestAI=async messages=>{
+   calls++;assert.equal(typeof messages[1].content,'string','an empty library must not make an invalid image board');
+   const payload=JSON.parse(messages[1].content);assert.deepEqual(payload.candidates,[]);
+   return {...selection,palette:{frontPaper:selection.palette.frontPaper,ink:selection.palette.ink},papers:[generatedBack],stickers:[]};
+  };
+  const result=await generatePaperGroup(page,[],{root,data:dir,vision:true,diagnostic,requestAI});
+  assert.equal(calls,1,'space recovery must not consume an extra model call');
+  assert.equal(diagnostic.imageCount,0);assert.equal(diagnostic.paperCount,1);assert.equal(diagnostic.realPaperCount,0);assert.equal(diagnostic.stickerCount,0);assert.equal(diagnostic.reducedDecoration,true);
+  assert.equal(result.elements.length,2);assert.equal(result.elements.find(p=>p.kind==='text').text,page.elements[0].text);
+  assert.ok((await readFile(join(dir,sheets(result.elements)[0].src))).length>100);
+  calls=0;
+  await assert.rejects(()=>generatePaperGroup({...page,occupiedElements:[{kind:'photo',x:0,y:0,w:100,h:100}]},[],{root,data:dir,vision:true,requestAI}),{code:'group_space'});
+  assert.equal(calls,1,'a truly full page must fail after bounded local recovery');
  } finally {await rm(dir,{recursive:true,force:true});}
 });
 

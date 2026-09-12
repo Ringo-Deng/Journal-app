@@ -90,13 +90,19 @@ test('short-entry API uses a real backing paper and selected writing shape while
   assert.ok(requests[0].system.includes(referenceLayoutGuide));
   assert.deepEqual(requests[0].payload.text, writing.map(p => p.text));
   assert.equal(generated.data.headerReserved, true);
-  assert.deepEqual(generated.data.elements.filter(p => p.kind === 'text').map(p => [p.sourceId, p.text]), writing.map(p => [p.id, p.text]));
-  assert.ok(generated.data.elements.filter(p => p.kind === 'text').every(p => p.textAlign === 'left'));
+  const created=generated.data.elements.filter(p=>!manual.some(m=>m.id===p.sourceId));
+  for(const original of manual) {
+    const {sourceId,...retained}=generated.data.elements.find(p=>p.sourceId===original.id);
+    assert.equal(sourceId,original.id);
+    assert.deepEqual(retained,original);
+  }
+  assert.deepEqual(created.filter(p => p.kind === 'text').map(p => [p.sourceId, p.text]), writing.map(p => [p.id, p.text]));
+  assert.ok(created.filter(p => p.kind === 'text').every(p => p.textAlign === 'left'));
   assert.equal(generated.data.elements.filter(p => p.assetId && p.frame !== 'collage-paper').length, 2);
   assert.equal(generated.data.elements.filter(p => p.material === 'tape').length, 0, 'an empty tape selection must not add fixed tape strips');
-  assert.equal(new Set(generated.data.elements.map(p => p.groupId)).size, 1);
+  assert.equal(new Set(created.map(p => p.groupId)).size, 1);
   assert.deepEqual(layoutIssues(generated.data.elements, 1.43), []);
-  assert.ok(generated.data.elements.every(p => manual.every(m => !intersects(bounds(p, 1.43), bounds(m, 1.43)))));
+  assert.ok(created.every(p => manual.every(m => !intersects(bounds(p, 1.43), bounds(m, 1.43)))));
   assert.deepEqual((await call('/api/state')).data, before, 'generation is only a preview');
 
   const papers = generated.data.elements.filter(p => p.frame === 'collage-paper');

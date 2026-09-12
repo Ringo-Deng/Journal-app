@@ -9,7 +9,7 @@ import {bounds, intersects} from '../lib/layout-safety.mjs';
 const {base} = await startTestServer(test);
 const ratio = 1.43;
 const instruction = '高级感几何排版';
-let failure, requestedPlan, stages = [];
+let failure, requestedPlan, stages = [], editorialMistake = false;
 const mock = http.createServer(async (req, res) => {
   let raw = '';
   for await (const part of req) raw += part;
@@ -19,7 +19,9 @@ const mock = http.createServer(async (req, res) => {
   let output;
   if (system.includes('私人手帐的内容编辑')) {
     stages.push('editorial');
-    output = {mode: 'preserve', requirements: {paragraphCount: null, framed: false, stickers: false}, paragraphs: []};
+    output = editorialMistake
+      ? {mode: 'rewrite', requirements: {paragraphCount: 99, stickers: true}, paragraphs: [{text: '模型未经授权改写的内容。', sourceIds: ['body']}]}
+      : {mode: 'preserve', requirements: {paragraphCount: null, framed: false, stickers: false}, paragraphs: []};
   } else if (system.includes('preset 选择')) {
     stages.push('art');
     // Deliberately return the old diary preset: the explicit instruction must win.
@@ -55,9 +57,9 @@ const call = async (path, data, method = 'POST') => {
   });
   return {status: response.status, data: await response.json()};
 };
-const generate = elements => {
+const generate = (elements, requestedInstruction=instruction) => {
   stages = [];
-  return call('/api/generate', {days: [], elements, instruction, ratio});
+  return call('/api/generate', {days: [], elements, instruction:requestedInstruction, ratio});
 };
 
 test('editorial instruction keeps short writing out of paper groups and preserves geometry through apply/save/read', async t => {
@@ -127,6 +129,19 @@ test('editorial instruction keeps short writing out of paper groups and preserve
     assert.equal((await call('/api/state', {revision: persisted.revision, books: [{...book, spreads: [applied]}]}, 'PUT')).status, 200);
     persisted = (await call('/api/state')).data;
     assert.deepEqual(persisted.books[0].spreads[0], JSON.parse(JSON.stringify(applied)));
+  });
+
+  await t.test('an erroneous model rewrite proposal cannot replace preserved wording or source ids', async () => {
+    editorialMistake = true;
+    try {
+      const response = await generate(spread.elements, '保留原文和原有素材，用清晰的阅读顺序排在两页上，正文易读，少量装饰，采用高级感几何排版。');
+      assert.equal(response.status, 200, JSON.stringify(response.data));
+      assert.deepEqual(stages, ['editorial', 'art', 'layout'], 'invented paragraph and sticker requirements must not cause retries');
+      assert.equal(response.data.contentEdited, false);
+      const preview = regenerateSpread(spread, response.data, []);
+      assert.deepEqual(preview.elements.filter(p=>p.kind==='text').map(p=>[p.id,p.text]), spread.elements.map(p=>[p.id,p.text]));
+      assert.deepEqual((await call('/api/state')).data, persisted, 'rejected rewriting leaves saved content untouched');
+    } finally { editorialMistake = false; }
   });
 
   for (const [mode, message] of [['missing-content', /遗漏/], ['invalid-geometry', /颜色|色值|几何/]]) {

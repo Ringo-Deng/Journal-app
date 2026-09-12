@@ -6,7 +6,7 @@ import {startTestServer} from './test-server.mjs';
 import {regenerateSpread} from '../lib/journal.ts';
 
 const {base} = await startTestServer(test);
-let omit = false, requestedPlan;
+let omit = false, wideHeader = false, requestedPlan;
 const mock = http.createServer(async (req, res) => {
   let raw = '';
   for await (const part of req) raw += part;
@@ -14,14 +14,17 @@ const mock = http.createServer(async (req, res) => {
   const system = request.messages[0].content;
   const input = JSON.parse(request.messages[1].content);
   let output;
-  if (system.includes('preset 选择')) output = {preset: 'quiet', primarySide: 'right', density: 'sparse', concept: '右页日记，左页留白', palette: ['#756650']};
+  if (system.includes('preset 选择')) output = {preset: wideHeader?'free':'quiet', primarySide: 'right', density: 'sparse', concept: '右页日记，左页留白', palette: ['#756650']};
+  else if(system.includes('私人手帐的内容编辑')) output={mode:'preserve',requirements:{},paragraphs:[]};
   else {
     requestedPlan = input.compositionPlan;
     output = {theme: 'archive', days: [], elements: input.elements.filter(p => !(omit && p.role === 'body')).map(p => ({kind: p.kind, sourceId: p.id, region: 'writing', x: 5, y: 5, w: 35, fontSize: p.role === 'title' ? 28 : 18, frame: 'plain'}))};
+    if(wideHeader)output.elements=output.elements.map(p=>({...p,region:undefined,y:p.sourceId==='title'?5:84,fontSize:16}));
   }
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({choices: [{message: {content: JSON.stringify(output)}}]}));
 });
+
 mock.listen(0, '127.0.0.1');
 await once(mock, 'listening');
 test.after(() => new Promise(resolve => mock.close(resolve)));
@@ -57,4 +60,14 @@ test('AI composition request -> preview -> application -> save/read retains cont
   assert.equal(invalid.status, 502);
   assert.match(invalid.data.error, /遗漏/);
   assert.deepEqual((await call('/api/state')).data, persisted);
+});
+
+test('large headers reflow individual text boxes before preserving the entire composition',async()=>{
+ omit=false;wideHeader=true;
+ const elements=[{id:'title',kind:'text',role:'title',text:'今日小记',x:5,y:5,w:35},{id:'body',kind:'text',role:'body',text:'下午去海边散步。',x:5,y:84,w:35}];
+ const response=await call('/api/generate',{days:[],elements,ratio:1.43,headerSpace:20,instruction:'无装饰，保留原文'});
+ assert.equal(response.status,200,JSON.stringify(response.data));
+ assert.ok(response.data.elements.every(p=>p.y>=20));
+ assert.equal(response.data.elements.find(p=>p.sourceId==='body').y,84);
+ assert.deepEqual(response.data.elements.map(p=>p.text),elements.map(p=>p.text));
 });

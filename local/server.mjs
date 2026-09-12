@@ -3,13 +3,14 @@ import {nextMaterialStrategy} from '../lib/material-retry.mjs';
 import {materialPointPrompt, normalizeMaterialPointSelection, validMaterialPoint} from '../lib/material-point-selection.mjs';
 import {finishCollage} from './collage-layout.mjs';
 import {generatePaperGroup} from './paper-group.mjs';
+import {prepareDesignContext,finishDesignContext} from './design-context.mjs';
 import {resolveComposition} from './layout-composition.mjs';
 import {selectStickers} from './sticker-selection.mjs';
 import {layoutPrompt} from './layout-prompt.mjs';
 import {designRecords} from './design-records.mjs';
 import {createMaterialCatalog} from './material-catalog.mjs';
 import {artPrompt} from './art-direction.mjs';
-import { editorialPrompt, prepareEditorial, checkParagraphDesign, requiredEditorialSources, isEmptyTextHint } from './editorial.mjs';
+import { editorialPrompt, prepareEditorial, checkParagraphDesign, requiredEditorialSources } from './editorial.mjs';
 import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
@@ -454,22 +455,25 @@ async function generate(input) {
     if (typeof d.raw !== 'string' || d.raw.length > 8000)
       throw error('每天的记录请控制在 8000 字以内。');
   const libraryAssets = await withMaterialColors(await library());
-  // A full redesign starts from content, not yesterday's decoration pile.
-  input={...input,doodleMode:'handdrawn',elements:(input.elements||[]).map(p=>p.groupId?{...p,locked:true}:p).filter(p=>p.locked || p.kind==='photo' || p.kind==='text'&&!isEmptyTextHint(p))};
+  // Keep original materials locally. Group membership does not imply a position lock.
+  input={...input,doodleMode:'handdrawn',elements:(input.elements||[]).map(p=>({...p}))};
   const terms=(input.elements.filter(p=>p.kind==='text').map(p=>p.text).join(' ')+' '+input.days.map(d=>d.text||d.raw).join(' ')+' '+String(input.instruction||'')).toLowerCase();
   let candidateAssets=selectStickers(libraryAssets,terms);
   const assets=libraryAssets;
   const allowedThemes = ['herbarium', 'postcard', 'rose', 'archive'];
   let editorial={edited:false,requirements:{}};
-  if(String(input.instruction||'').trim() && input.elements?.some(p=>p.kind==='text'&&!p.locked)) {
-    const messages=[{role:'system',content:editorialPrompt},{role:'user',content:JSON.stringify({instruction:input.instruction,requiredSourceIds:requiredEditorialSources(input).map(p=>p.id),elements:input.elements.filter(p=>p.kind==='text').map(p=>({id:p.id,text:p.text,role:p.role,locked:p.locked}))})}];
+  if(String(input.instruction||'').trim() && input.elements?.some(p=>p.kind==='text'&&!p.locked&&!p.groupId&&!p.hidden)) {
+    // Rewriting free text must not split an existing hand-made composition.
+    const editorialInput={...input,elements:input.elements.map(p=>({...p,locked:p.locked||!!p.groupId||p.hidden===true}))};
+    const originalLocks=new Map(input.elements.map(p=>[p.id,p.locked]));
+    const messages=[{role:'system',content:editorialPrompt},{role:'user',content:JSON.stringify({instruction:input.instruction,requiredSourceIds:requiredEditorialSources(editorialInput).map(p=>p.id),elements:editorialInput.elements.filter(p=>p.kind==='text').map(p=>({id:p.id,text:p.text,role:p.role,locked:p.locked}))})}];
     const attempts=[];
     for(let attempt=0;attempt<2;attempt++) {
       const diagnostic={at:new Date().toISOString(),stage:'editorial',attempt:attempt+1,model:settings.model};
       const started=Date.now();
       try {
-        editorial=prepareEditorial(input,await designRequest(messages,attempt,diagnostic));
-        input=editorial.input;
+        editorial=prepareEditorial(editorialInput,await designRequest(messages,attempt,diagnostic));
+        input={...editorial.input,elements:editorial.input.elements.map(p=>({...p,locked:originalLocks.has(p.id)?originalLocks.get(p.id):!!p.locked}))};
         diagnostic.ok=true;
         break;
       } catch(cause) {
@@ -483,10 +487,16 @@ async function generate(input) {
       }
     }
   }
+  const context=prepareDesignContext(input);
+  const retainedSourceIds=new Set([...context.fixed,...context.movableUnits.flatMap(unit=>unit.elements)].map(p=>p.id));
+  input=context.input;
+  if(context.sources.length&&!context.editable.length) {
+    return {...finishDesignContext([],context),contentEdited:editorial.edited,theme:allowedThemes.includes(input.theme)?input.theme:'herbarium',layout:'collage',days:designRecords(input,{}),designConcept:'保留原有拼贴，按整组整理位置'};
+  }
   const groupDiagnostic={at:new Date().toISOString(),model:settings.model};
   try {
-    const grouped=await generatePaperGroup({...input,requirements:editorial.requirements},assets,{root,data,requestAI:designRequest,vision:!!settings.vision,diagnostic:groupDiagnostic});
-    if(grouped) return {...grouped,contentEdited:editorial.edited};
+    const grouped=await generatePaperGroup({...input,requirements:editorial.requirements},assets,{root,data,requestAI:designRequest,vision:!!settings.vision,diagnostic:groupDiagnostic,checkPlacement:pieces=>finishDesignContext(pieces,context)});
+    if(grouped) return {...grouped,...finishDesignContext(grouped.elements,context),contentEdited:editorial.edited};
   } catch(cause) {
     Object.assign(groupDiagnostic,{ok:false,error:cause.message});
     throw error(`${cause.message} 原有手帐未改动。`,502);
@@ -517,6 +527,7 @@ async function generate(input) {
     paper:input.paper,
     editorialEdited:editorial.edited,
     requirements:editorial.requirements,
+    preservedUnits:input.preservedUnits,
     requiredSources:input.elements.filter(p=>!p.locked&&['text','photo'].includes(p.kind)).map(p=>({sourceId:p.id,kind:p.kind,role:p.role})),
     elements: (input.elements||[]).map(p=>p.locked?p:{id:p.id,kind:p.kind,role:p.role,text:p.text,dayId:p.dayId,paragraphIndex:p.paragraphIndex,stickerKeywords:p.stickerKeywords,src:p.src,w:p.w,h:p.h,frame:p.frame,groupId:p.groupId,attachedTo:p.attachedTo,fontFamily:p.fontFamily,lineHeight:p.lineHeight}),
     instruction: String(input.instruction || '').slice(0, 1000),
@@ -552,19 +563,29 @@ async function generate(input) {
       // Never let paragraph grouping or an omitted metadata array create/drop journal records.
       output.days=designRecords(input,output);
       if(output.days.some(d=>typeof d.text!=='string'||typeof d.title!=='string')) throw Error('AI 返回的日志不完整。');
-      elements=validatePlan(output.elements,input,assets);
+      // Retained sources are restored locally, even if the model echoes an incomplete copy.
+      // Repeated references still resolve to one complete original, never model-proposed text fragments.
+      const seenSources=new Set();
+      const proposed=Array.isArray(output.elements)?output.elements.filter(p=>{
+        if(retainedSourceIds.has(p?.sourceId))return false;
+        if(!context.editable.some(source=>source.id===p?.sourceId&&source.kind===p.kind))return true;
+        if(seenSources.has(p.sourceId))return false;
+        seenSources.add(p.sourceId);return true;
+      }):output.elements;
+      elements=validatePlan(proposed,input,assets);
       const activeBrief=output.layoutOverride==='free'?{...designBrief,preset:'free'}:designBrief;
       elements=finishCollage(elements,{...input,requirements:editorial.requirements},assets,activeBrief);
       diagnostic.composition=resolveComposition(activeBrief,input).preset;
-      const locked=input.elements.filter(p=>p.locked);
-      const protectedIds=new Set(locked.map(p=>p.id));
+      const locked=input.elements.filter(p=>p.locked&&!p.hidden);
+      const protectedIds=new Set(input.elements.filter(p=>p.locked).map(p=>p.id));
       const ratio=Number.isFinite(input.ratio)?Math.max(.6,Math.min(2.5,input.ratio)):1.43;
-      const safety=tidyLayout([...elements.filter(p=>!protectedIds.has(p.sourceId)).map((p,i)=>({...p,id:p.sourceId||`layout-${i}`})),...locked],ratio,3);
+      const safety=tidyLayout([...elements.filter(p=>!protectedIds.has(p.sourceId)).map((p,i)=>({...p,id:p.sourceId||`layout-${i}`})),...locked],ratio,context.header);
       const failures=safety.issues.filter(issue=>issue.ids.some(id=>!protectedIds.has(id)));
       if(failures.length)throw Object.assign(Error('版式存在文字遮挡或空间不足，请减少装饰或增加跨页。'),{retryHint:JSON.stringify(failures.slice(0,8))});
       elements=safety.elements.filter(p=>!protectedIds.has(p.id)).map(({id:_id,locked:_locked,...p})=>p);
       diagnostic.textBoxes=elements.filter(p=>p.kind==='text').map(p=>({role:p.role,x:p.x,y:p.y,w:p.w,h:p.h,fontSize:p.fontSize,length:p.text?.length,frame:p.frame}));
       checkParagraphDesign(elements,input,editorial.requirements,assets,ratio);
+      elements=finishDesignContext(elements,context).elements;
       diagnostic.ok=true;
       break;
     } catch(cause) {
@@ -581,6 +602,7 @@ async function generate(input) {
     }
   }
   return {
+    headerReserved:true,
     designConcept:typeof designBrief.concept==='string'?designBrief.concept.slice(0,100):undefined,
     contentEdited:editorial.edited,
     elements,

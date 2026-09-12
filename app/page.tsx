@@ -1144,16 +1144,17 @@ export default function Home() {
               paper:paperSettings(book,spread),
               ratio:bookFormat(book).ratio,
               headerSpace,
-              entrySide,
+              entrySide:regen?undefined:entrySide,
+              layoutIntent:regen?'compose':undefined,
               occupiedElements: regen ? [] : ((page<0?book.spreads[0]:spread)?.elements||[]).filter(p=>!isPieceHidden(p)).map(p=>{
                 const node=page<0?null:selectedNode(p.id),ch=canvas.current?.clientHeight||700;
                 return {id:p.id,kind:p.kind,x:p.x,y:p.y,w:p.w,h:node?Math.max(node.offsetHeight,node.scrollHeight)/ch*100:p.h,rotation:p.rotation};
               }),
               instruction: inst ?? instruction,
               elements: regen ? spread!.elements.map(p=>{
-                const node=p.kind==='photo'?selectedNode(p.id):null;
+                const node=p.kind==='photo'&&!p.groupId&&!p.locked&&!isPieceHidden(p)?selectedNode(p.id):null;
                 const measured=node&&canvas.current?.clientHeight?Math.max(node.offsetHeight,node.scrollHeight)/canvas.current.clientHeight*100:0;
-                return {...p,...(measured>0?{h:measured}:{}),locked:isPieceHidden(p)||!!p.groupId || preserveLocks && p.locked};
+                return {...p,...(measured>0?{h:measured}:{}),locked:isPieceHidden(p)||preserveLocks&&p.locked};
               }) : [],
             }),
           )
@@ -1162,12 +1163,13 @@ export default function Home() {
       if (regen && JSON.stringify(currentBook?sheetAt(currentBook,page):undefined) !== JSON.stringify(spread)) throw Error('设计期间页面发生了修改，请重新设计以包含最新内容。');
       if (!regen && JSON.stringify(currentBook?.spreads[Math.max(0,page)]) !== JSON.stringify(book.spreads[Math.max(0,page)])) throw Error('生成期间页面发生了修改，请重新生成以保留最新内容。');
       if (regen) {
+        if(result.unchanged){toast('当前排布已适合这页；原有内容已保留。');return;}
         if(result.elements&&!result.headerReserved)result.elements=reserveHeaderSpace(result.elements,headerSpace,spread!.elements.filter(p=>isPieceHidden(p)||(preserveLocks&&p.locked)).map(p=>p.id));
-        const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||!!p.groupId||preserveLocks&&p.locked}))};
+        const protectedSpread={...spread!,elements:spread!.elements.map(p=>({...p,locked:isPieceHidden(p)||preserveLocks&&p.locked}))};
         const designed=regenerateSpread(protectedSpread,result,assets);
         designed.elements=designed.elements.map(p=>{
           const original=spread!.elements.find(q=>q.id===p.id);
-          const restored=p.groupId?{...p,locked:original?.locked||false}:p;
+          const restored=original?{...p,locked:original.locked}:p;
           return original?withLayerMeta(restored,{hidden:isPieceHidden(original)||undefined,layerName:pieceLayerName(original),groupName:pieceGroupName(original)}):restored;
         });
         setDesignPreview({book,spread:designed,before:JSON.stringify(spread),concept:result.designConcept});

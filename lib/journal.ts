@@ -135,6 +135,7 @@ export type Journal = { books: Book[]; revision: number };
 export type DesignPiece = Omit<Piece, "id" | "locked"> & {sourceId?: string; dayIndex?: number};
 export type AIResult = {
   headerReserved?: boolean;
+  unchanged?: boolean;
   contentEdited?: boolean;
   designConcept?: string;
   elements?: DesignPiece[];
@@ -420,9 +421,14 @@ export function removePiecesFromSpread(spread:Spread,pieceIds:Iterable<string>):
 export function regenerateSpread(spread:Spread,result:AIResult,assets:Asset[],variant=1):Spread{
   const locked=spread.elements.filter(e=>e.locked);
   const days=spread.days.map((d,i)=>({...d,title:result.elements||locked.some(e=>e.dayId===d.id&&e.role==='title')?d.title:result.days[i].title,text:result.elements||locked.some(e=>e.dayId===d.id&&e.role==='body')?d.text:result.days[i].text}));
-  const newPieces=result.elements?result.elements.map(p=>{const source=spread.elements.find(e=>e.id===p.sourceId);return{...source,...p,colorRuns:source?.text===p.text?source?.colorRuns:p.colorRuns,highlightRuns:source?.text===p.text?source?.highlightRuns:p.highlightRuns,id:source?.id||p.sourceId||uid(),dayId:source?.dayId||p.dayId||days[p.dayIndex??-1]?.id,locked:false} as Piece;}):days.flatMap((d,i)=>dayPieces(d,i,assets,result.days[i].assetIds,variant,result.layout));
+  const newPieces=result.elements?result.elements.map(p=>{const source=spread.elements.find(e=>e.id===p.sourceId);if(source?.locked)return source;return{...source,...p,colorRuns:source?.text===p.text?source?.colorRuns:p.colorRuns,highlightRuns:source?.text===p.text?source?.highlightRuns:p.highlightRuns,id:source?.id||p.sourceId||uid(),dayId:source?.dayId||p.dayId||days[p.dayIndex??-1]?.id,locked:false} as Piece;}):days.flatMap((d,i)=>dayPieces(d,i,assets,result.days[i].assetIds,variant,result.layout));
   const signature=pieceKey;
-  return{...spread,theme:result.theme,layout:result.layout||'collage',days:result.contentEdited?days.map(d=>{const paragraphs=newPieces.filter(p=>p.role==='body'&&p.dayId===d.id);return paragraphs.length?{...d,text:paragraphs.map(p=>p.text).join('\n\n')}:d}):days,elements:[...newPieces.filter(p=>!spread.removed?.includes(signature(p))).filter(p=>!locked.some(l=>l.id===p.id||signature(l)===signature(p))).filter(p=>!locked.some(l=>{if(result.elements||p.kind==='text')return false;return Math.abs(p.x-l.x)<Math.min(p.w,l.w)*.5&&Math.abs(p.y-l.y)<12;})),...locked]};
+  // Complete AI plans already carry retained pieces in their original layer order.
+  // Restore locked originals in place; only legacy plans append their missing locks.
+  const elements=result.elements
+    ? [...newPieces.filter(p=>spread.elements.some(original=>original.id===p.id)||!spread.removed?.includes(signature(p))),...locked.filter(p=>!newPieces.some(next=>next.id===p.id))]
+    : [...newPieces.filter(p=>!spread.removed?.includes(signature(p))).filter(p=>!locked.some(l=>l.id===p.id||signature(l)===signature(p))).filter(p=>!locked.some(l=>p.kind!=='text'&&Math.abs(p.x-l.x)<Math.min(p.w,l.w)*.5&&Math.abs(p.y-l.y)<12)),...locked];
+  return{...spread,theme:result.theme,layout:result.layout||'collage',days:result.contentEdited?days.map(d=>{const paragraphs=elements.filter(p=>p.role==='body'&&p.dayId===d.id);return paragraphs.length?{...d,text:paragraphs.map(p=>p.text).join('\n\n')}:d}):days,elements};
 }
 export function applyPaper(book:Book,style:PaperStyle,color:string,spreadId?:string,rulingSize?:PaperRulingSize):Book{
   if(!['blank','lines','grid','dots'].includes(style)||!/^#[0-9a-f]{6}$/i.test(color)||rulingSize!==undefined&&!['small','medium','large'].includes(rulingSize))throw Error('内页设置无效');

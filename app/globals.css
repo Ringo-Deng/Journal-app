@@ -2712,7 +2712,8 @@ button {
 .piece-doodle.sticker { background:#fffefa; border:4px solid #fffefa; border-radius:24% 30% 22% 28%; padding:5px; filter:drop-shadow(1px 3px 2px #44311f38); }
 .piece-doodle.sticker { background:transparent;border:0;border-radius:0;padding:0;filter:drop-shadow(0 1px 1px #4a302126); }
 .design-preview-dialog { width: min(1160px,96vw)!important; max-width:1160px!important; max-height:96dvh; overflow:auto; }
-.design-preview-paper { position:relative; width:100%; aspect-ratio:var(--spread-ratio, 1.43); border:1px solid #bdab90; box-shadow:0 6px 18px #44332120; }
+/* Reserve viewport room for the title, explanation and apply controls. */
+.design-preview-paper { position:relative; width:min(100%, calc((90dvh - 180px) * var(--spread-ratio, 1.43))); margin-inline:auto; aspect-ratio:var(--spread-ratio, 1.43); border:1px solid #bdab90; box-shadow:0 6px 18px #44332120; }
 .design-preview-paper > .turn-snapshot { width:100%; }
 /* Left-rail material library */
 .is-reading .rail button[aria-label='素材库'] {display:flex;}

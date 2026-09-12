@@ -21,6 +21,14 @@ test('rejects omitted content, fake assets and executable markup',()=>{
  assert.throws(()=>validatePlan([design[0],{kind:'doodle',path:'<svg onload=alert(1)>'}],input,[]),/路径/);
  assert.throws(()=>validatePlan(undefined,input,[]),/完整/);
 });
+test('known library IDs can be repaired from sourceId without accepting invented materials or replacing page sources',()=>{
+ const asset={id:'library-paper',src:'/materials/paper.png'};
+ const result=validatePlan([design[0],{kind:'asset',sourceId:asset.id,x:60,y:30,w:15}],input,[asset]);
+ assert.equal(result[1].assetId,asset.id);assert.equal(result[1].src,asset.src);assert.equal(result[1].sourceId,undefined);
+ assert.throws(()=>validatePlan([design[0],{kind:'asset',sourceId:'invented'}],input,[asset]),/不存在/);
+ const original={id:asset.id,kind:'photo',src:'/uploads/photo.png',x:60,y:20,w:15};
+ assert.throws(()=>validatePlan([{kind:'asset',sourceId:asset.id}],{days:[],elements:[original]},[asset]),/原始元素类型/);
+});
 test('user can add arbitrary blank spreads independent of dates',()=>{
  let b=newBook('2026-09');
  for(let i=0;i<35;i++) b=addBlankSpread(b);
@@ -37,4 +45,16 @@ test('creative plans keep paper height, typography and coloured illustration lay
 test('new records can use an AI title when the local record has not got one yet',()=>{
  const result=validatePlan([{kind:'text',dayIndex:0,role:'title',text:'一餐，一份礼物'},{kind:'text',dayIndex:0,role:'body'}],{days:[{raw:'和爸妈吃牛排。'}],elements:[]},[]);
  assert.equal(result[0].text,'一餐，一份礼物');assert.equal(result[1].text,'和爸妈吃牛排。');
+});
+test('complete redesign preserves locked backing layer order and separate copies of the same asset',()=>{
+ const paper={id:'paper',kind:'asset',assetId:'same',src:'/materials/paper.png',x:6,y:14,w:30,h:35,locked:true};
+ const copy={...paper,id:'copy',x:62,locked:false};
+ const spread={id:'s',theme:'archive',days:[],elements:[paper,text,copy],removed:['same']};
+ const result=regenerateSpread(spread,{theme:'archive',days:[],elements:[{...paper,sourceId:'paper',x:90},{...text,sourceId:text.id},{...copy,sourceId:'copy',x:65}]},[]);
+ assert.deepEqual(result.elements.map(p=>p.id),['paper','text1','copy']);
+ assert.deepEqual(result.elements[0],paper);
+ assert.equal(result.elements[2].x,65);
+ const legacyPartial=regenerateSpread(spread,{theme:'archive',days:[],elements:[{...text,sourceId:text.id}]},[]);
+ assert.deepEqual(legacyPartial.elements.at(-1),paper);
+ assert.deepEqual(spread.elements,[paper,text,copy]);
 });

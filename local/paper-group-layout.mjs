@@ -41,9 +41,13 @@ const luminance=values=>values.map(c=>c/255).map(c=>c<=.04045?c/12.92:((c+.055)/
 const contrast=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
 
 export function validatePaperSelection(output, candidates) {
-  const palette=output?.palette,writing=output?.writing;
-  if (['backPaper','frontPaper','ink','tape'].some(k=>!color(palette?.[k]))) throw Error('底纸配色不完整，请重新选择六位色值。');
-  if (!writing||!member(paperShapes,writing.shape)||!member(paperPatterns,writing.pattern)||!range(writing.width,16,28)||writing.align!==undefined&&!['left','center','right'].includes(writing.align)) throw Error('请为书写纸选择形状、花纹和 16 至 28 的文字宽度。');
+  const colors=output?.palette,writing=output?.writing;
+  if (!colors||typeof colors!=='object'||Array.isArray(colors)||['frontPaper','ink'].some(k=>!color(colors[k]))) throw Error('书写纸 frontPaper 和文字 ink 必须提供有效的六位颜色。');
+  if (['backPaper','tape'].some(k=>colors[k]!==undefined&&!color(colors[k]))) throw Error('提供的衬纸或胶带颜色无效，请使用六位色值。');
+  if (Array.isArray(output.tapes)&&output.tapes.length&&!color(colors.tape)) throw Error('使用胶带时必须提供有效的 tape 六位颜色。');
+  // Back sheets carry their own color/image. Keep unused legacy palette fields without requiring them.
+  const palette={...colors,backPaper:colors.backPaper??colors.frontPaper,tape:colors.tape??colors.backPaper??colors.frontPaper};
+  if (!writing||!member(paperShapes,writing.shape)||!member(paperPatterns,writing.pattern)||!range(writing.width,6,28)||writing.align!==undefined&&!['left','center','right'].includes(writing.align)) throw Error('请为书写纸选择形状、花纹和 6 至 28 的文字宽度。');
   const base=rgb(palette.frontPaper),ink=luminance(rgb(palette.ink));
   const mark=base[0]*.299+base[1]*.587+base[2]*.114>165?rgb('#514B43'):[255,255,255];
   const opacity={plain:0,grid:.18,dots:.25,ruled:.20}[writing.pattern];
@@ -61,7 +65,7 @@ export function validatePaperSelection(output, candidates) {
     return {...base,shape:p.shape,pattern:p.pattern,color:p.color,height:p.height};
   });
   const stickers=output.stickers;
-  if (!Array.isArray(stickers)||stickers.length<1||stickers.length>6||stickers.some(s=>!s||!member(paperGroupSlots,s.slot)||!range(s.width??8,3,10)||!candidates.some(a=>a.id===s.assetId))||!stickers.some(s=>s.slot==='hero')||new Set(stickers.map(s=>s.slot)).size!==stickers.length) throw Error('请选择一至六张有效素材，保留一个 hero 主素材，每个位置最多一张。');
+  if (!Array.isArray(stickers)||stickers.length>6||stickers.some(s=>!s||!member(paperGroupSlots,s.slot)||!range(s.width??8,3,10)||!candidates.some(a=>a.id===s.assetId))||new Set(stickers.map(s=>s.slot)).size!==stickers.length) throw Error('请选择零至六张有效素材，每个位置最多一张。短句可以不加装饰。');
   const ids=[...papers.filter(p=>p.assetId).map(p=>p.assetId),...stickers.map(s=>s.assetId)];
   if(new Set(ids).size!==ids.length)throw Error('底纸和周边素材不要重复使用同一张图片。');
   if(stickers.filter(s=>{const a=candidates.find(a=>a.id===s.assetId);return /邮票|stamp/i.test(a.category+' '+a.name);}).length>1)throw Error('邮票只能作为一处小点缀。');
@@ -70,23 +74,51 @@ export function validatePaperSelection(output, candidates) {
   return {palette,writing:{shape:writing.shape,pattern:writing.pattern,width:writing.width,align:writing.align||'center'},papers,stickers:stickers.map(s=>({slot:s.slot,assetId:s.assetId,width:s.width??8})),tapes:tapes.map(t=>({position:t.position,width:t.width}))};
 }
 
-// The model chooses materials and proportions; only writing height and safe edge placement are computed.
-export function placePaperGroup(content, selection, candidates, paperSources, input, groupId=randomUUID()) {
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const groupBox=boxes=>{
+  const x=Math.min(...boxes.map(b=>b.x)),y=Math.min(...boxes.map(b=>b.y));
+  return {x,y,w:Math.max(...boxes.map(b=>b.x+b.w))-x,h:Math.max(...boxes.map(b=>b.y+b.h))-y};
+};
+
+function writingWidth(content,writing,input) {
+  // A few words should make a small note even when the model asks for a wide sheet.
+  const natural=Math.max(...content.flatMap(p=>String(p.text).split('\n').map(line=>Array.from(line).reduce((n,ch)=>n+((ch.codePointAt(0)||0)<256?.55:1)+(p.letterSpacing??.03),0)*(p.fontSize||16)/10)));
+  const max=Math.min(Math.max(6,natural+1),writing.shape==='oval'?26:28),ratio=input.ratio||1.43;
+  let width=Math.min(writing.width,max);
+  // Keep a short sentence together and avoid a final line containing just one or two glyphs.
+  for(const p of content) for(const line of String(p.text).split('\n')) {
+    const size=(p.fontSize||16)/10;
+    const length=Array.from(line).reduce((n,ch)=>n+((ch.codePointAt(0)||0)<256?.55:1)+(p.letterSpacing??.03),0)*size;
+    const lines=Math.ceil(length/width),tail=length-(lines-1)*width;
+    if(length<=18)width=Math.max(width,Math.min(max,length+.8));
+    else if(lines>1&&tail<size*2.5&&length/(lines-1)+.8<=max)width=Math.max(width,length/(lines-1)+.8);
+  }
+  const paperHeight=w=>(content.reduce((sum,p)=>sum+estimatedHeight({...p,w,h:0},ratio),0)+Math.max(0,content.length-1)*2+6)*(writing.shape==='oval'?1.5:1);
+  const availableHeight=94-clamp(Number(input.headerSpace)||3,3,23);
+  // An overly narrow model choice can wrap into a tall column. Widen it before removing decoration.
+  while(width<max&&paperHeight(width)>availableHeight)width=Math.min(max,width+1);
+  return width;
+}
+
+function makePaperGroup(content,selection,candidates,paperSources,input,groupId,compact=0) {
   const ratio=input.ratio||1.43,{writing,palette}=selection;
-  const text=content.map(p=>({...p,x:25-writing.width/2,y:0,w:writing.width,h:0,rotation:0,textAlign:writing.align,color:palette.ink,stackOrder:10}));
+  const width=writingWidth(content,writing,input);
+  const text=content.map(p=>({...p,x:25-width/2,y:0,w:width,h:0,rotation:0,textAlign:writing.align,color:palette.ink,stackOrder:10}));
   for(const p of text)p.h=estimatedHeight(p,ratio);
   const total=text.reduce((n,p)=>n+p.h,0)+Math.max(0,text.length-1)*2;
   let cursor=50-total/2;
   for(const p of text){p.y=cursor;cursor+=p.h+2;}
-  const writingBox={x:25-writing.width/2,y:50-total/2,w:writing.width,h:total};
+  const writingBox={x:25-width/2,y:50-total/2,w:width,h:total};
   // The rectangle of writing stays inside an oval, including its corner glyphs.
   const expand=writing.shape==='oval'?1.5:1;
-  const paperW=(writing.width+4)*expand,paperH=(total+6)*expand;
+  const paperW=(width+4)*expand,paperH=(total+6)*expand;
   const front={kind:'asset',src:paperSources.at(-1),x:25-paperW/2,y:50-paperH/2,w:paperW,h:paperH,rotation:0,frame:'collage-paper',stretch:true,shadow:.12,stackOrder:3};
-  const papers=selection.papers.map((p,i)=>{
+  const papers=(compact>=2?[]:selection.papers).map((p,i)=>{
     const asset=candidates.find(a=>a.id===p.assetId);
     let w=p.width,h=asset?w*asset.height/asset.width*ratio:p.height;
-    if(h>48){w*=48/h;h=48;}
+    // Keep real paper proportions, but size its decoration to the writing it surrounds.
+    const scale=Math.min(1,(front.w+8)/w,(front.h+10)/h,48/h)*(compact ? .7 : 1);
+    w*=scale;h*=scale;
     const x=p.position==='left'?front.x-w*.32:p.position==='right'?front.x+front.w-w*.68:p.position==='diagonal'?front.x-w*.12:25-w/2;
     const y=p.position==='top'?front.y-h*.32:p.position==='bottom'?front.y+front.h-h*.68:p.position==='diagonal'?front.y-h*.18:50-h/2;
     return {kind:'asset',src:asset?.src||paperSources[i],...(asset?{assetId:asset.id}:{}),x,y,w,h,rotation:p.rotation,frame:'collage-paper',stretch:!asset,shadow:.12,stackOrder:i+1};
@@ -98,27 +130,61 @@ export function placePaperGroup(content, selection, candidates, paperSources, in
     let y=slot==='sprig'?50-h/2:top?writingBox.y-h-1:writingBox.y+writingBox.h+1;
     return {x,y};
   };
-  const stickers=selection.stickers.map(s=>{
+  const primary=selection.stickers.find(s=>s.slot==='hero')||selection.stickers[0];
+  const selectedStickers=compact>=3?[]:compact===2?(primary?[primary]:[]):selection.stickers;
+  const stickers=selectedStickers.map(s=>{
     const a=candidates.find(a=>a.id===s.assetId);
-    const w=Math.min(s.width,17*a.width/a.height/ratio),h=w*a.height/a.width*ratio;
+    const scale=compact ? .7 : 1;
+    const w=Math.min(s.width,(total<6?10:17)*a.width/a.height/ratio)*scale,h=w*a.height/a.width*ratio;
     return {kind:'asset',assetId:a.id,src:a.src,...around(s.slot,w,h),w,h,rotation:0,frame:'plain',stackOrder:5};
   });
-  for(const tape of selection.tapes)stickers.push({kind:'asset',material:'tape',src:'/materials/collage-paper.svg',x:25-tape.width/2,y:tape.position==='top'?writingBox.y-3.5:writingBox.y+writingBox.h+1,w:tape.width,h:2.5,rotation:0,color:palette.tape,opacity:.78,stackOrder:7,tapeEdge:'torn'});
+  for(const tape of compact>=2?[]:selection.tapes)stickers.push({kind:'asset',material:'tape',src:'/materials/collage-paper.svg',x:25-tape.width/2,y:tape.position==='top'?writingBox.y-3.5:writingBox.y+writingBox.h+1,w:tape.width,h:2.5,rotation:0,color:palette.tape,opacity:.78,stackOrder:7,tapeEdge:'torn'});
   if(stickers.some(s=>text.some(t=>intersects(bounds(s,ratio),bounds(t,ratio),.3))))throw Error('选中的素材挡住文案，请调整素材尺寸。');
   // Generated writing paper protects content even when a library paper contains text or transparent holes.
-  const group=[...papers,...stickers,...text].map(({id:_id,locked:_locked,...p})=>({...p,groupId,groupName:'纸张拼贴'}));
-  const boxes=group.map(p=>bounds(p,ratio));
-  const left=Math.min(...boxes.map(b=>b.x)),top=Math.min(...boxes.map(b=>b.y));
-  const width=Math.max(...boxes.map(b=>b.x+b.w))-left,height=Math.max(...boxes.map(b=>b.y+b.h))-top;
-  if(width>45||height>90)throw Error('组合超出单页，请减小衬纸或文字区域的宽度，不要缩小字号。');
-  const occupied=[...(input.occupiedElements||[]),...(input.elements||[]).filter(p=>p.locked||p.groupId)].map(p=>bounds(p,ratio));
-  const header=Math.max(3,Math.min(23,Number(input.headerSpace)||3));
-  const right=input.entrySide==='right'||/右页|右侧|right page/i.test(input.instruction||'');
-  for(const side of right?[50,0]:[0,50])for(let y=header+2;y+height<=96;y+=2){
-    const dx=side+3-left,dy=y-top;
-    const moved=boxes.map(b=>({...b,x:b.x+dx,y:b.y+dy}));
-    if(moved.some(b=>b.x<side+2||b.x+b.w>side+48||occupied.some(o=>intersects(b,o,2))))continue;
-    return group.map(p=>({...p,x:p.x+dx,y:p.y+dy}));
+  return [...papers,...stickers,...text].map(({id:_id,locked:_locked,...p})=>({...p,groupId,groupName:'纸张拼贴'}));
+}
+
+function findGroupPosition(group,occupied,input,content) {
+  const ratio=input.ratio||1.43,boxes=group.map(p=>bounds(p,ratio)),box=groupBox(boxes);
+  const header=clamp(Number(input.headerSpace)||3,3,23)+2;
+  if(box.w>46||box.h>96-header)return null;
+  const sourceIds=new Set(content.map(p=>p.sourceId).filter(Boolean));
+  const sources=(input.elements||[]).filter(p=>sourceIds.has(p.id)&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.w));
+  const original=sources.length?groupBox(sources.map(p=>bounds(p,ratio))):null;
+  const instruction=input.instruction||'';
+  const preferredSide=/右页|右侧|right page/i.test(instruction)?50:/左页|左侧|left page/i.test(instruction)?0:input.entrySide==='right'?50:input.entrySide==='left'?0:original&&original.x+original.w/2>=50?50:0;
+  const values=(min,max,preferred,edges)=>{
+    const result=new Set([min,max,clamp(preferred,min,max),...edges.filter(v=>v>=min&&v<=max)]);
+    for(let value=min;value<=max;value+=2)result.add(value);
+    return [...result];
+  };
+  for(const side of [preferredSide,50-preferredSide]) {
+    const targetX=clamp(original?side+(original.x+original.w/2)%50-box.w/2:side+25-box.w/2,side+2,side+48-box.w);
+    const targetY=clamp(/下方|底部|bottom/i.test(instruction)?96-box.h:/上方|顶部|top/i.test(instruction)?header:original?original.y+original.h/2-box.h/2:header+(96-header)*.43-box.h/2,header,96-box.h);
+    const xs=values(side+2,side+48-box.w,targetX,occupied.flatMap(o=>[o.x+o.w+2,o.x-box.w-2]));
+    const ys=values(header,96-box.h,targetY,occupied.flatMap(o=>[o.y+o.h+2,o.y-box.h-2]));
+    const positions=xs.flatMap(x=>ys.map(y=>({x,y,score:(x-targetX)**2+((y-targetY)/ratio)**2}))).sort((a,b)=>a.score-b.score);
+    for(const position of positions) {
+      const dx=position.x-box.x,dy=position.y-box.y;
+      if(boxes.some(b=>occupied.some(o=>intersects({...b,x:b.x+dx,y:b.y+dy},o,2))))continue;
+      return group.map(p=>({...p,x:p.x+dx,y:p.y+dy}));
+    }
   }
-  throw Object.assign(Error('当前跨页没有足够空间放下这个组合，请翻到空白页再生成。'),{code:'group_space'});
+  return null;
+}
+
+// All retries only change newly generated decoration. Source writing and occupied items stay intact.
+export function placePaperGroup(content, selection, candidates, paperSources, input, groupId=randomUUID(), checkPlacement) {
+  const ratio=input.ratio||1.43;
+  const occupied=[...(input.occupiedElements||[]),...(input.elements||[]).filter(p=>p.locked||p.groupId)].filter(p=>!p.hidden).map(p=>bounds(p,ratio));
+  for(let compact=0;compact<4;compact++) {
+    const group=makePaperGroup(content,selection,candidates,paperSources,input,groupId,compact);
+    const placed=findGroupPosition(group,occupied,input,content);
+    if(placed) {
+      try { if(checkPlacement)checkPlacement(placed); }
+      catch(error) { if(error.code==='design_space')continue;throw error; }
+      return placed;
+    }
+  }
+  throw Object.assign(Error('已尝试简化新装饰，但当前跨页仍放不下完整文字。请移动或解锁占位内容，或换到空白页再生成。'),{code:'group_space'});
 }
