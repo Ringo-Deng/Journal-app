@@ -1585,14 +1585,14 @@ export default function Home() {
         stroke: VELLUM_BORDER_COLOR,
         width: 1,
       }],
-    }, {layerName:'硫酸纸',stackOrder:1});
+    }, {layerName:'硫酸纸',stackOrder:19});
     changeSpread((s) => ({ ...s, elements: [...s.elements, p] }));
     setSelected(p.id);
     setMultiIds([]);
     setPanel(null);
     setCropping(false);
     setInlineId(null);
-    toast('已插入硫酸纸，可调整颜色、透明度、尺寸和图层。');
+    toast('已插入硫酸纸，默认覆盖下方素材；可调整颜色、纸张浓度和图层。');
   }
   async function cutout() {
     if (!piece?.src) return;
@@ -2046,7 +2046,7 @@ export default function Home() {
             <ToolbarPopover label="添加" icon={<Plus/>} align="end" className="creation-add-popover" panelClassName="creation-add-menu" disabled={!spread||busy||!opened} closeOnAction>
               <div className="toolbar-popover-title">添加到纸面</div>
               <div className="creation-add-actions">
-                <button type="button" className="quiet creation-add-action" aria-label="插入硫酸纸" onClick={addVellumSheet}><FileIcon/><span><strong>硫酸纸</strong><small>可调颜色与透明度</small></span></button>
+                <button type="button" className="quiet creation-add-action" aria-label="插入硫酸纸" onClick={addVellumSheet}><FileIcon/><span><strong>硫酸纸</strong><small>可调颜色与纸张浓度</small></span></button>
                 <button type="button" className="quiet creation-add-action" aria-label="粘贴素材" onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span><strong>粘贴素材</strong><small>使用复制或剪切的内容</small></span></button>
               </div>
             </ToolbarPopover>

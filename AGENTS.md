@@ -47,7 +47,7 @@
 | 书本与页面 | `app/page.tsx` 的 `books` / `bookId` / `page`：书本、跨页和当前页面状态，`page === -1` 为扉页 |
 | 画布与选择 | `app/page.tsx`：`canvas`、`pointerDown/pointerMove` 控制渲染与操作；`selected` / `multiIds` 是画布选择 owner，`activePieces` 派生实际选择；外观复用 `components/piece-appearance.tsx` |
 | 页面素材侧栏 | `app/page.tsx` 的 `panel === 'elements'`、`pageElementRows`：图层面板复用画布选择；`components/layer-row-actions.tsx` 提供行操作按钮 |
-| 素材模型与插入 | `lib/journal.ts`：素材库条目 `Asset`、页面素材 `Piece`，页面内容存于 `Spread.elements`；`app/page.tsx` 的 `insertLibraryAssets` 经 `change/changeSpread` 写入；“添加”菜单中的 `addVellumSheet` 以独立矢量装饰插入硫酸纸，`lib/vellum-sheet.ts` 统一颜色、透明度与旧数据兼容 |
+| 素材模型与插入 | `lib/journal.ts`：素材库条目 `Asset`、页面素材 `Piece`，页面内容存于 `Spread.elements`；`app/page.tsx` 的 `insertLibraryAssets` 经 `change/changeSpread` 写入；“添加”菜单中的 `addVellumSheet` 以独立装饰插入硫酸纸，`lib/vellum-sheet.ts` 统一颜色、透明度、雾化参数与旧数据兼容，`components/journal-drawing.tsx` 负责编辑／阅读共用的雾面渲染 |
 | 素材库 | `components/material-library.tsx`：库内筛选及待插入素材，通过 `onInsert` 进入编辑器；库内待插入选择与画布选择用途不同 |
 | 素材处理与纸面裁切 | `components/material-studio.tsx`：自动识别、点选／框选补漏、候选选择及入库；选中纸面单个普通素材后，`components/element-controls.tsx` 从工具栏打开 `components/page-material-cutter.tsx`，浏览器内的 `components/material-cut-editor.tsx` / `lib/material-cut.ts` 生成裁片，经 `/api/material-cuts/upload` 保存图片，再由 `lib/page-material-cut.ts` 一次替换当前 `Piece` 并进入原保存流；素材库原图不变。`/api/materials/add-data-item` 仅兼容升级前已打开的旧裁切会话，不是现行 UI 入口 |
 | 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的自动候选路由，再载入 `local/server.mjs`；路由通过 `execFile` 的自定义 promisify 接入 `local/segment` 调用 |

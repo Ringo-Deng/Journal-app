@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {layoutIssues} from '../lib/layout-safety.mjs';
 import {readingJpgInput} from '../lib/reading-jpg.ts';
 import {canAddSpreadElements} from '../lib/journal.ts';
-import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,pieceDisplayOpacity,vellumColor,vellumDisplayOpacity} from '../lib/vellum-sheet.ts';
+import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,pieceDisplayOpacity,vellumColor,vellumDisplayOpacity,vellumVisual} from '../lib/vellum-sheet.ts';
 
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 const oldFrames=['note','collage','outline','torn','underline','ticket','postcard','vellum','label'];
@@ -33,9 +33,9 @@ test('editor and shared preview ignore legacy text frame, background and shadow 
   assert.match(appearance,/p\.shadow!==undefined&&p\.kind!=='text'/);
 });
 
-test('standalone vellum is neutral, independently styled and counts as backing paper',async()=>{
-  const [page,controls,details,drawing]=await Promise.all([
-    read('app/page.tsx'),read('components/element-controls.tsx'),read('components/collage-tools.tsx'),read('components/journal-drawing.tsx'),
+test('standalone vellum is neutral, hazy and counts as backing paper',async()=>{
+  const [page,preview,controls,details,drawing,appearance,css]=await Promise.all([
+    read('app/page.tsx'),read('components/page-turn.tsx'),read('components/element-controls.tsx'),read('components/collage-tools.tsx'),read('components/journal-drawing.tsx'),read('components/piece-appearance.tsx'),read('app/globals.css'),
   ]);
   const insert=page.slice(page.indexOf('function addVellumSheet'),page.indexOf('async function cutout'));
   const creationToolbar=page.slice(page.indexOf('<fieldset className="book-tools creation-tools"'),page.indexOf('</fieldset>',page.indexOf('<fieldset className="book-tools creation-tools"')));
@@ -45,7 +45,7 @@ test('standalone vellum is neutral, independently styled and counts as backing p
   assert.match(insert,/opacity: DEFAULT_VELLUM_OPACITY/);
   assert.match(insert,/fill: DEFAULT_VELLUM_COLOR/);
   assert.match(insert,/stroke: VELLUM_BORDER_COLOR/);
-  assert.match(insert,/layerName:'硫酸纸',stackOrder:1/);
+  assert.match(insert,/layerName:'硫酸纸',stackOrder:19/);
   assert.match(insert,/if \(!canAddSpreadElements\(spread\)\)/);
   assert.match(creationToolbar,/ToolbarPopover label="添加"/);
   assert.match(creationToolbar,/creation-add-menu/);
@@ -56,8 +56,19 @@ test('standalone vellum is neutral, independently styled and counts as backing p
   assert.match(controls,/!vellumSheet && \([\s\S]*label="透明度"/);
   assert.match(details,/ToolbarPopover label="纸张外观"/);
   assert.match(details,/aria-label="硫酸纸颜色"/);
-  assert.match(details,/label="透明度"/);
-  assert.match(drawing,/fill=\{vellumSheet\?vellumColor\(p\)/);
+  assert.match(details,/label="纸张浓度"/);
+  assert.match(details,/浓度越低越透/);
+  assert.match(details,/雾感只作用于图层中位于它下方的素材/);
+  assert.match(drawing,/data-vellum-haze="true"/);
+  assert.match(drawing,/vellum-surface-tint/);
+  assert.match(drawing,/vellum-surface-grain/);
+  assert.match(drawing,/vellum-surface-edge/);
+  assert.match(appearance,/--vellum-blur/);
+  assert.match(appearance,/--vellum-grain-opacity/);
+  assert.match(css,/-webkit-backdrop-filter:blur\(var\(--vellum-blur,0\)\)/);
+  assert.match(css,/\.vellum-surface-grain\{background:url\('\/textures\/paper-grain\.svg'\)/);
+  assert.match(page,/opacity: pieceDisplayOpacity\(p\)/);
+  assert.match(preview,/opacity:pieceDisplayOpacity\(p\)/);
 
   const text={id:'text',kind:'text',text:'写在纸上',x:10,y:10,w:30,h:20,rotation:0};
   const vellum={id:'vellum',kind:'doodle',frame:'vellum-sheet',x:8,y:8,w:34,h:24,rotation:0};
@@ -70,16 +81,16 @@ test('standalone vellum is neutral, independently styled and counts as backing p
 
 test('legacy warm vellum becomes neutral while preserving its effective transparency',()=>{
   assert.equal(DEFAULT_VELLUM_COLOR,'#edf1f0');
-  assert.equal(DEFAULT_VELLUM_OPACITY,.62);
+  assert.equal(DEFAULT_VELLUM_OPACITY,.72);
   const legacy={id:'old',kind:'doodle',frame:'vellum-sheet',x:0,y:0,w:20,rotation:0,locked:false,drawing:[{path:'M0 0',fill:'#f6f0e3bb'}]};
   assert.equal(vellumColor(legacy),DEFAULT_VELLUM_COLOR);
   assert.ok(Math.abs(vellumDisplayOpacity(legacy)-187/255)<1e-9);
-  assert.ok(Math.abs(pieceDisplayOpacity({...legacy,opacity:.5})-(187/255)*.5)<1e-9);
+  assert.equal(pieceDisplayOpacity({...legacy,opacity:.5}),1);
 
   const custom={...legacy,color:'#dce8ef',opacity:.4};
   assert.equal(vellumColor(custom),'#dce8ef');
   assert.equal(vellumDisplayOpacity(custom),.4);
-  assert.equal(pieceDisplayOpacity(custom),.4);
+  assert.equal(pieceDisplayOpacity(custom),1);
   assert.equal(vellumDisplayOpacity({...custom,opacity:undefined}),DEFAULT_VELLUM_OPACITY);
 
   const embeddedAlpha={...legacy,drawing:[{path:'M0 0',fill:'#11223380'}],opacity:.5};
@@ -89,9 +100,12 @@ test('legacy warm vellum becomes neutral while preserving its effective transpar
   assert.equal(vellumDisplayOpacity({...custom,opacity:1}),1);
   assert.equal(vellumDisplayOpacity({...custom,opacity:-1}),0);
   assert.equal(vellumDisplayOpacity({...custom,opacity:2}),1);
+
+  assert.deepEqual(vellumVisual({...custom,opacity:0}),{strength:0,blurCqw:0,saturation:1,contrast:1,grainOpacity:0,edgeOpacity:0});
+  assert.deepEqual(vellumVisual({...custom,opacity:1}),{strength:1,blurCqw:.14,saturation:.88,contrast:.97,grainOpacity:.11,edgeOpacity:.32});
 });
 
 test('paper renderer invalidates cached reading images after vellum rendering changes',()=>{
   const book={id:'b',title:'硫酸纸',month:'2026-09',cover:'linen-oat',spreads:[{id:'s',days:[],elements:[]}]};
-  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,8);
+  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,9);
 });

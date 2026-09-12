@@ -1,7 +1,7 @@
 import type { Piece } from './journal';
 
 export const DEFAULT_VELLUM_COLOR = '#edf1f0';
-export const DEFAULT_VELLUM_OPACITY = 0.62;
+export const DEFAULT_VELLUM_OPACITY = 0.72;
 export const VELLUM_BORDER_COLOR = '#9fa9a466';
 
 const LEGACY_WARM_FILL = '#f6f0e3bb';
@@ -41,6 +41,20 @@ export function vellumDisplayOpacity(piece: VellumAppearance) {
   return savedOpacity ?? DEFAULT_VELLUM_OPACITY;
 }
 
+export function vellumVisual(piece: VellumAppearance) {
+  const strength = vellumDisplayOpacity(piece);
+  return {
+    strength,
+    blurCqw: strength * 0.14,
+    saturation: 1 - strength * 0.12,
+    contrast: 1 - strength * 0.03,
+    grainOpacity: strength * 0.11,
+    edgeOpacity: strength * 0.32,
+  };
+}
+
 export function pieceDisplayOpacity(piece: Piece) {
-  return isVellumSheet(piece) ? vellumDisplayOpacity(piece) : piece.opacity ?? 1;
+  // Vellum applies its saved opacity to the tint, grain and haze separately.
+  // Keeping the wrapper opaque lets backdrop-filter soften the layers below it.
+  return isVellumSheet(piece) ? 1 : piece.opacity ?? 1;
 }

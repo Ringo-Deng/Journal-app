@@ -102,13 +102,13 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
    const color=vellumColor(p),opacity=vellumDisplayOpacity(p);
    return <div className="collage-context-tools compact-context-tools" aria-label="硫酸纸外观">
      <ToolbarPopover label="纸张外观" icon={<Palette/>} className="compact-material-style" panelClassName="vellum-style-popover">
-       <div className="toolbar-popover-title">硫酸纸颜色与透明度</div>
+       <div className="toolbar-popover-title">硫酸纸颜色与纸张浓度</div>
        <label className="vellum-custom-color">自定义颜色<input type="color" aria-label="硫酸纸颜色" value={color} onChange={e=>onPatch({color:e.target.value,opacity})}/></label>
        <div className="vellum-color-swatches" aria-label="硫酸纸预设颜色">
          {vellumColors.map(([value,name])=><button key={value} type="button" className="vellum-color-swatch" aria-label={`硫酸纸设为${name}`} aria-pressed={color===value} style={{background:value}} onClick={()=>onPatch({color:value,opacity})}/>)}
        </div>
-       <div className="toolbar-popover-grid"><NumberControl label="透明度" value={opacity*100} min={0} max={100} unit="%" onCommit={value=>onPatch({color,opacity:value/100})}/></div>
-       <small className="vellum-style-hint">透明度越低，越能透出下方的照片和文字。</small>
+       <div className="toolbar-popover-grid"><NumberControl label="纸张浓度" value={opacity*100} min={0} max={100} unit="%" onCommit={value=>onPatch({color,opacity:value/100})}/></div>
+       <small className="vellum-style-hint">浓度越低越透；雾感只作用于图层中位于它下方的素材。</small>
        <div className="toolbar-popover-actions"><button type="button" className="quiet" onClick={()=>onPatch({color:DEFAULT_VELLUM_COLOR,opacity:DEFAULT_VELLUM_OPACITY})}>恢复雾白</button></div>
      </ToolbarPopover>
    </div>;

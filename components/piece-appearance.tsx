@@ -6,9 +6,11 @@ import type { CSSProperties } from 'react';
 import type { Piece } from '@/lib/journal';
 import {journalFontFamily} from '@/lib/collage';
 import {decoratedTextSegments} from '@/lib/text-runs';
+import {isVellumSheet,vellumColor,vellumVisual} from '@/lib/vellum-sheet';
 
 export function pieceAppearance(p:Piece): CSSProperties {
   const stackOrder=(p as Piece & {stackOrder?:number}).stackOrder;
+  const vellum=isVellumSheet(p)?vellumVisual(p):undefined;
   return {
     '--piece-font':journalFontFamily(p.fontFamily),
     '--piece-leading':p.lineHeight,
@@ -19,6 +21,13 @@ export function pieceAppearance(p:Piece): CSSProperties {
     '--piece-shadow':p.shadow===undefined?undefined:`0.15cqw 0.3cqw ${.2+p.shadow*.55}cqw rgb(65 48 27 / ${p.shadow*.32})`,
     '--mask-shadow':p.shadow===0?'drop-shadow(0 0 0 transparent)':`drop-shadow(.15cqw .3cqw ${.2+(p.shadow??.4)*.55}cqw rgb(65 48 27 / ${(p.shadow??.4)*.32}))`,
     '--cutout-edge':`${p.cutoutOutline??.18}cqw`,
+    '--vellum-color':vellum?vellumColor(p):undefined,
+    '--vellum-strength':vellum?.strength,
+    '--vellum-blur':vellum?`${vellum.blurCqw.toFixed(3)}cqw`:undefined,
+    '--vellum-saturation':vellum?.saturation,
+    '--vellum-contrast':vellum?.contrast,
+    '--vellum-grain-opacity':vellum?.grainOpacity,
+    '--vellum-edge-opacity':vellum?.edgeOpacity,
     zIndex:Number.isFinite(stackOrder)?stackOrder:19,
   } as CSSProperties;
 }

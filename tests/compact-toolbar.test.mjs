@@ -6,6 +6,7 @@ const controlsPath=new URL('../components/element-controls.tsx',import.meta.url)
 const collagePath=new URL('../components/collage-tools.tsx',import.meta.url);
 const popoverPath=new URL('../components/toolbar-popover.tsx',import.meta.url);
 const pagePath=new URL('../app/page.tsx',import.meta.url);
+const cssPath=new URL('../app/globals.css',import.meta.url);
 
 test('single element toolbar groups secondary controls into popovers', async()=>{
   const [controls,collage]=await Promise.all([readFile(controlsPath,'utf8'),readFile(collagePath,'utf8')]);
@@ -41,10 +42,11 @@ test('compact toolbar overrides horizontal scrolling without replacing global st
 });
 
 test('secondary inserts share an add menu while the obsolete more panel stays removed', async()=>{
-  const [controls,popover,page]=await Promise.all([
+  const [controls,popover,page,css]=await Promise.all([
     readFile(controlsPath,'utf8'),
     readFile(popoverPath,'utf8'),
     readFile(pagePath,'utf8'),
+    readFile(cssPath,'utf8'),
   ]);
   assert.doesNotMatch(controls,/onMore|compact-more-button|>更多</);
   assert.doesNotMatch(popover,/compact-more-button/);
@@ -53,4 +55,5 @@ test('secondary inserts share an add menu while the obsolete more panel stays re
   assert.match(page,/ToolbarPopover label="添加"[\s\S]*panelClassName="creation-add-menu"/);
   assert.match(page,/aria-label="插入硫酸纸"/);
   assert.match(page,/aria-label="粘贴素材"/);
+  assert.match(css,/\.creation-tools>button\.quiet,\.creation-tools>\.toolbar-popover>\.toolbar-popover-trigger\{gap:3px;padding:6px;font-size:11px;\}/);
 });
