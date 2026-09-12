@@ -30,7 +30,7 @@ export function creamTravel(s: Spread): Spread {
   return {...s,paperStyle:'blank',paperColor:'#f5edda',paperFeel:creamFeel,
     pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperStyle:'blank',paperColor:'#f5edda',paperFeel:creamFeel,paperBg:null}])):undefined,
     paperBg:null,
-    elements:s.elements.map(p=>p.locked?p:p.kind==='text'?{...p,fontFamily:p.role==='title'?'brush':Array.from(p.text||'').every(c=>c.charCodeAt(0)<128)?'script':'pen',fontWeight:400,lineHeight:p.role==='title'?1.25:1.6,letterSpacing:.04,color:'#393a32',shadow:.25}:p.kind==='photo'?{...p,frame:p.frame==='cutout'?'cutout':'polaroid',photoBorder:.65,shadow:.45,hideTape:true}:{...p,shadow:.3})};
+    elements:s.elements.map(p=>p.locked?p:p.kind==='text'?{...p,fontFamily:p.role==='title'?'brush':Array.from(p.text||'').every(c=>c.charCodeAt(0)<128)?'script':'pen',fontWeight:400,lineHeight:p.role==='title'?1.25:1.6,letterSpacing:.04,color:'#393a32'}:p.kind==='photo'?{...p,frame:p.frame==='cutout'?'cutout':'polaroid',photoBorder:.65,shadow:.45,hideTape:true}:{...p,shadow:.3})};
 }
 
 /** Bounds and transformations use physical pixels so rotation is correct on any paper ratio. */

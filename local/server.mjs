@@ -552,7 +552,6 @@ async function generate(input) {
       output.days=designRecords(input,output);
       if(output.days.some(d=>typeof d.text!=='string'||typeof d.title!=='string')) throw Error('AI 返回的日志不完整。');
       elements=validatePlan(output.elements,input,assets);
-      if(editorial.requirements.framed) elements=elements.map(p=>p.kind==='text' && (Number.isInteger(p.paragraphIndex)||p.role==='body') && !['outline','note','torn','ticket','postcard','vellum','label','collage'].includes(p.frame) ? {...p,frame:'outline'} : p);
       const activeBrief=output.layoutOverride==='free'?{...designBrief,preset:'free'}:designBrief;
       elements=finishCollage(elements,{...input,requirements:editorial.requirements},assets,activeBrief);
       diagnostic.composition=resolveComposition(activeBrief,input).preset;

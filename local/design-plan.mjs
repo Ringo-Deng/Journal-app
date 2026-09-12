@@ -17,7 +17,7 @@ export function validatePlan(elements, input, assets) {
     const w = number(p.w, 3, 44, 30);
     let x = number(p.x, 2, 98-w, 5);
     if (x < 50 && x+w > 48) x = Math.max(2,48-w);
-    const base = {kind:p.kind,x,y:number(p.y,3,88,10),w,rotation:number(p.rotation,-30,30,0),fontSize:number(p.fontSize,12,42,18),color:color(p.color),background:color(p.background),frame:['plain','polaroid','stamp','cutout','note','outline','torn','underline','sticker','ticket','postcard','vellum','label','collage'].includes(p.frame)?p.frame:'plain'};
+    const base = {kind:p.kind,x,y:number(p.y,3,88,10),w,rotation:number(p.rotation,-30,30,0),fontSize:number(p.fontSize,12,42,18),color:color(p.color),background:color(p.background),frame:p.kind==='text'?'plain':['plain','polaroid','stamp','cutout','sticker'].includes(p.frame)?p.frame:'plain'};
     if (typeof p.region === 'string' && /^[a-z-]{1,24}$/.test(p.region)) base.region = p.region;
     if (source && source.kind !== p.kind) throw Error('AI 更改了原始元素类型。');
     if (source) Object.assign(base,{sourceId:source.id,dayId:source.dayId,originIds:source.originIds,sourceDayIds:source.sourceDayIds,paragraphIndex:source.paragraphIndex,stickerKeywords:source.stickerKeywords});
@@ -39,7 +39,7 @@ export function validatePlan(elements, input, assets) {
       const role = source?.role || (['title','body','date'].includes(p.role)?p.role:undefined);
       const text = source?.text ?? (day && role==='body' ? day.text || day.raw : day && role==='title' ? day.title || p.text : p.text);
       if(typeof text!=='string' || text.length>8000) throw Error('AI 文本框内容无效。');
-      return {...base,role,text};
+      return {...base,role,text,background:undefined,frame:'plain',shadow:undefined};
     }
     if(p.kind==='asset') {
       const a=assets.find(a=>a.id===(source?.assetId || p.assetId));

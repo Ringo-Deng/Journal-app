@@ -437,43 +437,8 @@ export function pageInk(book:Book,spread:Spread|undefined,side:'left'|'right'):s
   const c=paperSettings(book,pageSpread(spread,side)).color;
   return parseInt(c.slice(1,3),16)*.299+parseInt(c.slice(3,5),16)*.587+parseInt(c.slice(5,7),16)*.114<125?'#f5f5ed':'#343b34';
 }
-const paperTextFrames=new Set(['note','collage','torn','ticket','postcard','vellum','label']);
-export function isPaperTextFrame(frame?:string):boolean{return paperTextFrames.has(frame||'');}
-function hexColor(value?:string):[number,number,number,number]|undefined{
-  const match=/^#([a-f0-9]{3,4}|[a-f0-9]{6}|[a-f0-9]{8})$/i.exec(value||'');
-  if(!match)return;
-  const short=match[1].length<=4,hex=short?Array.from(match[1],part=>part+part).join(''):match[1];
-  const [r,g,b]=[0,2,4].map(offset=>parseInt(hex.slice(offset,offset+2),16));
-  return [r,g,b,hex.length===8?parseInt(hex.slice(6,8),16)/255:1];
-}
-function relativeLuminance(color:readonly number[]):number{
-  const [r,g,b]=color.map(channel=>{const value=channel/255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;});
-  return r*.2126+g*.7152+b*.0722;
-}
-function contrastRatio(a:readonly number[],b:readonly number[]):number{
-  const [light,dark]=[relativeLuminance(a),relativeLuminance(b)].sort((x,y)=>y-x);
-  return (light+.05)/(dark+.05);
-}
-function readableInk(background:readonly number[]):string{
-  const soft=[['#433d34',[67,61,52]],['#f7f1e5',[247,241,229]]] as const;
-  const preferred=[...soft].sort((a,b)=>contrastRatio(background,b[1])-contrastRatio(background,a[1]))[0];
-  if(contrastRatio(background,preferred[1])>=4.5)return preferred[0];
-  const strong=[['#000000',[0,0,0]],['#ffffff',[255,255,255]]] as const;
-  return [...strong].sort((a,b)=>contrastRatio(background,b[1])-contrastRatio(background,a[1]))[0][0];
-}
-function backgroundInk(background:string|undefined,fallback:string|undefined):string|undefined{
-  const color=hexColor(background);
-  if(!color)return;
-  const fallbackColor=hexColor(fallback),fallbackIsLight=!!fallbackColor&&fallbackColor[0]*.299+fallbackColor[1]*.587+fallbackColor[2]*.114>=145;
-  const under=fallbackIsLight?[34,42,38]:[247,245,238],alpha=color[3];
-  const [r,g,b]=color.map((channel,index)=>index<3?channel*alpha+under[index]*(1-alpha):channel);
-  return readableInk([r,g,b]);
-}
-export function textFrameInk(piece:Pick<Piece,'kind'|'frame'|'color'|'background'>,fallback?:string):string|undefined{
-  if(piece.color)return piece.color;
-  if(piece.kind!=='text')return fallback;
-  if(piece.background)return backgroundInk(piece.background,fallback)||fallback||(isPaperTextFrame(piece.frame)?'#433d34':undefined);
-  return isPaperTextFrame(piece.frame)?'#433d34':fallback;
+export function canAddSpreadElements(spread:Pick<Spread,'elements'>|undefined,count=1):boolean{
+  return !!spread&&Number.isInteger(count)&&count>0&&spread.elements.length+count<=300;
 }
 export function reserveHeaderSpace(elements:DesignPiece[],top:number,lockedIds:string[]=[]):DesignPiece[]{
   const inset=Math.max(0,Math.min(20,top));if(!inset)return elements;const factor=(100-inset)/100;

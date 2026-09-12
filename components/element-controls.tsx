@@ -109,6 +109,7 @@ export default function ElementControls({
   onReplace: () => void;
   onReset: () => void;
 }) {
+  const vellumSheet = p.kind === 'doodle' && p.frame === 'vellum-sheet';
   const maxX = Math.max(0, 100 - p.w);
   const maxY = Math.max(0, 100 - height);
   const centerX = maxX / 2;
@@ -117,7 +118,9 @@ export default function ElementControls({
   return (
     <fieldset className="element-controls element-controls-compact" aria-label="素材调整">
       <span className="tool-kind">
-        {p.kind === 'text'
+        {vellumSheet
+          ? '硫酸纸'
+          : p.kind === 'text'
           ? '文字'
           : p.kind === 'photo'
             ? '照片'
@@ -196,7 +199,7 @@ export default function ElementControls({
             <RotateCcw />旋转归零
           </button>
         </div>
-        {p.kind !== 'text' && (
+        {p.kind !== 'text' && !vellumSheet && (
           <div className="toolbar-popover-actions">
             <button className="quiet" onClick={() => onPatch({ flipX: !p.flipX })}>
               <FlipHorizontal2 />水平翻转

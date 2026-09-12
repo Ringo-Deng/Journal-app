@@ -1,8 +1,8 @@
 'use client';
-import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} from './piece-appearance';
+import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,ColoredWriting} from './piece-appearance';
 import ReadingLeaf from './reading-leaf';
 import NotebookPaper from './notebook-paper';
-import { pageInk, textFrameInk } from '@/lib/journal';
+import { pageInk } from '@/lib/journal';
 import { isPieceHidden } from '@/lib/layer-meta';
 import JournalDrawing from '@/components/journal-drawing';
 /* oxlint-disable next/no-img-element -- Render the existing local page images on both sides of a turning sheet. */
@@ -79,7 +79,7 @@ function SpreadPreviewImpl({
       {spread.elements.filter((p)=>!isPieceHidden(p)).map((p) => (
         <div
           key={p.id}
-          className={`piece piece-${p.kind} ${p.doodleMotif ? 'hand-doodle' : ''} ${p.role || ''} ${p.frame || ''} ${p.stretch ? 'piece-stretched' : ''} ${pieceClasses(p)}`}
+          className={`piece piece-${p.kind} ${p.doodleMotif ? 'hand-doodle' : ''} ${p.role || ''} ${pieceFrameClass(p)} ${p.stretch ? 'piece-stretched' : ''} ${pieceClasses(p)}`}
           style={{
             ...pieceAppearance(p),
             left: p.x + '%',
@@ -88,7 +88,7 @@ function SpreadPreviewImpl({
             transform: `rotate(${p.rotation}deg)`,
             fontSize: `${(p.fontSize || 18) / 10}cqw`,
 
-            opacity: p.opacity ?? 1,color:textFrameInk(p,!flyleaf?pageInk(book,spread,p.x>=50?'right':'left'):undefined),background:p.kind==='text'?p.background:undefined,height:p.h?`${p.h}%`:p.kind==='doodle'?'15%':undefined,fontFamily:p.fontFamily==='serif'?'Georgia, Songti SC, serif':p.fontFamily==='sans'?'PingFang SC, sans-serif':undefined,
+            opacity: p.opacity ?? 1,color:p.color||(!flyleaf?pageInk(book,spread,p.x>=50?'right':'left'):undefined),height:p.h?`${p.h}%`:p.kind==='doodle'?'15%':undefined,fontFamily:p.fontFamily==='serif'?'Georgia, Songti SC, serif':p.fontFamily==='sans'?'PingFang SC, sans-serif':undefined,
           }}
         >
           {p.kind === 'text' ? (

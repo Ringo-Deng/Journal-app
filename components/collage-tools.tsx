@@ -56,13 +56,11 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
      <optgroup label="内置字体">{journalFonts.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</optgroup>
      {!!userFonts.length&&<optgroup label="我的字体">{userFonts.map(f=><option key={f.id} value={`user:${f.id}`}>{f.name}</option>)}</optgroup>}
    </select></label>
-   <ToolbarPopover label="文字样式" icon={<SlidersHorizontal/>} className="compact-primary-style" panelClassName="text-style-popover">
-     <div className="toolbar-popover-title">文字样式</div>
-     <label>文本框样式<select aria-label="文本框样式" value={p.frame||'plain'} onChange={e=>onPatch({frame:e.target.value})}>{[['plain','无边框'],['note','便签'],['collage','拼贴便签'],['outline','手绘边框'],['torn','撕纸'],['underline','下划线'],['ticket','票据'],['postcard','明信片'],['vellum','半透明纸'],['label','标签']].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+   <ToolbarPopover label="文字排版" icon={<SlidersHorizontal/>} className="compact-primary-style" panelClassName="text-style-popover">
+     <div className="toolbar-popover-title">文字排版</div>
      <div className="toolbar-popover-grid">
        <NumberControl label="行距" value={p.lineHeight||(p.role==='title'?1.4:1.9)} min={1} max={3} onCommit={lineHeight=>onPatch({lineHeight})}/>
        <NumberControl label="字距" value={(p.letterSpacing??.03)*100} min={-5} max={40} unit="%" onCommit={v=>onPatch({letterSpacing:v/100})}/>
-       <NumberControl label="阴影" value={(p.shadow??.4)*100} min={0} max={100} unit="%" onCommit={v=>onPatch({shadow:v/100})}/>
      </div>
      <div className="toolbar-popover-row">
        <label>粗细<select aria-label="文字粗细" value={p.fontWeight||400} onChange={e=>onPatch({fontWeight:Number(e.target.value)})}><option value={400}>常规</option><option value={600}>加粗</option></select></label>
@@ -97,6 +95,8 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
      {cropping&&<div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">取景</span><div className="toolbar-popover-grid"><NumberControl label="横向" value={p.crop??50} min={0} max={100} onCommit={crop=>onPatch({crop})}/><NumberControl label="纵向" value={p.cropY??50} min={0} max={100} onCommit={cropY=>onPatch({cropY})}/><NumberControl label="放大" value={(p.cropZoom??1)*100} min={100} max={400} unit="%" onCommit={v=>onPatch({cropZoom:v/100})}/></div><button className="quiet" onClick={()=>onPatch({crop:50,cropY:50,cropZoom:1})}>重置取景</button></div>}
    </ToolbarPopover>
  </div>;
+
+ if(p.kind==='doodle'&&p.frame==='vellum-sheet')return null;
 
  return <div className="collage-context-tools compact-context-tools" aria-label="素材细节">
    <ToolbarPopover label="质感" icon={<Sparkles/>} className="compact-material-style" panelClassName="material-style-popover">

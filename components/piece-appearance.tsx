@@ -22,8 +22,11 @@ export function pieceAppearance(p:Piece): CSSProperties {
     zIndex:Number.isFinite(stackOrder)?stackOrder:19,
   } as CSSProperties;
 }
+export function pieceFrameClass(p:Piece) {
+  return p.kind==='text'?'':p.frame||'';
+}
 export function pieceClasses(p:Piece) {
-  return `${p.material?`material-${p.material}`:''} ${p.hideTape?'no-auto-tape':''} ${p.fontFamily?'has-typography':''} ${p.shadow!==undefined&&(p.kind!=='text'||!!p.frame&&p.frame!=='plain')?'has-shadow':''} ${p.kind==='photo'?'mounted-photo':''} ${p.tapeEdge==='straight'?'tape-straight':''}`;
+  return `${p.material?`material-${p.material}`:''} ${p.hideTape?'no-auto-tape':''} ${p.fontFamily?'has-typography':''} ${p.shadow!==undefined&&p.kind!=='text'?'has-shadow':''} ${p.kind==='photo'?'mounted-photo':''} ${p.tapeEdge==='straight'?'tape-straight':''}`;
 }
 export function PhotoArtwork({piece:p,alt='',maskPreview}:{piece:Piece;alt?:string;maskPreview?:{shape:string;ratio:number;photoRotation?:number}}) {
   if(maskPreview)return <PhotoMaskPreview piece={p} {...maskPreview}/>;

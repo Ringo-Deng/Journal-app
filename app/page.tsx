@@ -6,7 +6,7 @@ import PhotoTrash from '@/components/photo-trash';
 import {applyMaskToBooks,restorePhotoMask,type PhotoMaskDraft,type PhotoTrashEntry} from '@/lib/photo-mask-state';
 import {maskImageRect,rotatedMaskBounds} from '@/lib/photo-mask.mjs';
 import CollageStudio,{type ClipboardSource} from '@/components/collage-studio';
-import {pieceAppearance,pieceClasses,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
+import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
 import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate} from '@/lib/collage';
 import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
 import type {CollageTemplate} from '@/lib/journal';
@@ -16,7 +16,7 @@ import FullBackup from '@/components/full-backup';
 import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
-import { pageSpread, patchPage, pageInk, reserveHeaderSpace, textFrameInk } from '@/lib/journal';
+import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
@@ -77,6 +77,7 @@ import {
   FolderOpen,
   RefreshCw,
   PanelTop,
+  File as FileIcon,
   List,
   ClipboardPaste,
 } from 'lucide-react';
@@ -1554,6 +1555,41 @@ export default function Home() {
     setInlineId(p.id);
     setInlineText(p.text || '');
   }
+  function addVellumSheet() {
+    if (!spread) return;
+    if (!canAddSpreadElements(spread)) {
+      toast('这一页素材过多，请先翻到新页。');
+      return;
+    }
+    const p = withLayerMeta({
+      id: uid(),
+      kind: 'doodle',
+      role: 'decor',
+      x: 58,
+      y: 38,
+      w: 30,
+      h: 24,
+      rotation: 0,
+      locked: false,
+      frame: 'vellum-sheet',
+      material: 'paper',
+      artLabel: '硫酸纸',
+      stretch: true,
+      drawing: [{
+        path: 'M 1 1 H 99 V 99 H 1 Z',
+        fill: '#f6f0e3bb',
+        stroke: '#bfb09244',
+        width: 1,
+      }],
+    }, {layerName:'硫酸纸',stackOrder:1});
+    changeSpread((s) => ({ ...s, elements: [...s.elements, p] }));
+    setSelected(p.id);
+    setMultiIds([]);
+    setPanel(null);
+    setCropping(false);
+    setInlineId(null);
+    toast('已插入硫酸纸，可调整尺寸、透明度和图层。');
+  }
   async function cutout() {
     if (!piece?.src) return;
     setBusy(true);
@@ -1990,6 +2026,7 @@ export default function Home() {
               <span className="tool-divider"/>
             </>}
             <button className="quiet" aria-label="添加文字" title="文字" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
+            <button className="quiet" aria-label="插入硫酸纸" title="硫酸纸" disabled={!spread||busy||!opened} onClick={addVellumSheet}><FileIcon/><span>硫酸纸</span></button>
             <button className="quiet" aria-label={uploading?'正在添加照片':'添加照片'} title="照片" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
             <button className="quiet" aria-label="打开素材库" title="素材" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
             <button
@@ -2216,11 +2253,13 @@ export default function Home() {
                           tabIndex={spread && !reading ? 0 : -1}
                           role={spread && !reading ? 'button' : undefined}
                           aria-label={
-                            p.kind === 'text'
+                            p.kind === 'doodle' && p.frame === 'vellum-sheet'
+                              ? '编辑硫酸纸'
+                              : p.kind === 'text'
                               ? `编辑${p.role === 'title' ? '标题' : '文字'}`
                               : `编辑${p.kind === 'photo' ? '照片' : '素材'}`
                           }
-                          className={`piece piece-${p.kind} ${p.role || ''} ${activePieces.some(q=>q.id===p.id) ? 'selected' : ''} ${selectionPreviewIds.includes(p.id)?'selection-preview':''} ${p.frame || ''} ${p.stretch?'piece-stretched':''} ${pieceClasses(p)} ${cropping&&selected===p.id?'is-cropping':''}`}
+                          className={`piece piece-${p.kind} ${p.role || ''} ${activePieces.some(q=>q.id===p.id) ? 'selected' : ''} ${selectionPreviewIds.includes(p.id)?'selection-preview':''} ${pieceFrameClass(p)} ${p.stretch?'piece-stretched':''} ${pieceClasses(p)} ${cropping&&selected===p.id?'is-cropping':''}`}
                           style={{
                             ...pieceAppearance(p),
                             left: `${p.x}%`,
@@ -2230,7 +2269,7 @@ export default function Home() {
                             fontSize: `${(p.fontSize || 18) / 10}cqw`,
 
                             opacity: p.opacity ?? 1,
-                            color:textFrameInk(p,!isFlyleaf && book ? pageInk(book,spread,p.x>=50?'right':'left') : undefined),background:p.kind==='text'?p.background:undefined,
+                            color:p.color||(!isFlyleaf && book ? pageInk(book,spread,p.x>=50?'right':'left') : undefined),
                             height:p.h?`${p.h}%`:p.kind==='doodle'?'15%':undefined,
                             fontFamily:p.fontFamily==='serif'?'Georgia, Songti SC, serif':p.fontFamily==='sans'?'PingFang SC, sans-serif':undefined,
                           }}
@@ -2424,7 +2463,7 @@ export default function Home() {
                             按指令整理并设计跨页
                           </button>
                           <p className="microcopy">
-                            可要求润色、分段、逐段加框和配贴纸；只要求排版时保留文字，所有修改均可撤销。
+                            可要求润色、分段和逐段配贴纸；只要求排版时保留文字，所有修改均可撤销。
                           </p>
                         </div>
                       )}
@@ -2450,7 +2489,9 @@ export default function Home() {
                               const rowLabel=(item:Piece,itemIndex:number)=>{
                                 const itemAsset=item.kind==='asset'?assets.find(a=>a.id===item.assetId):undefined;
                                 const compactText=item.text?.replace(/\s+/g,' ').trim();
-                                return item.kind==='text'
+                                return item.kind==='doodle'&&item.frame==='vellum-sheet'
+                                  ? '硫酸纸'
+                                  : item.kind==='text'
                                   ? (compactText?compactText.slice(0,18):'空白文字')
                                   : item.kind==='photo'
                                     ? `照片 ${itemIndex+1}`
@@ -2458,7 +2499,7 @@ export default function Home() {
                                       ? (item.material==='tape'?'胶带':'手绘素材')
                                       : itemAsset?.name||`素材 ${itemIndex+1}`;
                               };
-                              const thumb=(item:Piece)=>item.kind==='text'?<Type/>:item.kind==='doodle'?<Feather/>:<img loading="lazy" src={item.kind==='asset'?resolveMaterial(item.src,item.assetId):item.src} alt=""/>;
+                              const thumb=(item:Piece)=>item.kind==='text'?<Type/>:item.kind==='doodle'&&item.frame==='vellum-sheet'?<FileIcon/>:item.kind==='doodle'?<Feather/>:<img loading="lazy" src={item.kind==='asset'?resolveMaterial(item.src,item.assetId):item.src} alt=""/>;
                               if(members.length>1){
                                 const groupLabel=pieceGroupName(p)||`组合${groupNumber}`;
                                 return (
@@ -2496,7 +2537,7 @@ export default function Home() {
                                               <span className={`page-element-check ${memberSelected?'is-checked':''}`} aria-hidden="true">{memberSelected&&<Check/>}</span>
                                               <span className="page-element-main">
                                                 <span className="page-element-thumb" aria-hidden="true">{thumb(member)}</span>
-                                                <span className="page-element-copy"><strong>{memberName}</strong><small>{member.kind==='text'?'文字':member.kind==='photo'?'照片':member.kind==='doodle'?'装饰':'素材'}{memberHidden?' · 已隐藏':''}{member.locked?' · 已锁定':''}</small></span>
+                                                <span className="page-element-copy"><strong>{memberName}</strong><small>{member.kind==='doodle'&&member.frame==='vellum-sheet'?'硫酸纸':member.kind==='text'?'文字':member.kind==='photo'?'照片':member.kind==='doodle'?'装饰':'素材'}{memberHidden?' · 已隐藏':''}{member.locked?' · 已锁定':''}</small></span>
                                               </span>
                                             </button>
                                             <LayerRowActions hidden={memberHidden} locked={member.locked} onVisibility={()=>setLayerVisibility([member],!memberHidden)} onLock={()=>setLayerLocked([member],!member.locked)} onRename={()=>renameLayer([member])}/>
@@ -2521,7 +2562,7 @@ export default function Home() {
                                     <span className={`page-element-check ${isSelected?'is-checked':''}`} aria-hidden="true">{isSelected&&<Check/>}</span>
                                     <span className="page-element-main">
                                       <span className="page-element-thumb" aria-hidden="true">{thumb(p)}</span>
-                                      <span className="page-element-copy"><strong>{label}</strong><small>{p.kind==='text'?'文字':p.kind==='photo'?'照片':p.kind==='doodle'?'装饰':'素材'}{isHidden?' · 已隐藏':''}{isLocked?' · 已锁定':''}</small></span>
+                                      <span className="page-element-copy"><strong>{label}</strong><small>{p.kind==='doodle'&&p.frame==='vellum-sheet'?'硫酸纸':p.kind==='text'?'文字':p.kind==='photo'?'照片':p.kind==='doodle'?'装饰':'素材'}{isHidden?' · 已隐藏':''}{isLocked?' · 已锁定':''}</small></span>
                                     </span>
                                   </button>
                                   <LayerRowActions hidden={isHidden} locked={isLocked} onVisibility={()=>setLayerVisibility(members,!isHidden)} onLock={()=>setLayerLocked(members,!isLocked)} onRename={()=>renameLayer(members)} onUp={()=>moveLayer(members,'up')} onDown={()=>moveLayer(members,'down')}/>

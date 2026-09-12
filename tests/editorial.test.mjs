@@ -14,6 +14,8 @@ function fixture(){
 }
 test('one original body becomes three independent polished paragraphs without losing raw source',()=>{
  const {edited,pieces}=fixture();
+ assert.equal(edited.requirements.framed,false);
+ assert.ok(pieces.filter(p=>p.kind==='text').every(p=>p.frame==='plain'));
  checkParagraphDesign(pieces,edited.input,edited.requirements,[asset]);
  const spread={id:'s',theme:'rose',days:input.days,elements:input.elements};
  const result=regenerateSpread(spread,{theme:'rose',days:input.days,elements:pieces,contentEdited:true},[asset]);
@@ -28,9 +30,9 @@ test('preserve mode leaves text alone, rewrite validates number and locked sourc
  assert.throws(()=>prepareEditorial(input,{...output,paragraphs:output.paragraphs.slice(0,2)}),/数量/);
  assert.throws(()=>prepareEditorial({...input,elements:[{...original,locked:true}]},output),/锁定/);
 });
-test('rejects unframed paragraphs, missing stickers and overlapping text boxes',()=>{
+test('rejects missing stickers and overlapping text boxes without requiring text frames',()=>{
  const {edited,pieces}=fixture();
- assert.throws(()=>checkParagraphDesign(pieces.map(p=>({...p,frame:'plain'})),edited.input,edited.requirements),/加框/);
+ checkParagraphDesign(pieces.map(p=>({...p,frame:'plain'})),edited.input,edited.requirements,[asset]);
  assert.throws(()=>checkParagraphDesign(pieces.filter(p=>p.kind==='text'),edited.input,edited.requirements),/贴纸/);
  assert.throws(()=>checkParagraphDesign(pieces.map(p=>({...p,x:5,y:12})),edited.input,edited.requirements,[asset]),/重叠/);
 });
@@ -57,5 +59,5 @@ test('layout may omit an empty hint without deleting it or blocking the three pa
  edited.input.elements.push(hint);
  const pieces=validatePlan(edited.input.elements.filter(p=>p.id!==hint.id).map((p,i)=>({kind:'text',sourceId:p.id,x:i===1?54:5,y:i===2?58:12,w:32,fontSize:18,frame:'outline'})),edited.input,[]);
  assert.equal(pieces.find(p=>p.sourceId==='hint').text,hint.text);
- checkParagraphDesign(pieces,edited.input,{paragraphCount:3,framed:true,stickers:false});
+ checkParagraphDesign(pieces,edited.input,{paragraphCount:3,framed:false,stickers:false});
 });

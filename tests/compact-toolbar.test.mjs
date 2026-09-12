@@ -18,7 +18,7 @@ test('single element toolbar groups secondary controls into popovers', async()=>
   assert.match(controls,/label="透明度"/);
   assert.match(controls,/水平居中/);
   assert.match(controls,/垂直居中/);
-  assert.match(collage,/ToolbarPopover label="文字样式"/);
+  assert.match(collage,/ToolbarPopover label="文字排版"/);
   assert.match(collage,/ToolbarPopover label="照片细节"/);
   assert.match(collage,/ToolbarPopover label="质感"/);
   assert.match(collage,/compact-font-control/);
@@ -49,4 +49,5 @@ test('obsolete more button and element editor side panel are removed', async()=>
   assert.doesNotMatch(popover,/compact-more-button/);
   assert.doesNotMatch(page,/setPanel\('edit'\)|panel\s*===\s*'edit'|调整这一小片|MAKE IT YOURS/);
   assert.match(page,/useState<'write' \| 'elements' \| null>/);
+  assert.match(page,/aria-label="插入硫酸纸"/);
 });

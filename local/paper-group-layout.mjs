@@ -13,7 +13,7 @@ export const paperPositions = {top:'上方露出',bottom:'下方露出',left:'�
 export function paperGroupContent(input) {
   if (wantsEditorialLayout(input.instruction)) return null;
   if (/不要贴纸|无装饰|极简|不要底纸|no stickers|no decoration|minimal/i.test(input.instruction || '')) return null;
-  if (input.requirements?.framed || input.requirements?.paragraphCount > 1) return null;
+  if (input.requirements?.paragraphCount > 1) return null;
   const editable=(input.elements||[]).filter(p=>!p.locked&&!p.groupId);
   if (editable.some(p=>p.kind==='photo') || (!input.elements?.length && input.days.some(d=>d.photos?.length))) return null;
   const text=editable.filter(p=>p.kind==='text'&&!isEmptyTextHint(p));

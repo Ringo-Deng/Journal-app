@@ -1,55 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {isPaperTextFrame,textFrameInk} from '../lib/journal.ts';
+import {layoutIssues} from '../lib/layout-safety.mjs';
 import {readingJpgInput} from '../lib/reading-jpg.ts';
+import {canAddSpreadElements} from '../lib/journal.ts';
 
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
-const frames=['plain','note','collage','outline','torn','underline','ticket','postcard','vellum','label'];
-const paperFrames=['note','collage','torn','ticket','postcard','vellum','label'];
+const oldFrames=['note','collage','outline','torn','underline','ticket','postcard','vellum','label'];
 
-test('the text style picker keeps the compatible frame ids and every visible treatment has CSS',async()=>{
+test('text tools keep typography but remove every text box effect',async()=>{
   const [controls,css]=await Promise.all([read('components/collage-tools.tsx'),read('app/globals.css')]);
-  const picker=controls.slice(controls.indexOf('文本框样式'),controls.indexOf('</select>',controls.indexOf('文本框样式')));
-  assert.deepEqual([...picker.matchAll(/\['([^']+)','[^']+'\]/g)].map(match=>match[1]),frames);
-  for(const frame of frames.filter(frame=>frame!=='plain')){
-    assert.match(css,new RegExp(`\\.piece\\.piece-text\\.${frame}\\s*\\{`));
-  }
-  assert.match(css,/\.piece\.piece-text:is\([^)]*\.ticket[^)]*\) > \.inline-writing[\s\S]*background:transparent;/);
-  assert.doesNotMatch(css,/\.piece-text\.ticket\s*\{[^}]*border-block:/);
-  assert.doesNotMatch(css,/\.piece-text\.postcard\s*\{[^}]*outline:/);
-  assert.doesNotMatch(css,/\.piece-text\.torn\s*\{[^}]*border-block:/);
+  const textTools=controls.slice(controls.indexOf("if(p.kind==='text')"),controls.indexOf("if(p.kind==='photo'"));
+  assert.match(textTools,/ToolbarPopover label="文字排版"/);
+  assert.match(textTools,/label="行距"/);
+  assert.match(textTools,/label="字距"/);
+  assert.doesNotMatch(textTools,/文本框样式|半透明纸|label="阴影"/);
+  for(const frame of oldFrames)assert.doesNotMatch(css,new RegExp(`\\.piece\\.piece-text\\.${frame}(?:\\s|\\{|:|\\.)`));
 });
 
-test('paper frames use readable ink without overriding an explicit text color',()=>{
-  for(const frame of frames)assert.equal(isPaperTextFrame(frame),paperFrames.includes(frame));
-  const piece=(extra={})=>({kind:'text',frame:'plain',...extra});
-  assert.equal(textFrameInk(piece({frame:'note'}),'#f5f5ed'),'#433d34');
-  assert.equal(textFrameInk(piece({frame:'ticket',color:'#b36742'}),'#f5f5ed'),'#b36742');
-  assert.equal(textFrameInk(piece({background:'#202824'}),'#343b34'),'#f7f1e5');
-  assert.equal(textFrameInk(piece({background:'#fff6df'}),'#f5f5ed'),'#433d34');
-  assert.equal(textFrameInk(piece({background:'#202824cc'}),'#343b34'),'#f7f1e5');
-  assert.equal(textFrameInk(piece({background:'#fff6dfcc'}),'#f5f5ed'),'#433d34');
-  assert.equal(textFrameInk(piece({background:'#909090'}),'#343b34'),'#000000');
-  assert.equal(textFrameInk(piece({background:'#808080'}),'#343b34'),'#000000');
-  assert.equal(textFrameInk(piece({background:'linear-gradient(#222,#333)'}),'#f5f5ed'),'#f5f5ed');
-  assert.equal(textFrameInk(piece({frame:'outline'}),'#f5f5ed'),'#f5f5ed');
-});
-
-test('editor and shared preview use the same frame ink logic and shape-aware shadows',async()=>{
-  const [page,preview,appearance,css]=await Promise.all([
-    read('app/page.tsx'),read('components/page-turn.tsx'),read('components/piece-appearance.tsx'),read('app/globals.css'),
+test('editor and shared preview ignore legacy text frame, background and shadow fields',async()=>{
+  const [page,preview,appearance]=await Promise.all([
+    read('app/page.tsx'),read('components/page-turn.tsx'),read('components/piece-appearance.tsx'),
   ]);
-  assert.match(page,/color:textFrameInk\(p,/);
-  assert.match(preview,/color:textFrameInk\(p,/);
-  assert.match(appearance,/p\.kind!=='text'\|\|!!p\.frame&&p\.frame!=='plain'/);
-  assert.match(css,/\.piece\.has-shadow:not\(\.piece-text\)[^{]*\{box-shadow:var\(--piece-shadow\);\}/);
-  assert.match(css,/\.piece\.piece-text:is\(\.torn,\.ticket,\.label\)\.has-shadow\{filter:drop-shadow\(var\(--piece-shadow\)\);\}/);
-  assert.match(css,/\.piece\.piece-text\.underline\.has-shadow::after\{box-shadow:var\(--piece-shadow\);\}/);
-  assert.match(css,/\.page-turn-layer \.piece\.piece-text\.collage\{box-shadow:-\.45cqw \.42cqw 0 #d6ddbf!important;\}/);
+  assert.match(appearance,/return p\.kind==='text'\?'':p\.frame\|\|''/);
+  assert.match(page,/\$\{pieceFrameClass\(p\)\}/);
+  assert.match(preview,/\$\{pieceFrameClass\(p\)\}/);
+  assert.match(page,/color:p\.color\|\|\(!isFlyleaf/);
+  assert.match(preview,/color:p\.color\|\|\(!flyleaf/);
+  assert.doesNotMatch(page,/background:p\.kind==='text'/);
+  assert.doesNotMatch(preview,/background:p\.kind==='text'/);
+  assert.match(appearance,/p\.shadow!==undefined&&p\.kind!=='text'/);
 });
 
-test('paper renderer version invalidates cached reading images after the CSS redraw',()=>{
-  const book={id:'b',title:'框型',month:'2026-09',cover:'linen-oat',spreads:[{id:'s',days:[],elements:[]}]};
-  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,6);
+test('standalone vellum is an independent low-layer drawing and counts as backing paper',async()=>{
+  const [page,controls,drawing]=await Promise.all([
+    read('app/page.tsx'),read('components/element-controls.tsx'),read('components/journal-drawing.tsx'),
+  ]);
+  const insert=page.slice(page.indexOf('function addVellumSheet'),page.indexOf('async function cutout'));
+  assert.match(insert,/kind: 'doodle'/);
+  assert.match(insert,/frame: 'vellum-sheet'/);
+  assert.match(insert,/fill: '#f6f0e3bb'/);
+  assert.match(insert,/stroke: '#bfb09244'/);
+  assert.match(insert,/layerName:'硫酸纸',stackOrder:1/);
+  assert.match(insert,/if \(!canAddSpreadElements\(spread\)\)/);
+  assert.match(page,/aria-label="插入硫酸纸"/);
+  assert.match(controls,/vellumSheet[\s\S]*'硫酸纸'/);
+  assert.match(drawing,/p\.frame==='vellum-sheet'\?"non-scaling-stroke"/);
+
+  const text={id:'text',kind:'text',text:'写在纸上',x:10,y:10,w:30,h:20,rotation:0};
+  const vellum={id:'vellum',kind:'doodle',frame:'vellum-sheet',x:8,y:8,w:34,h:24,rotation:0};
+  assert.deepEqual(layoutIssues([vellum,text]),[]);
+  assert.ok(layoutIssues([{...vellum,id:'decor',frame:'plain'},text]).some(issue=>issue.type==='overlap'));
+
+  assert.equal(canAddSpreadElements({elements:Array.from({length:299})}),true);
+  assert.equal(canAddSpreadElements({elements:Array.from({length:300})}),false);
+});
+
+test('paper renderer invalidates cached reading images after removing text effects',()=>{
+  const book={id:'b',title:'硫酸纸',month:'2026-09',cover:'linen-oat',spreads:[{id:'s',days:[],elements:[]}]};
+  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,7);
 });

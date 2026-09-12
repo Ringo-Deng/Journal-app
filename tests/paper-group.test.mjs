@@ -117,7 +117,8 @@ test('requested side and occupied groups are respected, and a full spread fails 
 });
 
 test('unsupported content retains the existing route and existing groups remain protected',()=>{
- for(const extra of [{elements:[{...source[1],text:'很长的日记。'.repeat(200)}]},{elements:[...source,{kind:'photo'}]},{elements:source.map(p=>({...p,locked:true,groupId:'old'}))},{instruction:'不要贴纸，极简'},{requirements:{framed:true}},{requirements:{paragraphCount:2}},{ratio:.7},{ratio:2}])assert.equal(paperGroupContent({...input,...extra}),null);
+ for(const extra of [{elements:[{...source[1],text:'很长的日记。'.repeat(200)}]},{elements:[...source,{kind:'photo'}]},{elements:source.map(p=>({...p,locked:true,groupId:'old'}))},{instruction:'不要贴纸，极简'},{requirements:{paragraphCount:2}},{ratio:.7},{ratio:2}])assert.equal(paperGroupContent({...input,...extra}),null);
+ assert.ok(paperGroupContent({...input,requirements:{framed:true}}),'retired text-frame request no longer blocks independent paper groups');
  const fresh=paperGroupContent({days:[{title:'今日小记',raw:'散步看海。',photos:[]}],elements:[]});
  assert.deepEqual(fresh.map(p=>[p.dayIndex,p.text]),[[0,'今日小记'],[0,'散步看海。']]);
  assert.equal(paperGroupContent({days:[{raw:'看海',photos:['/uploads/a.png']}],elements:[]}),null);

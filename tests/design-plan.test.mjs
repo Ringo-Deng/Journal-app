@@ -5,12 +5,12 @@ import {regenerateSpread, newBook, addBlankSpread} from '../lib/journal.ts';
 const text={id:'text1',kind:'text',text:'今天下雨，在家喝咖啡。',x:5,y:10,w:35,rotation:0,locked:false};
 const input={days:[],elements:[text]};
 const design=[{kind:'text',sourceId:'text1',text:'不应覆盖',x:56,y:22,w:35,frame:'outline',color:'#123456'}, {kind:'doodle',x:8,y:40,w:18,h:20,path:'M 10 20 Q 50 5 90 20 L 80 80 L 20 80 Z'}];
-test('full spread design moves original writing and renders styled frames and doodles',()=>{
+test('full spread design moves original writing while normalizing text to plain',()=>{
  const elements=validatePlan(design,input,[]);
  assert.equal(elements[0].text,text.text);
  const result=regenerateSpread({id:'s',theme:'rose',days:[],elements:[text]}, {theme:'archive',days:[],elements}, []);
  assert.equal(result.elements[0].x,56);
- assert.equal(result.elements[0].frame,'outline');
+ assert.equal(result.elements[0].frame,'plain');
  assert.equal(result.elements[0].text,text.text);
  assert.equal(result.elements[1].kind,'doodle');
  assert.equal(result.elements[1].h,20);
@@ -30,7 +30,7 @@ test('user can add arbitrary blank spreads independent of dates',()=>{
 });
 test('creative plans keep paper height, typography and coloured illustration layers',()=>{
  const result=validatePlan([{kind:'text',sourceId:'text1',x:5,y:10,w:30,h:22,fontFamily:'serif',frame:'ticket'},{kind:'doodle',x:55,y:30,w:24,h:34,drawing:[{path:'M10 20 L90 20 L80 80 Z',fill:'#be8361',stroke:'#754b34',width:1.2}]}],input,[]);
- assert.equal(result[0].frame,'ticket');assert.equal(result[0].h,22);assert.equal(result[0].fontFamily,'serif');
+ assert.equal(result[0].frame,'plain');assert.equal(result[0].h,22);assert.equal(result[0].fontFamily,'serif');
  assert.equal(result[1].drawing[0].fill,'#be8361');
  assert.throws(()=>validatePlan([{...result[1],drawing:[{path:'<script>bad</script>'}]}],{days:[],elements:[]},[]),/图层/);
 });

@@ -193,6 +193,7 @@ test('real HTTP AI adapter validates output and respects photo sending preferenc
   assert.equal(result.status, 200);
   assert.equal(result.data.days[0].text, '今天喝了拿铁。');
   assert.deepEqual(result.data.days[0].assetIds, ['asset-001']);
+  assert.ok(result.data.elements.filter(item=>item.kind==='text').every(item=>item.frame==='plain'));
   assert.equal(typeof received.messages[1].content, 'string');
   await call('/api/settings', {
     baseUrl: mockUrl,
