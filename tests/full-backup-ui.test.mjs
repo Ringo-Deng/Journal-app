@@ -17,4 +17,7 @@ test("backup dialog offers all-data and journal-only scopes", () => {
 test("legacy JSON backup controls are removed from the normal backup flow", () => {
   assert.doesNotMatch(component, /旧版手帐备份|导入旧版 JSON|onLegacyExport|onLegacyImport/);
   assert.doesNotMatch(page, /importBackup|importInput|remapNotebookUploads/);
+  assert.match(page, /const backupBooks = resolveNotebookAssetSources\(books, assets\)/);
+  assert.match(page, /notebookUploads\(backupBooks\)/);
+  assert.match(page, /books: backupBooks/);
 });

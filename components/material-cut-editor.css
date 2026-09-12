@@ -1,0 +1,188 @@
+.material-studio .material-cut-editor {
+  display: grid;
+  grid-template-rows: auto minmax(260px, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.material-studio .material-cut-toolbar,
+.material-studio .material-cut-bottom,
+.material-studio .material-cut-toolgroup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.material-studio .material-cut-toolbar {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 1px 0 7px;
+  scrollbar-width: thin;
+}
+
+.material-studio .material-cut-toolbar > label,
+.material-studio .material-cut-bottom > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  color: #697561;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.material-studio .material-cut-toolbar button,
+.material-studio .material-cut-bottom button {
+  min-height: 32px;
+  padding: 6px 9px;
+  gap: 4px;
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.material-studio .material-cut-toolbar button svg,
+.material-studio .material-cut-bottom button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.material-studio .material-cut-toolbar button[aria-pressed="true"] {
+  border-color: #95a689;
+  background: #dce6ce;
+  color: #405337;
+}
+
+.material-studio .material-cut-toolbar select,
+.material-studio .material-cut-bottom select {
+  width: auto;
+  min-width: 58px;
+  padding: 5px 7px;
+  border: 1px solid #cbd1c3;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #4f5b49;
+  font-size: 11px;
+}
+
+.material-studio .material-cut-stage-wrap {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 260px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #cfd5c8;
+  border-radius: 7px;
+  background: #e4e6df;
+  contain: layout paint;
+}
+
+.material-studio .material-cut-stage-wrap canvas {
+  display: block;
+  width: min(100%, 820px);
+  max-height: 100%;
+  aspect-ratio: 82 / 54;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.material-studio .material-cut-editor[data-mode="move"] canvas {
+  cursor: grab;
+}
+
+.material-studio .material-cut-editor[data-mode="move"] canvas:active {
+  cursor: grabbing;
+}
+
+.material-studio .material-cut-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(236, 235, 228, 0.9);
+  color: #697561;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.material-studio .material-cut-loading svg {
+  width: 16px;
+  height: 16px;
+}
+
+.material-studio .material-cut-bottom {
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid #d8dccf;
+}
+
+.material-studio .material-cut-count {
+  flex: none;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #edf0e6;
+  color: #5f7055;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.material-studio .material-cut-saved {
+  flex: none;
+  color: #8a5b39;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.material-studio .material-cut-status {
+  min-width: 130px;
+  flex: 1;
+  max-height: 34px;
+  overflow: auto;
+  color: #66765a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .material-studio .material-cut-editor {
+    grid-template-rows: auto minmax(230px, 1fr) auto;
+  }
+
+  .material-studio .material-cut-stage-wrap {
+    min-height: 230px;
+  }
+
+  .material-studio .material-cut-bottom {
+    flex-wrap: wrap;
+  }
+
+  .material-studio .material-cut-status {
+    min-width: 100%;
+    order: -1;
+  }
+}
+
+@media (max-height: 640px) {
+  .material-studio .material-cut-editor {
+    grid-template-rows: auto minmax(170px, 1fr) auto;
+    overflow-y: auto;
+  }
+
+  .material-studio .material-cut-stage-wrap {
+    min-height: 170px;
+  }
+
+  .material-studio .material-cut-bottom {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    flex-wrap: wrap;
+    background: #fffdf7;
+  }
+}

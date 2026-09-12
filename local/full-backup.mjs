@@ -4,9 +4,12 @@ import { createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { backupToken, fail, readArchive, writeArchive } from "./backup-archive.mjs";
 import { commitRestore, planRestore, summaryOf, validateSnapshot } from "./backup-restore.mjs";
+import { resolveNotebookAssetSources } from "../lib/notebook-material-sources.mjs";
 
 export { recoverBackupTransaction } from "./backup-restore.mjs";
-export function journalBackupSnapshot(state, fonts = []) {
+export function journalBackupSnapshot(state, fonts = [], assets = []) {
+  const backupState = structuredClone(state);
+  backupState.books = resolveNotebookAssetSources(state.books, assets);
   const usedFontIds = new Set();
   function findFonts(value) {
     if (Array.isArray(value)) value.forEach(findFonts);
@@ -18,9 +21,9 @@ export function journalBackupSnapshot(state, fonts = []) {
         findFonts(item);
       }
   }
-  findFonts(state);
+  findFonts(backupState);
   return {
-    state: structuredClone(state),
+    state: backupState,
     assets: [],
     materialJobs: [],
     pinterestImports: [],

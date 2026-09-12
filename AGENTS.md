@@ -49,7 +49,7 @@
 | 页面素材侧栏 | `app/page.tsx` 的 `panel === 'elements'`、`pageElementRows`：图层面板复用画布选择；`components/layer-row-actions.tsx` 提供行操作按钮 |
 | 素材模型与插入 | `lib/journal.ts`：素材库条目 `Asset`、页面素材 `Piece`，页面内容存于 `Spread.elements`；`app/page.tsx` 的 `insertLibraryAssets` 经 `change/changeSpread` 写入 |
 | 素材库 | `components/material-library.tsx`：库内筛选及待插入素材，通过 `onInsert` 进入编辑器；库内待插入选择与画布选择用途不同 |
-| 素材处理台 | `components/material-studio.tsx`：处理和候选预览；`local/server.mjs`：素材 API 与选定结果保存 |
+| 素材处理台 | `components/material-studio.tsx`：处理记录、候选选择及保存 owner；`components/material-cut-editor.tsx` / `lib/material-cut.ts`：只在浏览器内预览的剪刀式自由裁切，确认后经 `/api/materials/add-data-item` 原子登记图片与结果，再回到原入库链路；`local/server.mjs`：素材 API 与选定结果保存 |
 | 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的自动候选路由，再载入 `local/server.mjs`；路由通过 `execFile` 的自定义 promisify 接入 `local/segment` 调用 |
 | AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/reference-layout-guide.mjs` 提供共用参考规则与明确杂志风指令识别；普通短文由 `local/paper-group.mjs` 提供实图选材与彩色底纸，`local/paper-group-layout.mjs` 按全文尺寸组合纸张与周边素材并检查空位，`local/paper-art.mjs` 生成纸形与花纹；明确杂志风与其他内容由 `local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` / `local/collage-layout.mjs` 排版，`local/editorial-shapes.mjs` 提供本地几何图形；`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据，重设计经 `designPreview/applyDesignPreview` 预览应用 |
 | 照片蒙版与回收站 | `app/page.tsx` 的 `photoMaskDraft` 仅供编辑画布预览；`lib/photo-mask.mjs` 共用轮廓与取景几何；`local/photo-mask.mjs` 经原保存队列生成透明图、登记回收引用及检查安全删除；`components/photo-trash.tsx` 提供恢复与手动清理 |
@@ -58,7 +58,7 @@
 | 数据兼容 | `lib/journal.ts` 的默认值与 `ensureFlyleaf`、`local/server.mjs` 的 `validateState`：兼容及校验入口；当前没有统一手帐 schema migration，`revision` 是写入并发号 |
 | 专项迁移 | `local/material-catalog.mjs` 的 `createMaterialCatalog`：素材目录迁移；`local/ai-config.mjs` 的 `migrateLegacyConfig`：旧 AI 配置兼容 |
 | 完整资料备份 | `components/full-backup.tsx` 提供统一入口；`local/full-backup.mjs` 管理导出、预检和恢复，`local/backup-archive.mjs` 分段打包与校验，`local/backup-restore.mjs` 追加恢复并在启动前重放中断事务；`backup-imports.json` 记录重复导入，密钥不入包 |
-| 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，自动快照保留最近 30 份，完整备份恢复的历史另行保留；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用 |
+| 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，自动快照保留最近 30 份，完整备份恢复的历史另行保留；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用，`lib/notebook-material-sources.mjs` 仅在无素材库的导出副本中物化当前素材图片 |
 | 3D 阅读 | `components/reading-deck.tsx` → `components/reading-book3d.tsx` → `components/book3d/Book3DView.tsx`；`lib/book3d-motion.ts` 控制翻页几何；`app/three-test/page.tsx` 为独立测试入口 |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |

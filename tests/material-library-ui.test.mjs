@@ -45,7 +45,8 @@ test('every material can reopen from its current image instead of requiring its 
   assert.match(source,/async function reopenAsset\(a:Asset\)/);
   assert.match(source,/fetch\(src,\{cache:'no-store'\}\)/);
   assert.match(source,/fetch\('\/api\/upload'/);
-  assert.match(source,/request\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\)/);
+  assert.match(source,/request<\{source:string\}>\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\)/);
+  assert.match(source,/onOpenStudio\(source\.source\)/);
   assert.match(source,/title="以当前素材为起点继续抠图、裁切或识别"/);
   assert.match(source,/aria-label={`再次编辑\$\{a\.name\}`}/);
   assert.match(source,/onClick=\{\(\)=>void reopenAsset\(a\)\}/);

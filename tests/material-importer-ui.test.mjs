@@ -12,7 +12,7 @@ const [page,importer,studio,library]=await Promise.all([
 test('the main left rail opens Material Studio without requiring a new image',()=>{
   const rail=page.slice(page.indexOf('<aside className="rail"'),page.indexOf('</aside>'));
   assert.match(rail,/aria-label="素材工作台"/);
-  assert.match(rail,/setMaterialStudioNotice\(''\);setModal\('studio'\)/);
+  assert.match(rail,/setMaterialStudioNotice\(''\);setMaterialStudioTargetSource\(''\);setModal\('studio'\)/);
   assert.doesNotMatch(rail,/onClick=\{\(\)=>setModal\('material-import'\)\}/);
   assert.match(page,/<MaterialImporter/);
   assert.match(page,/open=\{modal === 'material-import'\}/);
@@ -20,23 +20,31 @@ test('the main left rail opens Material Studio without requiring a new image',()
 
 test('local and Pinterest acquisition live in the importer instead of Material Studio',()=>{
   assert.match(importer,/type="file"[^>]+accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(importer,/request<Job>\('\/source',\{src:uploaded\.src,name:item\.name\}\)/);
+  assert.match(importer,/opened\+\+;targetSource=source\.source/);
   assert.match(importer,/request<Job>\('\/segment',\{src:uploaded\.src,name:item\.name,mode:'auto',tolerance:28\}\)/);
+  assert.match(importer,/fallbacks\.push\(`\$\{item\.name\}：自动识别未完成，原图已保留，可直接自由裁切/);
   assert.match(importer,/\('\/pinterest\/resolve'/);
   assert.match(importer,/\('\/pinterest\/import'/);
-  assert.match(importer,/onReady\(summary\)/);
+  const pinterestFlow=importer.slice(importer.indexOf('async function importPinterest'),importer.indexOf('return <Dialog'));
+  assert.ok(pinterestFlow.indexOf("request<Job>('/source'")>0);
+  assert.ok(pinterestFlow.indexOf("request<Job>('/segment'")>pinterestFlow.indexOf("request<Job>('/source'"));
+  assert.match(importer,/onReady\(summary,targetSource\)/);
+  assert.match(pinterestFlow,/onReady\(summary,source\.source\)/);
   assert.doesNotMatch(studio,/type="file"/);
   assert.doesNotMatch(studio,/pinterest\/resolve/);
   assert.doesNotMatch(studio,/>导入图片</);
   assert.match(studio,/if\(notice\)setMessage\(notice\)/);
   assert.match(studio,/<button className="outline" disabled=\{busy\} onClick=\{onImport\}><ImagePlus\/>导入新素材<\/button>/);
   assert.match(studio,/<button className="primary" disabled=\{busy\} onClick=\{onImport\}>导入新素材<\/button>/);
-  assert.match(page,/onImport=\{\(\) => setModal\('material-import'\)\}/);
+  assert.match(page,/onImport=\{\(\) => \{setMaterialStudioTargetSource\(''\);setModal\('material-import'\)\}\}/);
 });
 
 test('material acquisition stays out of the library header while re-edit still opens the studio',()=>{
   assert.doesNotMatch(page,/onImport=\{\(\)=>setModal\('material-import'\)\}/);
   assert.doesNotMatch(library,/导入与拆分/);
   assert.doesNotMatch(library,/onImport/);
-  assert.match(page,/onOpenStudio=\{\(\)=>\{setMaterialStudioNotice\(''\);setModal\('studio'\)\}\}/);
-  assert.match(library,/await request\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\);onOpenStudio\(\)/);
+  assert.match(page,/onOpenStudio=\{\(targetSource\)=>\{setMaterialStudioNotice\(''\);setMaterialStudioTargetSource\(targetSource\);setModal\('studio'\)\}\}/);
+  assert.match(page,/targetSource=\{materialStudioTargetSource\}/);
+  assert.match(library,/const source=await request<\{source:string\}>\('\/source',\{src,name:a\.name,replaceAssetId:isUserAsset\(a\)\?a\.id:undefined\}\);onOpenStudio\(source\.source\)/);
 });

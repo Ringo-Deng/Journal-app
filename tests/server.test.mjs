@@ -124,6 +124,18 @@ test('rejects foreign origins and invalid uploads', async () => {
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.ok((await res.arrayBuffer()).byteLength > 30);
 });
+test('custom-cut images are validated and atomically attached with server-read dimensions',async()=>{
+ const source=await call('/api/materials/source',{src:uploaded,name:'原子裁片'},'POST');assert.equal(source.status,200);
+ const before=source.data.items.length;
+ const invalid=await call('/api/materials/add-data-item',{jobId:source.data.id,data:'data:image/png;base64,SGVsbG8=',name:'坏裁片'},'POST');assert.equal(invalid.status,400);
+ const unchanged=(await call('/api/materials/jobs')).data.find(job=>job.id===source.data.id);assert.equal(unchanged.items.length,before);
+ const missing=await call('/api/materials/add-data-item',{jobId:'missing',data:png,name:'无记录裁片'},'POST');assert.equal(missing.status,404);
+ const saveId='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa-0';
+ const saved=await call('/api/materials/add-data-item',{jobId:source.data.id,data:png,name:'自由裁片',saveId},'POST');assert.equal(saved.status,200);
+ const item=saved.data.items.at(-1);assert.equal(item.name,'自由裁片');assert.equal(item.width,1);assert.equal(item.height,1);assert.equal(item.manual,true);assert.equal(item.imported,false);assert.match(item.src,/^\/uploads\/[a-f0-9-]+\.png$/);assert.ok((await stat(join(dir,item.src.slice(1)))).isFile());
+ assert.equal(item.cutSaveId,saveId);
+ const repeated=await call('/api/materials/add-data-item',{jobId:source.data.id,data:png,name:'不应重复',saveId},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.items.length,before+1);assert.equal(repeated.data.items.at(-1).id,item.id);
+});
 test('photo library imports, deduplicates, lists, backs up and protects selected sources',async()=>{
   const bytes=Buffer.from(png.split(',')[1],'base64');
   const query='/api/photos/import?filename='+encodeURIComponent('旅行照片.png')+'&lastModified='+Date.parse('2026-08-09T10:11:12Z');
@@ -239,12 +251,15 @@ test('saved user material can be reopened for editing and deleted again',async()
  const catalog=(await call('/api/materials/catalog')).data;
  const classified=await call('/api/materials/catalog',{action:'apply',manual:true,revision:catalog.revision,patches:[{id:custom.id,group:'装饰贴纸',labels:{content:['植物'],style:['复古'],color:['绿']}}]},'POST');assert.equal(classified.status,200);
  const editSource=await call('/api/materials/source',{src:custom.src,name:custom.name,replaceAssetId:custom.id},'POST');assert.equal(editSource.status,200);assert.equal(editSource.data.replaceAssetId,custom.id);assert.equal(editSource.data.items.length,0);
+ const withOlderCandidate=await call('/api/materials/add-item',{jobId:editSource.data.id,src:uploaded,width:1,height:1,name:'较早候选'},'POST');assert.equal(withOlderCandidate.status,200);
+ const olderCandidate=withOlderCandidate.data.items.at(-1);
  const editedJob=await call('/api/materials/add-item',{jobId:editSource.data.id,src:uploaded,width:2,height:3,name:'处理后的素材'},'POST');assert.equal(editedJob.status,200);
  const editedItem=editedJob.data.items.at(-1);
- const replaced=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id],names:{[editedItem.id]:'处理后的素材'}},'POST');assert.equal(replaced.status,200);assert.equal(replaced.data.updated,1);assert.equal(replaced.data.added,0);
- const current=replaced.data.assets.find(a=>a.id===custom.id);assert.equal(current.name,'处理后的素材');assert.equal(current.src,uploaded);assert.equal(current.group,'装饰贴纸');assert.deepEqual(current.labels,{content:['植物'],style:['复古'],color:['绿']});
- assert.equal(replaced.data.assets.some(a=>a.id===editedItem.id),false);
- const repeated=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id]},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.updated,0);assert.equal(repeated.data.added,0);assert.equal(repeated.data.assets.length,replaced.data.assets.length);
+ const invalidReplacement=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id,olderCandidate.id],replacementItemId:'unknown'},'POST');assert.equal(invalidReplacement.status,400);
+ const replaced=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id,olderCandidate.id],replacementItemId:editedItem.id,names:{[editedItem.id]:'处理后的素材'}},'POST');assert.equal(replaced.status,200);assert.equal(replaced.data.updated,1);assert.equal(replaced.data.added,1);
+ const current=replaced.data.assets.find(a=>a.id===custom.id);assert.equal(current.name,'处理后的素材');assert.equal(current.src,uploaded);assert.equal(current.width,2);assert.equal(current.height,3);assert.equal(current.group,'装饰贴纸');assert.deepEqual(current.labels,{content:['植物'],style:['复古'],color:['绿']});
+ assert.equal(replaced.data.assets.some(a=>a.id===editedItem.id),false);assert.equal(replaced.data.assets.some(a=>a.id===olderCandidate.id),true);
+ const repeated=await call('/api/materials/import',{jobId:editSource.data.id,itemIds:[editedItem.id,olderCandidate.id],replacementItemId:editedItem.id},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.updated,0);assert.equal(repeated.data.added,0);assert.equal(repeated.data.assets.length,replaced.data.assets.length);
  const queued=await call('/api/materials/reopen',{id:custom.id},'POST');assert.equal(queued.status,200);
  const take=await call('/api/materials/reopen');assert.equal(take.status,200);assert.equal(take.data.item.id,custom.id);assert.equal(take.data.item.src,uploaded);
  assert.equal((await call('/api/materials/reopen')).data.item,null);

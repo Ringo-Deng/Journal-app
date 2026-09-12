@@ -18,6 +18,7 @@ import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
 import { pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
+import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
 import {resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
@@ -242,7 +243,8 @@ export default function Home() {
     [modal, setModal] = useState<
       'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
     >(null);
-  const [materialStudioNotice,setMaterialStudioNotice]=useState('');
+  const [materialStudioNotice,setMaterialStudioNotice]=useState(''),
+    [materialStudioTargetSource,setMaterialStudioTargetSource]=useState('');
   const [date, setDate] = useState(today()),
     [raw, setRaw] = useState(''),
     [photos, setPhotos] = useState<string[]>([]),
@@ -1654,7 +1656,8 @@ export default function Home() {
   async function exportBackup() {
     try {
       toast('正在整理手帐和原始照片…');
-      const paths = notebookUploads(books);
+      const backupBooks = resolveNotebookAssetSources(books, assets) as Book[];
+      const paths = notebookUploads(backupBooks);
       const images: Record<string, string> = {};
       for (const path of paths) {
         const response = await fetch(path);
@@ -1671,7 +1674,7 @@ export default function Home() {
         });
       }
       const blob = new Blob(
-        [JSON.stringify({ format: 'shiguang-v1', books, images })],
+        [JSON.stringify({ format: 'shiguang-v1', books: backupBooks, images })],
         { type: 'application/json' },
       );
       const url = URL.createObjectURL(blob),
@@ -1866,7 +1869,7 @@ export default function Home() {
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
         <button className={libraryOpen?'active':''} aria-label="素材库" disabled={!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
-        <button className={modal==='studio'||modal==='material-import'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setModal('studio')}}><ImagePlus/><span>导入</span></button>
+        <button className={modal==='studio'||modal==='material-import'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setMaterialStudioTargetSource('');setModal('studio')}}><ImagePlus/><span>导入</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
         <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
@@ -2042,7 +2045,7 @@ export default function Home() {
               </p>
             )}
           </section>
-        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onOpenStudio={()=>{setMaterialStudioNotice('');setModal('studio')}} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
+        ):libraryOpen?<MaterialLibrary assets={assets} onUpdated={setAssets} onInsert={insertLibraryAssets} onBack={()=>setLibraryOpen(false)} onOpenStudio={(targetSource)=>{setMaterialStudioNotice('');setMaterialStudioTargetSource(targetSource);setModal('studio')}} onSettings={openSettings} hasKey={settings.hasKey} vision={settings.vision}/>:<section className="workspace">
           {loadError ? (
             <div className="error-box">
               <h2>暂时读不到手帐</h2>
@@ -2970,18 +2973,19 @@ export default function Home() {
       <MaterialImporter
         open={modal === 'material-import'}
         onClose={() => setModal(null)}
-        onReady={(message) => {setMaterialStudioNotice(message);setModal('studio')}}
+        onReady={(message,targetSource) => {setMaterialStudioNotice(message);setMaterialStudioTargetSource(targetSource);setModal('studio')}}
         onImported={setAssets}
         onOpenLibrary={() => {setModal(null);if(reading)switchMode('edit');setView('workbench');setLibraryOpen(true);setPanel(null)}}
       />
       <MaterialStudio
         open={modal === 'studio'}
         onClose={() => setModal(null)}
-        onImport={() => setModal('material-import')}
+        onImport={() => {setMaterialStudioTargetSource('');setModal('material-import')}}
         onImported={setAssets}
         onInsertPhotos={insertPhotoLibrary}
         photoProtectedSources={photoProtectedSources}
         notice={materialStudioNotice}
+        targetSource={materialStudioTargetSource}
       />
       <Dialog
         open={modal === 'settings'}

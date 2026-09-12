@@ -18,6 +18,7 @@ import { createPhotoMaskStore, photoTrashProtection, references } from './photo-
 import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
 import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
+import {commitMaterialImportFiles} from '../lib/material-import-commit.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import { execFile } from 'node:child_process';
@@ -253,6 +254,19 @@ async function body(req) {
   } catch {
     throw error('请求格式不正确。');
   }
+}
+function decodeUploadedImage(dataUri) {
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUri || '');
+  if (!match) throw error('请选择 JPG、PNG 或 WebP 图片。');
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 10 * 1024 * 1024) throw error('单张图片不能超过 10 MB。');
+  const valid = match[1] === 'jpeg'
+    ? buffer[0] === 255 && buffer[1] === 216
+    : match[1] === 'png'
+      ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      : buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
+  if (!valid) throw error('图片内容与格式不匹配。');
+  return {buffer,extension:match[1] === 'jpeg' ? 'jpg' : match[1],format:match[1]};
 }
 async function restorePhotoBackup(req){
   const decoder=new StringDecoder('utf8');let pending='',lineNumber=0,restored=0,duplicates=0,complete=false,expected=-1;
@@ -585,7 +599,7 @@ let catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLi
 let pendingMaterialReopen=null;
 let backupMaintenance=false, backupRecoveryRequired=false, activeDataRequests=0;
 async function backupSnapshot(scope='all'){
-  if(scope==='journals')return journalBackupSnapshot(structuredClone(state),structuredClone(userFonts));
+  if(scope==='journals')return journalBackupSnapshot(state,userFonts,await rawLibrary());
   const includeBuiltins=scope==='all';
   const histories=[];
   const listing=await journalHistory.list();
@@ -929,6 +943,34 @@ const server = http.createServer(async (req, res) => {
       await materialWrite(async () => { job.items.push(item); await atomic('material-jobs.json', materialJobs); });
       return json(res, job);
     }
+    if (path === '/api/materials/add-data-item' && req.method === 'POST') {
+      const input = await body(req), saveId=String(input.saveId||'');
+      if(saveId&&!/^[a-f0-9-]{20,100}$/.test(saveId))throw error('裁片保存标识无效。');
+      const decoded = decodeUploadedImage(input.data);
+      let metadata;
+      try { metadata = await sharp(decoded.buffer, {limitInputPixels:40_000_000}).metadata(); }
+      catch { throw error('无法读取裁片图片，请重新生成。'); }
+      if (!metadata.width || !metadata.height || metadata.width > 20000 || metadata.height > 20000 || metadata.format !== decoded.format) throw error('裁片图片尺寸或格式无效。');
+      const rotated = metadata.orientation >= 5 && metadata.orientation <= 8;
+      const result = await materialWrite(async () => {
+        const job = materialJobs.find((item) => item.id === input.jobId);
+        if (!job) throw error('未找到这条素材处理记录。', 404);
+        if(saveId&&job.items.some(item=>item.cutSaveId===saveId))return job;
+        const filename = `${randomUUID()}.${decoded.extension}`, src = `/uploads/${filename}`;
+        const item = {id:randomUUID(),src,name:String(input.name || `素材 ${String(job.items.length + 1).padStart(2, '0')}`).slice(0,80),width:rotated?metadata.height:metadata.width,height:rotated?metadata.width:metadata.height,manual:true,imported:false,...(saveId?{cutSaveId:saveId}:{})};
+        try {
+          await writeFile(resolve(data, 'uploads', filename), decoded.buffer, {mode:0o600});
+          job.items.push(item);
+          await atomic('material-jobs.json', materialJobs);
+          return job;
+        } catch (cause) {
+          job.items = job.items.filter((existing) => existing.id !== item.id);
+          await unlink(resolve(data, 'uploads', filename)).catch(()=>{});
+          throw cause;
+        }
+      });
+      return json(res, result);
+    }
     if (path === '/api/materials/point' && req.method === 'POST') {
       const input = await body(req);
       if (!UPLOAD_SOURCE.test(input.src || ''))
@@ -1139,20 +1181,30 @@ const server = http.createServer(async (req, res) => {
           input.itemIds.some((id) => !job.items.some((item) => item.id === id))
         )
           throw error('包含无效素材。');
-        const selected = job.items.filter((i) => input.itemIds.includes(i.id));
+        // Preserve the user's submitted order. In a re-edit job the first freely-cut
+        // piece is the deliberate replacement candidate, even when older automatic
+        // candidates still exist earlier in the job history.
+        const selected = [...new Set(input.itemIds)].map((id) =>
+          job.items.find((item) => item.id === id),
+        );
+        const selectedIds=new Set(selected.map(item=>item.id));
         const fresh=selected.filter((i) => !i.imported&&!customAssets.some((a) => a.id === i.id));
-        let updated=0;
+        const remainingFresh=[...fresh];
+        let updated=0,nextAssets=[...customAssets],replacementDone=job.replacementDone;
         if(job.replaceAssetId&&!job.replacementDone&&fresh.length){
-          const assetIndex=customAssets.findIndex(asset=>asset.id===job.replaceAssetId);
+          const assetIndex=nextAssets.findIndex(asset=>asset.id===job.replaceAssetId);
           if(assetIndex<0)throw error('找不到需要更新的原素材，请返回素材库重试。',409);
-          const item=fresh.shift();
-          const existing=customAssets[assetIndex];
-          customAssets[assetIndex]={...existing,name:String(input.names?.[item.id]||item.name).trim().slice(0,80)||existing.name,src:item.src,width:item.width,height:item.height};
-          job.replacementDone=true;
+          const replacementItemId=String(input.replacementItemId||'');
+          const replacementIndex=replacementItemId?remainingFresh.findIndex(item=>item.id===replacementItemId):0;
+          if(replacementIndex<0)throw error('指定用于更新原素材的裁片无效，请重新选择。');
+          const [item]=remainingFresh.splice(replacementIndex,1);
+          const existing=nextAssets[assetIndex];
+          nextAssets[assetIndex]={...existing,name:String(input.names?.[item.id]||item.name).trim().slice(0,80)||existing.name,src:item.src,width:item.width,height:item.height};
+          replacementDone=true;
           updated=1;
         }
-        const added = fresh
-          .filter((i) => !customAssets.some((a) => a.id === i.id))
+        const added = remainingFresh
+          .filter((i) => !nextAssets.some((a) => a.id === i.id))
           .map((item, index) => ({
             id: item.id,
             name:
@@ -1179,37 +1231,27 @@ const server = http.createServer(async (req, res) => {
             width: item.width,
             height: item.height,
           }));
-        customAssets = [...customAssets, ...added];
-        await atomic('materials.json', customAssets);
-        for (const item of selected) item.imported = true;
-        await atomic('material-jobs.json', materialJobs);
-        return { added: added.length, updated, assets: await library(), job };
+        nextAssets=[...nextAssets,...added];
+        const nextJob={...job,replacementDone,items:job.items.map(item=>selectedIds.has(item.id)?{...item,imported:true}:{...item})};
+        const nextJobs=materialJobs.map(item=>item.id===nextJob.id?nextJob:item);
+        await commitMaterialImportFiles({
+          write:atomic,
+          readAssets:()=>readJSON('materials.json',nextAssets),
+          previousAssets:customAssets,
+          nextAssets,
+          nextJobs,
+          onReconcileAssets:assets=>{customAssets=assets},
+        });
+        customAssets=nextAssets;
+        materialJobs=nextJobs;
+        return { added: added.length, updated, assets: await library(), job:nextJob };
       });
       return json(res, result);
     }
     if (path === '/api/upload' && req.method === 'POST') {
       const input = await body(req);
-      const match =
-        /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(
-          input.data || '',
-        );
-      if (!match) throw error('请选择 JPG、PNG 或 WebP 图片。');
-      const buffer = Buffer.from(match[2], 'base64');
-      if (buffer.length > 10 * 1024 * 1024)
-        throw error('单张图片不能超过 10 MB。');
-      const valid =
-        match[1] === 'jpeg'
-          ? buffer[0] === 255 && buffer[1] === 216
-          : match[1] === 'png'
-            ? buffer
-                .subarray(0, 8)
-                .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-            : buffer.toString('ascii', 0, 4) === 'RIFF' &&
-              buffer.toString('ascii', 8, 12) === 'WEBP';
-      if (!valid) throw error('图片内容与格式不匹配。');
-      const name =
-        randomUUID() + '.' + (match[1] === 'jpeg' ? 'jpg' : match[1]);
-      await writeFile(resolve(data, 'uploads', name), buffer, { mode: 0o600 });
+      const decoded = decodeUploadedImage(input.data), name = randomUUID() + '.' + decoded.extension;
+      await writeFile(resolve(data, 'uploads', name), decoded.buffer, { mode: 0o600 });
       return json(res, { src: '/uploads/' + name });
     }
     if (path === '/api/cutout' && req.method === 'POST') {

@@ -5,7 +5,7 @@ import {ImagePlus,Loader2} from 'lucide-react';
 import type {Asset} from '@/lib/journal';
 import {Dialog,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
 
-type Job={items:{id:string}[]};
+type Job={source:string;items:{id:string}[];manualOnly?:boolean};
 type PinterestPreview={pinId:string;previewUrl:string;originalUrl:string;images:{id:string;previewUrl:string;downloadUrl:string}[]};
 
 async function request<T>(path:string,data?:unknown):Promise<T>{
@@ -28,7 +28,7 @@ function localPinterestPinId(value:string){
  }catch{return ''}
 }
 
-export default function MaterialImporter({open,onClose,onReady,onImported,onOpenLibrary}:{open:boolean;onClose:()=>void;onReady:(message:string)=>void;onImported:(assets:Asset[])=>void;onOpenLibrary:()=>void}){
+export default function MaterialImporter({open,onClose,onReady,onImported,onOpenLibrary}:{open:boolean;onClose:()=>void;onReady:(message:string,targetSource:string)=>void;onImported:(assets:Asset[])=>void;onOpenLibrary:()=>void}){
  const [mode,setMode]=useState<'whole'|'segment'>('whole'),[importedCount,setImportedCount]=useState(0);
  const file=useRef<HTMLInputElement>(null),pinterestSeq=useRef(0);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[progress,setProgress]=useState('');
@@ -37,7 +37,7 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
  async function upload(files:FileList|null){
   if(!files?.length)return;
   setBusy(true);setMessage('');setImportedCount(0);
-  const list=Array.from(files);let completed=0,total=0;const errors:string[]=[];
+  const list=Array.from(files);let completed=0,total=0,opened=0,targetSource='';const errors:string[]=[],fallbacks:string[]=[];
   try{
    for(const item of list){
     setProgress(`正在处理 ${completed+1} / ${list.length}：${item.name}`);
@@ -51,14 +51,19 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
       const result=await request<{assets:Asset[]}>('/import-image',{src:uploaded.src,name:item.name});
       onImported(result.assets);total++;setImportedCount(total);
      }else{
-      const job=await request<Job>('/segment',{src:uploaded.src,name:item.name,mode:'auto',tolerance:28});
-      total+=job.items.length;
+      const source=await request<Job>('/source',{src:uploaded.src,name:item.name});
+      opened++;targetSource=source.source;
+      if(!source.manualOnly){
+       try{const job=await request<Job>('/segment',{src:uploaded.src,name:item.name,mode:'auto',tolerance:28});total+=job.items.length}
+       catch(error){fallbacks.push(`${item.name}：自动识别未完成，原图已保留，可直接自由裁切（${(error as Error).message}）`)}
+      }
      }
     }catch(error){errors.push(`${item.name}：${(error as Error).message}`)}
     completed++;
    }
-   const summary=mode==='whole'?`已将 ${total} 张整图加入素材库。${errors.join('；')}`:`已处理 ${completed-errors.length} 张图片，拆出 ${total} 个素材。${errors.join('；')}`;
-   if(mode==='segment'&&completed>errors.length)onReady(summary);else setMessage(summary);
+   const details=[...fallbacks,...errors].join('；');
+   const summary=mode==='whole'?`已将 ${total} 张整图加入素材库。${details}`:`已打开 ${opened} 张图片${total?`，自动拆出 ${total} 个素材`:'，可以直接使用自由裁切'}。${details}`;
+   if(mode==='segment'&&opened&&targetSource)onReady(summary,targetSource);else setMessage(summary);
   }finally{setBusy(false);setProgress('');if(file.current)file.current.value=''}
  }
 
@@ -82,14 +87,16 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
     return;
    }
    setProgress(imported.duplicate?'已找到现有素材，正在打开处理记录…':imported.autoSegment?'下载完成，正在自动拆分素材…':'下载完成，正在打开手动裁切工作台…');
-   const jobs=await request<Array<Job&{source:string}>>('/jobs');
+   const jobs=await request<Job[]>('/jobs');
    const existing=jobs.find(item=>item.source===imported.src);
-   if(!existing){
-    if(imported.autoSegment)await request<Job&{source:string}>('/segment',{src:imported.src,name:imported.name,mode:'auto',tolerance:28});
-    else await request<Job&{source:string}>('/source',{src:imported.src,name:imported.name});
+   const source=await request<Job>('/source',{src:imported.src,name:imported.name});
+   let automaticFallback='';
+   if(!existing&&imported.autoSegment&&!source.manualOnly){
+    try{await request<Job>('/segment',{src:imported.src,name:imported.name,mode:'auto',tolerance:28})}
+    catch(error){automaticFallback=`自动识别未完成，原图已保留，可直接自由裁切（${(error as Error).message}）`}
    }
-   const summary=imported.duplicate?'这个 Pinterest 素材已经导入过，已打开现有处理记录，可继续处理。':imported.autoSegment?'Pinterest 原图已保存，并进入自动拆素材流程。':'Pinterest 原图已保存。当前系统使用手动框选裁切，不会调用 Mac 自动拆图。';
-   onReady(summary);
+   const summary=automaticFallback?`Pinterest ${automaticFallback}`:imported.duplicate?'这个 Pinterest 素材已经导入过，已打开现有处理记录，可继续处理。':imported.autoSegment&&!source.manualOnly?'Pinterest 原图已保存，并进入自动拆素材流程。':'Pinterest 原图已保存，已打开自由裁切工作台。';
+   onReady(summary,source.source);
   }catch(error){setMessage((error as Error).message)}finally{setBusy(false);setProgress('')}
  }
 

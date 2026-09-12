@@ -254,9 +254,20 @@ test("complete backup restores into another library with originals, catalog, job
 });
 test("journal-only backup keeps notebooks and their referenced files without the surrounding libraries", async (t) => {
   const f = await fixture(t),
-    unrelated = "/uploads/bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb.png";
+    unrelated = "/uploads/bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb.png",
+    currentMaterial = "/uploads/cccccccc-cccc-4ccc-cccc-cccccccccccc.png",
+    currentMaterialBytes = await sharp({
+      create: { width: 13, height: 9, channels: 4, background: "#315fd6" },
+    })
+      .png()
+      .toBuffer();
+  assert.notEqual(digest(currentMaterialBytes), digest(f.photo));
   await writeFile(join(f.data, unrelated.slice(1)), f.photo);
-  const snapshot = journalBackupSnapshot(f.snapshot.state, f.snapshot.fonts),
+  await writeFile(join(f.data, currentMaterial.slice(1)), currentMaterialBytes);
+  const sourceBefore = structuredClone(f.snapshot.state),
+    assets = structuredClone(f.snapshot.assets);
+  assets[0].src = currentMaterial;
+  const snapshot = journalBackupSnapshot(f.snapshot.state, f.snapshot.fonts, assets),
     exported = await writeArchive({
       ...f,
       snapshot,
@@ -268,7 +279,8 @@ test("journal-only backup keeps notebooks and their referenced files without the
     paths = staged.manifest.files.map((file) => file.path);
   validateSnapshot(staged.manifest.snapshot, validate);
   assert.equal(staged.manifest.scope, "journals");
-  assert.deepEqual(staged.manifest.snapshot.state, persisted(f.snapshot.state));
+  assert.deepEqual(f.snapshot.state, sourceBefore);
+  assert.equal(staged.manifest.snapshot.state.books[0].spreads[0].elements[1].src, currentMaterial);
   assert.deepEqual(staged.manifest.snapshot.assets, []);
   assert.deepEqual(staged.manifest.snapshot.photos, []);
   assert.deepEqual(staged.manifest.snapshot.materialJobs, []);
@@ -277,7 +289,16 @@ test("journal-only backup keeps notebooks and their referenced files without the
   assert.deepEqual(staged.manifest.snapshot.trash, { entries: [], deletedSources: [] });
   assert.deepEqual(staged.manifest.snapshot.fonts, persisted(f.snapshot.fonts));
   assert.ok(paths.includes(f.snapshot.photos[0].src.slice(1)));
-  assert.ok(paths.includes(f.snapshot.assets[0].src.slice(1)));
+  assert.ok(paths.includes(currentMaterial.slice(1)));
+  assert.equal(paths.includes(f.snapshot.assets[0].src.slice(1)), false);
+  assert.equal(
+    staged.manifest.files.find((file) => file.path === currentMaterial.slice(1))?.sha256,
+    digest(currentMaterialBytes),
+  );
+  assert.deepEqual(
+    await readFile(join(staged.directory, currentMaterial.slice(1))),
+    currentMaterialBytes,
+  );
   assert.ok(paths.includes(f.snapshot.assets[1].src.slice(1)));
   assert.ok(paths.includes(`user-fonts/${f.snapshot.fonts[0].id}${f.snapshot.fonts[0].ext}`));
   assert.equal(paths.includes(f.snapshot.photos[0].originalFile), false);
@@ -299,6 +320,11 @@ test("journal-only backup keeps notebooks and their referenced files without the
   assert.equal(JSON.parse(await readFile(join(target, "materials.json"))).length, 0);
   assert.equal(JSON.parse(await readFile(join(target, "photo-library.json"))).length, 0);
   assert.equal(JSON.parse(await readFile(join(target, "fonts.json"))).length, 1);
+  const restoredMaterial = await readFile(
+    join(target, restoredBook.spreads[0].elements[1].src.slice(1)),
+  );
+  assert.equal(digest(restoredMaterial), digest(currentMaterialBytes));
+  assert.notEqual(digest(restoredMaterial), digest(f.photo));
   for (const path of [
     restoredBook.spreads[0].elements[0].src,
     restoredBook.spreads[0].elements[1].src,
