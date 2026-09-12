@@ -2796,7 +2796,8 @@ button {
 .selection-box button{pointer-events:auto;touch-action:none;padding:0;}
 .selection-box .selection-label{bottom:calc(100% + 8px);left:0;}
 .selection-box .resize-handle{width:12px;height:12px;min-width:12px;border-radius:2px;background:#fffef8;box-shadow:0 1px 3px #25321f40;bottom:auto;right:auto;transform:translate(-50%,-50%);}
-.selection-box .resize-handle::after{content:'';position:absolute;inset:-6px;}
+/* Keep mouse resizing inside the visible handle; only touch needs a larger hit area. */
+@media(pointer:coarse){.selection-box .resize-handle::after{content:'';position:absolute;inset:-6px;}}
 .selection-box .handle-nw{left:0;top:0;cursor:nwse-resize;}.selection-box .handle-n{left:50%;top:0;cursor:ns-resize;}.selection-box .handle-ne{left:100%;top:0;cursor:nesw-resize;}.selection-box .handle-e{left:100%;top:50%;cursor:ew-resize;}.selection-box .handle-se{left:100%;top:100%;cursor:nwse-resize;}.selection-box .handle-s{left:50%;top:100%;cursor:ns-resize;}.selection-box .handle-sw{left:0;top:100%;cursor:nesw-resize;}.selection-box .handle-w{left:0;top:50%;cursor:ew-resize;}
 .selection-box .rotate-handle{width:26px;height:26px;right:calc(50% - 13px);top:-45px;}
 .selection-box .rotate-handle::after{content:'';position:absolute;top:100%;left:50%;height:14px;border-left:1px solid #687d59;}

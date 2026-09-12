@@ -380,7 +380,7 @@ export default function Home() {
     future = useRef<Book[][]>([]),
     booksRef = useRef(books),
     drag = useRef<{
-      id:string; x:number; y:number; mode:string; box:Box;
+      id:string; pointerId:number; x:number; y:number; mode:string; box:Box;
       canvasW:number; canvasH:number; cx:number; cy:number;
       angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; snap?:ReturnType<typeof buildSnapTargets>; lastBox?:Box;
     } | null>(null);
@@ -1229,7 +1229,7 @@ export default function Home() {
   }
   function pointerDown(e: React.PointerEvent, id: string, mode = 'move') {
     suppressSelectionClick.current=false;
-    if (reading || inlineId === id || e.button !== 0 || busy || turnRef.current || maskDraftRef.current?.generating) return;
+    if (reading || inlineId === id || e.button !== 0 || !e.isPrimary || busy || turnRef.current || maskDraftRef.current?.generating) return;
     e.stopPropagation();
     const p=maskDraftRef.current?.pieceId===id?maskDraftRef.current.piece:spread?.elements.find(p=>p.id===id),paper=canvas.current;
     if(!p||!paper)return;
@@ -1244,11 +1244,12 @@ export default function Home() {
     const movingIds=new Set(members.map(member=>member.id));
     const snap=mode==='move'&&!(cropping&&p.kind==='photo')?buildSnapTargets(cw,ch,(spread?.elements||[]).filter(q=>!movingIds.has(q.id)&&!isPieceHidden(q)).map(pieceBox)):undefined;
     setSnapGuides({});
-    drag.current={id,x:e.clientX,y:e.clientY,mode:maskDraftRef.current?.pieceId===id&&mode==='move'?'mask-crop':cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
+    drag.current={id,pointerId:e.pointerId,x:e.clientX,y:e.clientY,mode:maskDraftRef.current?.pieceId===id&&mode==='move'?'mask-crop':cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function pointerMove(e: React.PointerEvent) {
-    const d=drag.current;if(!d)return;
+    const d=drag.current;if(!d||d.pointerId!==e.pointerId)return;
+    if(!(e.buttons&1)){endPointerDrag();return;}
     const dx=e.clientX-d.x,dy=e.clientY-d.y;
     if(!d.started){if(Math.hypot(dx,dy)<3)return;remember();d.started=true;}
     if(d.mode==='mask-crop'){
@@ -2305,8 +2306,9 @@ export default function Home() {
                           onDoubleClick={()=>{if(!suppressSelectionClick.current&&!reading&&!p.locked)enterGroup(p)}}
                           onPointerDown={(e) => pointerDown(e, p.id)}
                           onPointerMove={pointerMove}
-                          onPointerUp={endPointerDrag}
-                          onPointerCancel={cancelPointerDrag}
+                          onPointerUp={e=>{if(drag.current?.pointerId===e.pointerId)endPointerDrag();}}
+                          onPointerCancel={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
+                          onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
                         >
                           {p.kind === 'text' ? (
                             inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" rows={1} ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
@@ -2334,8 +2336,9 @@ export default function Home() {
                         title={multiSelection?'拖动任意已选素材或边框，可移动全部所选素材':undefined}
                         style={clusterBox?{left:clusterBox.x,top:clusterBox.y,width:clusterBox.w,height:clusterBox.h,transform:'translate3d(var(--drag-x,0px),var(--drag-y,0px),0)'}:{left:`${piece.x}%`,top:`${piece.y}%`,width:`${selectionSize.w||piece.w}%`,height:`${selectionSize.h||piece.h||15}%`,transform:`translate3d(var(--drag-x,0px),var(--drag-y,0px),0) rotate(${piece.rotation}deg)`}}
                         onPointerMove={pointerMove}
-                        onPointerUp={endPointerDrag}
-                        onPointerCancel={cancelPointerDrag}
+                        onPointerUp={e=>{if(drag.current?.pointerId===e.pointerId)endPointerDrag();}}
+                        onPointerCancel={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
+                        onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
                       >
                         {multiSelection&&<><span className="selection-move-edge edge-top" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-right" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-bottom" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-left" onPointerDown={e=>pointerDown(e,piece.id,'move')}/></>}
                         {(multiSelection||cluster)&&<span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个对象`: '组合 · 等比缩放'}</span>}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {stripTypeScriptTypes} from 'node:module';
 
 const pagePath=new URL('../app/page.tsx',import.meta.url);
 const cssPath=new URL('../app/globals.css',import.meta.url);
@@ -90,6 +91,85 @@ test('corner resize keeps the visible ratio by default and edge resize stays sin
   const page=await readFile(pagePath,'utf8');
   assert.match(page,/d\.members\.length>1\|\|isCornerResizeHandle\(handle\)\|\|\(!maskDraftRef\.current&&proportional\)\|\|e\.shiftKey/);
   assert.match(page,/isCornerResizeHandle\(handle\)\?'自动保持比例':'可单独调整比例'/);
+});
+
+test('resize only accepts its active pressed pointer and ends safely after release',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const source=page.slice(page.indexOf('function pointerMove'),page.indexOf('function cancelPointerDrag'));
+  const runMove=new Function('runtime','event',`
+    const {drag,remember,resizeBox,isCornerResizeHandle,maskDraftRef,proportional,
+      patchPiece,setSnapGuides,clearPointerMovePreview}=runtime;
+    ${stripTypeScriptTypes(source)}
+    pointerMove(event);
+  `);
+  const cases=[
+    {name:'released mouse',pointerId:7,buttons:0,ends:true},
+    {name:'released mouse after resizing',pointerId:7,buttons:0,ends:true,started:true},
+    {name:'only a secondary button remains',pointerId:7,buttons:2,ends:true},
+    {name:'another pressed pointer',pointerId:8,buttons:1,ends:false},
+    {name:'another released pointer',pointerId:8,buttons:0,ends:false},
+    {name:'active resize pointer',pointerId:7,buttons:1,updates:true},
+  ];
+  for(const scenario of cases){
+    const gesture={id:'a',pointerId:7,x:20,y:20,started:!!scenario.started,mode:'resize-e',
+      box:{x:100,y:80,w:200,h:100,rotation:0},canvasW:1000,canvasH:600,members:[{id:'a'}]};
+    const drag={current:gesture},patches=[],resizeCalls=[];
+    let remembered=0,cleared=0;
+    const runtime={drag,remember:()=>remembered++,maskDraftRef:{current:null},proportional:false,
+      isCornerResizeHandle:()=>false,setSnapGuides:()=>{},clearPointerMovePreview:()=>cleared++,
+      resizeBox:(...args)=>{resizeCalls.push(args);return {...gesture.box,w:240};},
+      patchPiece:(...args)=>patches.push(args)};
+    runMove(runtime,{...scenario,clientX:60,clientY:20,shiftKey:false});
+    if(scenario.updates){
+      assert.equal(resizeCalls.length,1,scenario.name);
+      assert.deepEqual(resizeCalls[0],[gesture.box,'e',40,0,false]);
+      assert.deepEqual(patches,[['a',{x:10,y:80/600*100,w:24,h:100/600*100,stretch:true},false]]);
+      assert.equal(remembered,1);
+      assert.equal(drag.current,gesture);
+    }else{
+      assert.deepEqual(resizeCalls,[],scenario.name);
+      assert.deepEqual(patches,[],scenario.name);
+      assert.equal(remembered,0,scenario.name);
+      assert.equal(gesture.started,!!scenario.started,scenario.name);
+      assert.equal(drag.current,scenario.ends?null:gesture,scenario.name);
+    }
+    assert.equal(cleared,scenario.ends?1:0,scenario.name);
+  }
+});
+
+test('piece and adjustment handles release only their own pointer capture',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const surfaces=[
+    page.slice(page.indexOf('data-piece-id={p.id}'),page.indexOf("{p.kind === 'text' ? (",page.indexOf('data-piece-id={p.id}'))),
+    page.slice(page.indexOf('data-selection-box\n'),page.indexOf('{multiSelection&&<>',page.indexOf('data-selection-box\n'))),
+  ];
+  for(const source of surfaces){
+    for(const eventName of ['PointerUp','PointerCancel','LostPointerCapture']){
+      const expression=source.match(new RegExp(`on${eventName}=\\{(e=>\\{[^\\n]+\\})\\}`))?.[1];
+      assert.ok(expression,`${eventName} is bound on each drag surface`);
+      const run=new Function('drag','endPointerDrag','cancelPointerDrag',`return (${expression});`);
+      const drag={current:{pointerId:7}};
+      let ended=0,cancelled=0;
+      const handler=run(drag,()=>ended++,()=>cancelled++);
+      handler({pointerId:8});
+      assert.equal(ended+cancelled,0,`${eventName} ignores another pointer`);
+      handler({pointerId:7});
+      assert.equal(ended,eventName==='PointerUp'?1:0,eventName);
+      assert.equal(cancelled,eventName==='PointerUp'?0:1,eventName);
+      drag.current=null;
+      handler({pointerId:7});
+      assert.equal(ended+cancelled,1,`${eventName} is safe after completion`);
+    }
+  }
+});
+
+test('mouse resizing uses visible handles while coarse pointers retain larger touch targets',async()=>{
+  const css=await readFile(cssPath,'utf8');
+  const coarse=/@media\s*\(\s*pointer\s*:\s*coarse\s*\)\s*\{\s*\.selection-box \.resize-handle::after\s*\{[^}]*inset:\s*-6px;[^}]*\}\s*\}/g;
+  assert.equal([...css.matchAll(coarse)].length,1);
+  assert.doesNotMatch(css.replace(coarse,''),/\.selection-box \.resize-handle::after/);
+  assert.match(css,/\.selection-box\{[^}]*pointer-events:none;/);
+  assert.match(css,/\.selection-box button\{[^}]*pointer-events:auto;/);
 });
 
 test('page item rows show stable group parents with indented selectable members', async()=>{
