@@ -48,7 +48,6 @@ import MaterialImporter from '@/components/material-importer';
 import MaterialLibrary from '@/components/material-library';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
-import {buildSnapTargets,snapMoveBox,type SnapGuides} from '@/lib/snap-guides';
 import {leafFrame} from '@/lib/page-motion';
 import {clampSelectionMove,idsInSelectionRect,mergeSelection,selectionRect,selectionRectSize,type SelectionPoint,type SelectionRect} from '@/lib/selection-geometry';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
@@ -307,7 +306,6 @@ export default function Home() {
   const [zoom, setZoom] = useState(100);
   const [proportional,setProportional]=useState(false);
   const [selectionSize,setSelectionSize]=useState({w:0,h:0});
-  const [snapGuides,setSnapGuides]=useState<SnapGuides>({});
   const workArea=useRef<HTMLDivElement>(null);
   const [preserveLocks, setPreserveLocks] = useState(true);
   const [designPreview,setDesignPreview]=useState<{book:Book;spread:Spread;before:string;concept?:string}|null>(null);
@@ -381,7 +379,7 @@ export default function Home() {
     drag = useRef<{
       id:string; pointerId:number; x:number; y:number; mode:string; box:Box;
       canvasW:number; canvasH:number; cx:number; cy:number;
-      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; snap?:ReturnType<typeof buildSnapTargets>; lastBox?:Box;
+      angle:number; started:boolean; members:Piece[]; boxes:Box[]; crop?:{x:number;y:number}; lastBox?:Box;
     } | null>(null);
   useEffect(() => {
     booksRef.current = books;
@@ -867,7 +865,7 @@ export default function Home() {
     turnRef.current=null;
     drag.current=null;
     setFlipping('');setTurnProgress(0);setTurnSettling(false);
-    setOpening(false);setClosing(false);setSnapGuides({});
+    setOpening(false);setClosing(false);
     const position=restoreHistoryPosition(snapshot,bookId,page,opened);
     setBookId(position.bookId);setPage(position.page);setOpened(position.opened);
     if(!position.bookId)setView('library');
@@ -925,7 +923,7 @@ export default function Home() {
     }
     setInlineId(null);setTextRange(null);setSelected(null);
     drag.current = null;scrollRestore.current = null;
-    setSnapGuides({});setDesignPreview(null);
+    setDesignPreview(null);
     toast('跨页已删除，可在编辑模式撤销，也可从历史备份恢复。');
   }
   const openBook = () => {
@@ -1265,10 +1263,7 @@ export default function Home() {
     const r=paper.getBoundingClientRect(),cw=paper.clientWidth,ch=paper.clientHeight,boxes=members.map(pieceBox);
     const box=members.length>1?unionBoxes(boxes):boxes[0];
     const cx=r.left+paper.clientLeft+box.x+box.w/2,cy=r.top+paper.clientTop+box.y+box.h/2;
-    const movingIds=new Set(members.map(member=>member.id));
-    const snap=mode==='move'&&!(cropping&&p.kind==='photo')?buildSnapTargets(cw,ch,(spread?.elements||[]).filter(q=>!movingIds.has(q.id)&&!isPieceHidden(q)).map(pieceBox)):undefined;
-    setSnapGuides({});
-    drag.current={id,pointerId:e.pointerId,x:e.clientX,y:e.clientY,mode:maskDraftRef.current?.pieceId===id&&mode==='move'?'mask-crop':cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50},snap};
+    drag.current={id,pointerId:e.pointerId,x:e.clientX,y:e.clientY,mode:maskDraftRef.current?.pieceId===id&&mode==='move'?'mask-crop':cropping&&p.kind==='photo'?'crop':mode,box,canvasW:cw,canvasH:ch,cx,cy,angle:Math.atan2(e.clientY-cy,e.clientX-cx)*180/Math.PI,started:false,members,boxes,crop:{x:p.crop??50,y:p.cropY??50}};
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function pointerMove(e: React.PointerEvent) {
@@ -1297,12 +1292,7 @@ export default function Home() {
     }else{
       const moveBounds=unionBoxes(d.boxes),limited=clampSelectionMove([{id:'moving',...moveBounds}],{x:dx,y:dy},{width:d.canvasW,height:d.canvasH},28);
       box.x=d.box.x+limited.x;box.y=d.box.y+limited.y;
-      if(!e.altKey&&d.snap){const snapped=snapMoveBox(box,d.snap,6);box={...box,...snapped.box};setSnapGuides(snapped.guides);}
-      else setSnapGuides({});
-      const snappedLimited=clampSelectionMove([{id:'moving',...moveBounds}],{x:box.x-d.box.x,y:box.y-d.box.y},{width:d.canvasW,height:d.canvasH},28);
-      box.x=d.box.x+snappedLimited.x;box.y=d.box.y+snappedLimited.y;
     }
-    if(d.mode!=='move')setSnapGuides({});
     if(d.mode==='move'){d.lastBox=box;paintPointerMovePreview(d,box);return;}
     if(d.members.length>1){const transformed=transformCluster(d.members,d.boxes,d.box,box,d.canvasW,d.canvasH);const updates=new Map(transformed.map(p=>[p.id,p]));changeSpread(s=>({...s,elements:s.elements.map(p=>updates.get(p.id)||p)}),false);}
     else if(d.mode==='rotate')patchPiece(d.id,{rotation:box.rotation},false);
@@ -1317,9 +1307,9 @@ export default function Home() {
       suppressSelectionClick.current=true;
       setSelected(null);
     }
-    clearPointerMovePreview();drag.current=null;setSnapGuides({});
+    clearPointerMovePreview();drag.current=null;
   }
-  function cancelPointerDrag(){clearPointerMovePreview();drag.current=null;setSnapGuides({});}
+  function cancelPointerDrag(){clearPointerMovePreview();drag.current=null;}
   function insertLibraryAssets(list:Asset[]) {
     if(!book||!list.length)return false;
     const side=page===-1?1:0;
@@ -2284,8 +2274,6 @@ export default function Home() {
                         </>
                       )}
                       <div className="paper-grain" />
-                      {snapGuides.x!==undefined&&<span aria-hidden="true" data-editor-ui="true" style={{position:'absolute',left:snapGuides.x,top:0,bottom:0,width:1,background:'rgba(59,130,246,.72)',boxShadow:'0 0 0 1px rgba(255,255,255,.55)',zIndex:9999,pointerEvents:'none'}}/>}
-                      {snapGuides.y!==undefined&&<span aria-hidden="true" data-editor-ui="true" style={{position:'absolute',top:snapGuides.y,left:0,right:0,height:1,background:'rgba(59,130,246,.72)',boxShadow:'0 0 0 1px rgba(255,255,255,.55)',zIndex:9999,pointerEvents:'none'}}/>}
                       {decorative.filter(p=>!isPieceHidden(p)).map((p) => (
                         <div
                           key={p.id}
@@ -2635,7 +2623,7 @@ export default function Home() {
             <span>YOUR LIFE, IN LITTLE PIECES.</span>
             <span>
               {opened
-                ? '拖动元素调整位置 · 自动吸附并显示参考线 · 按住 Alt 临时关闭吸附'
+                ? '拖动元素自由调整位置'
                 : '一本属于你的，每月手帐。'}
             </span>
           </footer>

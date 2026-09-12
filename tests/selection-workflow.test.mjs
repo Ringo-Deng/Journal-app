@@ -40,27 +40,36 @@ test('pointer moving previews directly and commits only positions for a moved gr
   assert.doesNotMatch(commit,/stretch|w:p\.w|h:p\.h/);
 });
 
+test('canvas movement stays free of automatic snapping and blue guides',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const move=page.slice(page.indexOf('function pointerDown'),page.indexOf('function endPointerDrag'));
+  assert.match(move,/box\.x=d\.box\.x\+limited\.x;box\.y=d\.box\.y\+limited\.y;/);
+  assert.doesNotMatch(page,/from '@\/lib\/snap-guides'/);
+  assert.doesNotMatch(move,/snapMoveBox|snapGuides|altKey/);
+  assert.doesNotMatch(page,/rgba\(59,130,246/);
+  assert.match(page,/拖动元素自由调整位置/);
+});
+
 test('a completed move drops the shared selection and suppresses its follow-up click',async()=>{
   const page=await readFile(pagePath,'utf8');
   const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
-  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','setSnapGuides',`${commit}\nendPointerDrag();`);
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${commit}\nendPointerDrag();`);
   const pieces=[{id:'a',x:10,y:20,w:12,h:18},{id:'b',x:30,y:40,w:15,h:10},{id:'other',x:60,y:50,w:9,h:9}];
-  let spread={elements:pieces},selected='a',previewCleared=false,guides;
+  let spread={elements:pieces},selected='a',previewCleared=false;
   const suppress={current:false};
   const drag={current:{started:true,mode:'move',box:{x:100,y:100},lastBox:{x:140,y:130},canvasW:1000,canvasH:600,members:pieces.slice(0,2)}};
-  runEnd(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;},value=>{guides=value;});
+  runEnd(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;});
   assert.deepEqual(spread.elements,[{...pieces[0],x:14,y:25},{...pieces[1],x:34,y:45},pieces[2]]);
   assert.equal(selected,null);
   assert.equal(suppress.current,true);
   assert.equal(drag.current,null);
   assert.equal(previewCleared,true);
-  assert.deepEqual(guides,{});
 });
 
 test('clicks, cancelled previews and adjustment gestures keep their selection',async()=>{
   const page=await readFile(pagePath,'utf8');
   const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
-  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','setSnapGuides',`${commit}\nendPointerDrag();`);
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${commit}\nendPointerDrag();`);
   for(const gesture of [null,{started:false,mode:'move'},{started:true,mode:'move'},{started:true,mode:'resize-se'},{started:true,mode:'rotate'},{started:true,mode:'crop'},{started:true,mode:'mask-crop'}]){
     let selected='a',committed=false;
     const drag={current:gesture},suppress={current:false};
@@ -98,7 +107,7 @@ test('resize only accepts its active pressed pointer and ends safely after relea
   const source=page.slice(page.indexOf('function pointerMove'),page.indexOf('function cancelPointerDrag'));
   const runMove=new Function('runtime','event',`
     const {drag,remember,resizeBox,isCornerResizeHandle,maskDraftRef,proportional,
-      patchPiece,setSnapGuides,clearPointerMovePreview}=runtime;
+      patchPiece,clearPointerMovePreview}=runtime;
     ${stripTypeScriptTypes(source)}
     pointerMove(event);
   `);
@@ -116,7 +125,7 @@ test('resize only accepts its active pressed pointer and ends safely after relea
     const drag={current:gesture},patches=[],resizeCalls=[];
     let remembered=0,cleared=0;
     const runtime={drag,remember:()=>remembered++,maskDraftRef:{current:null},proportional:false,
-      isCornerResizeHandle:()=>false,setSnapGuides:()=>{},clearPointerMovePreview:()=>cleared++,
+      isCornerResizeHandle:()=>false,clearPointerMovePreview:()=>cleared++,
       resizeBox:(...args)=>{resizeCalls.push(args);return {...gesture.box,w:240};},
       patchPiece:(...args)=>patches.push(args)};
     runMove(runtime,{...scenario,clientX:60,clientY:20,shiftKey:false});
