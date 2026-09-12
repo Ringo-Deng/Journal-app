@@ -66,7 +66,23 @@ test('a completed move drops the shared selection and suppresses its follow-up c
   assert.equal(previewCleared,true);
 });
 
-test('clicks, cancelled previews and adjustment gestures keep their selection',async()=>{
+test('an interrupted move commits its last visible position instead of jumping back',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const source=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function insertLibraryAssets'));
+  const runCancel=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${source}\ncancelPointerDrag();`);
+  const pieces=[{id:'asset',kind:'asset',x:12,y:18,w:20,h:14},{id:'other',kind:'asset',x:70,y:60,w:10,h:10}];
+  let spread={elements:pieces},selected='asset',previewCleared=false;
+  const suppress={current:false};
+  const drag={current:{started:true,mode:'move',box:{x:120,y:108},lastBox:{x:365,y:276},canvasW:1000,canvasH:600,members:[pieces[0]]}};
+  runCancel(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;});
+  assert.deepEqual(spread.elements,[{...pieces[0],x:36.5,y:46},pieces[1]]);
+  assert.equal(selected,null);
+  assert.equal(suppress.current,true);
+  assert.equal(drag.current,null);
+  assert.equal(previewCleared,true);
+});
+
+test('clicks and adjustment gestures without a move preview keep their selection',async()=>{
   const page=await readFile(pagePath,'utf8');
   const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
   const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${commit}\nendPointerDrag();`);
@@ -80,7 +96,7 @@ test('clicks, cancelled previews and adjustment gestures keep their selection',a
     assert.equal(drag.current,null);
   }
   const cancel=page.slice(page.indexOf('function cancelPointerDrag'),page.indexOf('function insertLibraryAssets'));
-  assert.doesNotMatch(cancel,/changeSpread|setSelected|suppressSelectionClick/);
+  assert.match(cancel,/endPointerDrag\(\)/);
 });
 
 test('drop click suppression resets for a new gesture and preserves keyboard selection',async()=>{

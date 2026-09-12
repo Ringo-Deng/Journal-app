@@ -1309,7 +1309,9 @@ export default function Home() {
     }
     clearPointerMovePreview();drag.current=null;
   }
-  function cancelPointerDrag(){clearPointerMovePreview();drag.current=null;}
+  // A browser can cancel or lose pointer capture after the piece has visibly moved.
+  // Preserve the last valid preview so an interrupted drag never jumps back to its origin.
+  function cancelPointerDrag(){endPointerDrag();}
   function insertLibraryAssets(list:Asset[]) {
     if(!book||!list.length)return false;
     const side=page===-1?1:0;
