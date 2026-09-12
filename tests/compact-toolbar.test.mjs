@@ -12,6 +12,9 @@ test('single element toolbar groups secondary controls into popovers', async()=>
   assert.match(controls,/ToolbarPopover label="尺寸"/);
   assert.match(controls,/ToolbarPopover label="位置"/);
   assert.match(controls,/ToolbarPopover label="图层"/);
+  assert.match(controls,/className="quiet compact-material-cut"/);
+  assert.match(controls,/<span>自由裁切<\/span>/);
+  assert.doesNotMatch(controls,/compact-copy|compact-cut/);
   assert.match(controls,/label="透明度"/);
   assert.match(controls,/水平居中/);
   assert.match(controls,/垂直居中/);

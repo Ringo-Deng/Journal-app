@@ -25,20 +25,24 @@ test('group clipboard is headless and uses native copy paste shortcuts',async()=
   assert.doesNotMatch(source,/粘贴到当前跨页/);
 });
 
-test('single and grouped selections expose a cut action',async()=>{
+test('clipboard buttons leave the single toolbar while all shortcut and grouped flows remain',async()=>{
   const [studio,controls,page]=await Promise.all([
     readFile(studioPath,'utf8'),
     readFile(controlsPath,'utf8'),
     readFile(new URL('../app/page.tsx',import.meta.url),'utf8'),
   ]);
-  assert.match(controls,/aria-label="剪切素材"/);
-  assert.match(controls,/title="剪切 · ⌘X"/);
+  assert.doesNotMatch(controls,/aria-label="复制素材"|aria-label="剪切素材"/);
+  assert.doesNotMatch(controls,/compact-copy|compact-cut/);
+  assert.match(page,/e\.key\.toLowerCase\(\)==='d'/);
   assert.match(page,/>剪切所选</);
+  assert.match(page,/>复制组合</);
   assert.match(page,/cutRequest=\{clipboardCutRequest\}/);
   assert.match(page,/pasteRequest=\{clipboardPasteRequest\}/);
+  assert.match(page,/suspended=\{!!modal\}/);
   assert.match(page,/<ClipboardPaste\/><span>粘贴<\/span>/);
   assert.match(studio,/lastCutRequest/);
   assert.match(studio,/lastPasteRequest/);
+  assert.match(studio,/if\(suspended\|\|event\.repeat/);
 });
 
 test('obsolete collage controls are removed from the visible editor',async()=>{

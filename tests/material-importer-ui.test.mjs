@@ -23,7 +23,7 @@ test('local and Pinterest acquisition live in the importer instead of Material S
   assert.match(importer,/request<Job>\('\/source',\{src:uploaded\.src,name:item\.name\}\)/);
   assert.match(importer,/opened\+\+;targetSource=source\.source/);
   assert.match(importer,/request<Job>\('\/segment',\{src:uploaded\.src,name:item\.name,mode:'auto',tolerance:28\}\)/);
-  assert.match(importer,/fallbacks\.push\(`\$\{item\.name\}：自动识别未完成，原图已保留，可直接自由裁切/);
+  assert.match(importer,/fallbacks\.push\(`\$\{item\.name\}：自动识别未完成，原图已保留，可框选补漏；如需自由裁切，请点“导入新素材”并选择“整图入库”，放入手帐后从选中工具栏打开/);
   assert.match(importer,/\('\/pinterest\/resolve'/);
   assert.match(importer,/\('\/pinterest\/import'/);
   const pinterestFlow=importer.slice(importer.indexOf('async function importPinterest'),importer.indexOf('return <Dialog'));

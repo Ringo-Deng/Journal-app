@@ -5,8 +5,7 @@ import {
   ArrowDownToLine,
   ArrowUp,
   ArrowDown,
-  Copy,
-  Scissors,
+  Crop,
   Trash2,
   Check,
   Link,
@@ -89,8 +88,7 @@ export default function ElementControls({
   onPatch,
   onSize,
   onLayer,
-  onCopy,
-  onCut,
+  onMaterialCut,
   onDelete,
   onFinish,
   onEdit,
@@ -104,8 +102,7 @@ export default function ElementControls({
   onPatch: (patch: Partial<Piece>) => void;
   onSize: (axis: 'w' | 'h', value: number) => void;
   onLayer: (action: 'top' | 'bottom' | 'up' | 'down') => void;
-  onCopy: () => void;
-  onCut: () => void;
+  onMaterialCut: () => void;
   onDelete: () => void;
   onFinish: () => void;
   onEdit: () => void;
@@ -263,22 +260,17 @@ export default function ElementControls({
         </div>
       </ToolbarPopover>
 
-      <button
-        className="quiet tool-icon compact-copy"
-        aria-label="复制素材"
-        title="复制 · ⌘D"
-        onClick={onCopy}
-      >
-        <Copy />
-      </button>
-      <button
-        className="quiet tool-icon compact-cut"
-        aria-label="剪切素材"
-        title="剪切 · ⌘X"
-        onClick={onCut}
-      >
-        <Scissors />
-      </button>
+      {p.kind === 'asset' && p.material !== 'tape' && (p.src || p.assetId) && (
+        <button
+          className="quiet compact-material-cut"
+          aria-label="自由裁切素材"
+          title="自由裁切当前纸面素材"
+          onClick={onMaterialCut}
+        >
+          <Crop />
+          <span>自由裁切</span>
+        </button>
+      )}
       <button
         className="quiet tool-icon compact-delete"
         aria-label="删除选中元素"

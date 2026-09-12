@@ -18,6 +18,7 @@ type Props={
   cutRequest:number;
   pasteRequest:number;
   onPasteUnavailable:()=>void;
+  suspended?:boolean;
 };
 
 export type ClipboardSource={
@@ -60,7 +61,7 @@ function editingTarget(target:EventTarget|null){
   return !!el?.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="alertdialog"]');
 }
 
-export default function CollageStudio({onInsert,onCut,cutRequest,pasteRequest,onPasteUnavailable}:Props){
+export default function CollageStudio({onInsert,onCut,cutRequest,pasteRequest,onPasteUnavailable,suspended=false}:Props){
   const lastCutRequest=useRef(cutRequest);
   const lastPasteRequest=useRef(pasteRequest);
   const copySelection=useCallback(async()=>{
@@ -177,7 +178,7 @@ export default function CollageStudio({onInsert,onCut,cutRequest,pasteRequest,on
 
   useEffect(()=>{
     const key=(event:KeyboardEvent)=>{
-      if(event.repeat||editingTarget(event.target)||!(event.metaKey||event.ctrlKey)||event.altKey)return;
+      if(suspended||event.repeat||editingTarget(event.target)||!(event.metaKey||event.ctrlKey)||event.altKey)return;
       const shortcut=event.key.toLowerCase();
       if(shortcut==='c'){
         if(!document.querySelector('.open-book .piece.selected[data-piece-id]'))return;
@@ -195,7 +196,7 @@ export default function CollageStudio({onInsert,onCut,cutRequest,pasteRequest,on
     };
     window.addEventListener('keydown',key,{capture:true});
     return()=>window.removeEventListener('keydown',key,{capture:true});
-  },[copySelection,cutSelection,pasteClipboard]);
+  },[copySelection,cutSelection,pasteClipboard,suspended]);
 
   return null;
 }

@@ -1,28 +1,31 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
-const [editor, studio, importer, css] = await Promise.all([
-  readFile(new URL("../components/material-cut-editor.tsx", import.meta.url), "utf8"),
-  readFile(new URL("../components/material-studio.tsx", import.meta.url), "utf8"),
-  readFile(new URL("../components/material-importer.tsx", import.meta.url), "utf8"),
-  readFile(new URL("../components/material-cut-editor.css", import.meta.url), "utf8"),
+const [editor, cutter, studio, importer, controls, page, css] = await Promise.all([
+  readFile(new URL('../components/material-cut-editor.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../components/page-material-cutter.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../components/material-studio.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../components/material-importer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../components/element-controls.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../app/page.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../components/material-cut-editor.css', import.meta.url), 'utf8'),
 ]);
 
-test("the custom cutter exposes the approved scissors workflow and keeps every piece reversible", () => {
+test('the custom cutter exposes the approved scissors workflow and keeps every piece reversible', () => {
   for (const label of [
-    "直线剪",
-    "自由剪",
-    "移动裁片",
-    "平直",
-    "手撕",
-    "波浪",
-    "锯齿",
-    "手撕白纸露出",
-    "撤销",
-    "重做",
-    "恢复原图",
-    "移除选中",
+    '直线剪',
+    '自由剪',
+    '移动裁片',
+    '平直',
+    '手撕',
+    '波浪',
+    '锯齿',
+    '手撕白纸露出',
+    '撤销',
+    '重做',
+    '恢复原图',
+    '移除选中',
   ])
     assert.match(editor, new RegExp(label));
   assert.match(editor, /切缝已保留，还连着/);
@@ -31,52 +34,52 @@ test("the custom cutter exposes the approved scissors workflow and keeps every p
   assert.match(editor, /const ordered = \[\.\.\.piecesRef\.current\]\.sort/);
 });
 
-test("draft cutting stays in the browser and persists only through the final studio callback", () => {
+test('draft cutting stays client-side, uploads incrementally, then applies to the page once', () => {
   assert.doesNotMatch(editor, /fetch\(/);
   assert.doesNotMatch(editor, /\/api\//);
+  assert.match(editor, /await onBeforeSave\?\.\(placements as PageMaterialCutPlacement\[\]\)/);
   assert.match(editor, /await onSavePiece\(output/);
+  assert.match(editor, /placement:/);
+  assert.match(editor, /centerX:/);
   assert.match(editor, /saveSessionRef/);
-  assert.match(editor, /savedOutputCountRef/);
   assert.match(editor, /for \(let index = savedOutputCountRef\.current; index < ordered\.length; index\+\+\)/);
   assert.doesNotMatch(editor, /Promise\.all\(/);
-  assert.match(studio, /async function saveCustomCutPiece/);
-  assert.doesNotMatch(studio.slice(studio.indexOf("async function saveCustomCutPiece"), studio.indexOf("async function rerun")), /fetch\(/);
-  assert.match(studio, /request<Job>\(['"]\/add-data-item['"]/);
-  assert.match(studio, /saveId:step\.saveId/);
-  assert.match(studio, /setSelected\(\[\.\.\.session\.freshIds\]\)/);
-  assert.match(studio, /onCancel=\{leaveCustomCut\}/);
-  assert.match(studio, /window\.confirm\(/);
-  assert.match(studio, /addEventListener\(['"]beforeunload['"]/);
-  assert.match(studio, /removeEventListener\(['"]beforeunload['"]/);
-  assert.match(studio, /showCloseButton=\{!busy&&!cutGuard\.busy\}/);
+  assert.match(cutter, /fetch\('\/api\/material-cuts\/upload'/);
+  assert.match(cutter, /saveId: progress\.saveId/);
+  assert.match(cutter, /savedByIndex\.current\[progress\.index\] = stored/);
+  assert.match(cutter, /progress\.index === progress\.total - 1/);
+  assert.match(cutter, /await onApply\(target, outputs as PageMaterialCutOutput\[\]\)/);
+  assert.match(cutter, /window\.confirm\(/);
+  assert.match(cutter, /addEventListener\('beforeunload'/);
+  assert.match(cutter, /showCloseButton=\{!saving && !guard\.busy\}/);
 });
 
-test("the studio keeps custom cutting primary, point selection advanced, and replacement wording explicit", () => {
-  const customAt = studio.indexOf("<Scissors/>自由裁切"),
-    detailsAt = studio.indexOf('<details className="studio-advanced">'),
-    pointAt = studio.indexOf("'点选素材'", detailsAt);
-  assert.ok(customAt > 0 && detailsAt > customAt && pointAt > detailsAt);
-  assert.match(studio, /更新原素材/);
-  assert.match(studio, /replacementItemId/);
-  assert.match(studio, /此裁片将更新原素材/);
-  assert.match(studio, /保存并更新原素材/);
-  assert.match(studio, /更新原素材并新增/);
-  assert.match(studio, /只选中这次的新结果/);
-  assert.match(studio, /targetSource\?list\.find\(job=>job\.source===targetSource\):list\[0\]/);
-  assert.match(studio, /素材处理记录已不存在/);
+test('free cutting lives in the selected-material toolbar instead of Material Studio', () => {
+  assert.match(controls, /className="quiet compact-material-cut"/);
+  assert.match(controls, /<span>自由裁切<\/span>/);
+  assert.match(controls, /p\.kind === 'asset' && p\.material !== 'tape'/);
+  assert.doesNotMatch(controls, /aria-label="复制素材"|aria-label="剪切素材"/);
+  assert.match(page, /onMaterialCut=\{startPageMaterialCut\}/);
+  assert.match(page, /sourceSrc=resolveMaterial\(piece\.src,piece\.assetId\)/);
+  assert.match(page, /querySelector<HTMLImageElement>\(':scope > img'\)/);
+  assert.match(page, /sourceBox:pageMaterialCutSourceBox|sourceBox,/);
+  assert.match(page, /<PageMaterialCutter/);
+  assert.match(page, /applyPageMaterialCut\(booksRef\.current,target,outputs,uid\)/);
+  assert.doesNotMatch(studio, /MaterialCutEditor|openCustomCut|saveCustomCutPiece/);
+  assert.doesNotMatch(studio, /<Scissors\/>自由裁切/);
+  assert.match(studio, /如需自由裁切，请点“导入新素材”选择“整图入库”，放入手帐后从选中工具栏打开/);
 });
 
-test("local imports always create a source job so manual custom cutting remains available", () => {
-  const sourceAt = importer.indexOf("request<Job>('/source'"),
-    segmentAt = importer.indexOf("request<Job>('/segment'");
-  assert.ok(sourceAt > 0 && segmentAt > sourceAt);
-  assert.match(importer, /if\(!source\.manualOnly\)/);
-  assert.match(importer, /自动识别未完成，原图已保留，可直接自由裁切/);
-  assert.match(importer, /可以直接使用自由裁切/);
+test('imports point to the real toolbar workflow when automatic separation is unavailable', () => {
+  assert.match(importer, /如需自由裁切，请点“导入新素材”并选择“整图入库”，放入手帐后从选中工具栏打开/);
+  assert.match(importer, /可继续点选或框选补漏/);
+  assert.doesNotMatch(importer, /可直接自由裁切|自由裁切工作台/);
 });
 
-test("custom cutting styles stay scoped to Material Studio and support pointer-safe canvas use", () => {
-  assert.match(css, /\.material-studio \.material-cut-editor/);
+test('custom cutting styles are scoped to the dedicated host and remain pointer safe', () => {
+  assert.match(css, /\.page-material-cut-dialog/);
+  assert.match(css, /\.material-cut-host \.material-cut-editor/);
+  assert.doesNotMatch(css, /\.material-studio \.material-cut-editor/);
   assert.match(css, /touch-action: none/);
   assert.match(css, /\[data-mode="move"\] canvas|\[data-mode='move'\] canvas/);
   assert.match(css, /@media \(max-width: 760px\)/);
@@ -85,6 +88,4 @@ test("custom cutting styles stay scoped to Material Studio and support pointer-s
   assert.match(editor, /setPointerCapture\(event\.pointerId\)/);
   assert.match(editor, /materialCutVisibleMask\(alpha, width, height\)/);
   assert.match(editor, /materialCutExportGeometry\(/);
-  assert.match(editor, /baseMask: target\.baseMask/);
-  assert.match(editor, /baseMask: separated \? item\.mask : target\.baseMask/);
 });

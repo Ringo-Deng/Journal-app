@@ -16,6 +16,8 @@ const call = async (path, data, method = 'PUT', headers = {}) => {
 };
 const png =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1sAAAAASUVORK5CYII=';
+const alternatePng =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==';
 let uploaded,
   received,
   mode = 'ok';
@@ -135,6 +137,19 @@ test('custom-cut images are validated and atomically attached with server-read d
  const item=saved.data.items.at(-1);assert.equal(item.name,'自由裁片');assert.equal(item.width,1);assert.equal(item.height,1);assert.equal(item.manual,true);assert.equal(item.imported,false);assert.match(item.src,/^\/uploads\/[a-f0-9-]+\.png$/);assert.ok((await stat(join(dir,item.src.slice(1)))).isFile());
  assert.equal(item.cutSaveId,saveId);
  const repeated=await call('/api/materials/add-data-item',{jobId:source.data.id,data:png,name:'不应重复',saveId},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.items.length,before+1);assert.equal(repeated.data.items.at(-1).id,item.id);
+});
+test('page material cuts upload idempotently without writing a material job',async()=>{
+ const saveId='bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb-0';
+ assert.equal((await call('/api/material-cuts/upload',{data:png,saveId:'bad'},'POST')).status,400);
+ assert.equal((await call('/api/material-cuts/upload',{data:'data:image/png;base64,SGVsbG8=',saveId},'POST')).status,400);
+ const first=await call('/api/material-cuts/upload',{data:png,saveId},'POST');assert.equal(first.status,200);assert.equal(first.data.width,1);assert.equal(first.data.height,1);assert.match(first.data.src,/^\/uploads\/[a-f0-9]{64}\.png$/);assert.ok((await stat(join(dir,first.data.src.slice(1)))).isFile());
+ const repeated=await call('/api/material-cuts/upload',{data:png,saveId},'POST');assert.equal(repeated.status,200);assert.equal(repeated.data.src,first.data.src);
+ const concurrentSaveId='cccccccc-cccc-4ccc-cccc-cccccccccccc-0';
+ const attempts=await Promise.all([png,alternatePng].map(async data=>({data,response:await call('/api/material-cuts/upload',{data,saveId:concurrentSaveId},'POST')})));
+ assert.deepEqual(attempts.map(item=>item.response.status).sort(),[200,409]);
+ const winner=attempts.find(item=>item.response.status===200);assert.ok(winner);
+ const stored=await readFile(join(dir,winner.response.data.src.slice(1)));
+ assert.deepEqual(stored,Buffer.from(winner.data.split(',')[1],'base64'));
 });
 test('photo library imports, deduplicates, lists, backs up and protects selected sources',async()=>{
   const bytes=Buffer.from(png.split(',')[1],'base64');

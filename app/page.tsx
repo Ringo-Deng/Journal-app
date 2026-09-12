@@ -21,6 +21,15 @@ import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
+import PageMaterialCutter from '@/components/page-material-cutter';
+import {
+  applyPageMaterialCut,
+  assertPageMaterialCutPlacements,
+  assertPageMaterialCutTarget,
+  type PageMaterialCutOutput,
+  type PageMaterialCutPlacement,
+  type PageMaterialCutTarget,
+} from '@/lib/page-material-cut';
 import {isCornerResizeHandle,resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
 import {addBlankSpread} from '@/lib/journal';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -241,10 +250,11 @@ export default function Home() {
   const [panel, setPanel] = useState<'write' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
+      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'material-cut' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
     >(null);
   const [materialStudioNotice,setMaterialStudioNotice]=useState(''),
     [materialStudioTargetSource,setMaterialStudioTargetSource]=useState('');
+  const [pageMaterialCutTarget,setPageMaterialCutTarget]=useState<PageMaterialCutTarget|null>(null);
   const [date, setDate] = useState(today()),
     [raw, setRaw] = useState(''),
     [photos, setPhotos] = useState<string[]>([]),
@@ -1470,6 +1480,61 @@ export default function Home() {
   }
   const resolveMaterial = (src: string | undefined, id?: string) =>
     assets.find((a) => (id ? a.id === id : a.originalSrc === src))?.src || src;
+  function pageMaterialCutSourceBox(p:Piece,box:Box,paper:HTMLDivElement){
+    const image=selectedNode(p.id)?.querySelector<HTMLImageElement>(':scope > img');
+    if(!image||!image.naturalWidth||!image.naturalHeight)return null;
+    const style=getComputedStyle(image),imageWidth=parseFloat(style.width),imageHeight=parseFloat(style.height);
+    if(!Number.isFinite(imageWidth)||!Number.isFinite(imageHeight)||imageWidth<=0||imageHeight<=0)return null;
+    let contentWidth=imageWidth,contentHeight=imageHeight,insideX=0,insideY=0;
+    if(style.objectFit==='contain'){
+      const scale=Math.min(imageWidth/image.naturalWidth,imageHeight/image.naturalHeight);
+      contentWidth=image.naturalWidth*scale;contentHeight=image.naturalHeight*scale;
+      insideX=(imageWidth-contentWidth)*(p.crop??50)/100;
+      insideY=(imageHeight-contentHeight)/2;
+    }
+    if(p.flipX)insideX=imageWidth-insideX-contentWidth;
+    if(p.flipY)insideY=imageHeight-insideY-contentHeight;
+    return {
+      x:(box.x+image.offsetLeft+insideX)/paper.clientWidth*100,
+      y:(box.y+image.offsetTop+insideY)/paper.clientHeight*100,
+      width:contentWidth/paper.clientWidth*100,
+      height:contentHeight/paper.clientHeight*100,
+    };
+  }
+  function verifyPageMaterialCutTarget(target:PageMaterialCutTarget,total:number){
+    const current=assertPageMaterialCutTarget(booksRef.current,target,total).piece,
+      currentSource=resolveMaterial(current.src,current.assetId);
+    if(!currentSource||currentSource!==target.sourceSrc)
+      throw Error('素材图片在裁切期间已有更新，请返回纸面后重新打开自由裁切。');
+  }
+  function verifyPageMaterialCutDraft(target:PageMaterialCutTarget,placements:PageMaterialCutPlacement[]){
+    verifyPageMaterialCutTarget(target,placements.length);
+    assertPageMaterialCutPlacements(target,placements);
+  }
+  function startPageMaterialCut(){
+    if(!book||!spread||!piece||piece.kind!=='asset'||piece.material==='tape'||selectionLocked||cluster)return;
+    const sourceSrc=resolveMaterial(piece.src,piece.assetId),paper=canvas.current;
+    if(!sourceSrc||!paper||paper.clientWidth<1||paper.clientHeight<1){toast('当前素材图片无法打开，请重新选择素材。');return;}
+    const box=pieceBox(piece),node=selectedNode(piece.id),renderedHeight=node?parseFloat(getComputedStyle(node).height):box.h,
+      sourceBox=pageMaterialCutSourceBox(piece,box,paper),libraryAsset=assets.find(asset=>asset.id===piece.assetId);
+    if(!sourceBox){toast('素材图片还在加载，请稍候再打开自由裁切。');return;}
+    setPageMaterialCutTarget({
+      sessionId:crypto.randomUUID(),bookId:book.id,spreadId:spread.id,piece:structuredClone(piece),sourceSrc,
+      sourceBox,
+      pieceHeight:(Number.isFinite(renderedHeight)&&renderedHeight>0?renderedHeight:box.h)/paper.clientHeight*100,canvasWidth:paper.clientWidth,canvasHeight:paper.clientHeight,
+      name:libraryAsset?.name||piece.artLabel||'素材',
+    });
+    setPanel(null);setCropping(false);setModal('material-cut');
+  }
+  function applyPageMaterialCutOutputs(target:PageMaterialCutTarget,outputs:PageMaterialCutOutput[]){
+    verifyPageMaterialCutTarget(target,outputs.length);
+    const result=applyPageMaterialCut(booksRef.current,target,outputs,uid);
+    change(()=>result.books);
+    setPageMaterialCutTarget(null);setModal(null);setPanel(null);setCropping(false);
+    setMultiIds(result.pieces.length>1?result.pieces.map(item=>item.id):[]);
+    setSelected(result.pieces[0]?.id||null);
+    toast(`已在当前纸面生成 ${result.pieces.length} 块裁片；素材库原图保持不变。`);
+  }
   function addText() {
     if (!spread) return;
     const p: Piece = {
@@ -1952,11 +2017,11 @@ export default function Home() {
             <button className="quiet" aria-pressed={selectionLocked} onClick={()=>patchSelection({locked:!selectionLocked})}>{selectionLocked?<Unlock/>:<Lock/>}{selectionLocked?'解锁所选':'锁定所选'}</button>
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
-          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onCopy={copyPiece} onCut={()=>setClipboardCutRequest(value=>value+1)} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
+          {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onMaterialCut={startPageMaterialCut} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
           <CollageTools onMask={()=>void startPhotoMask()} piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
-        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')}/>}
+        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')} suspended={!!modal}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
 
         {ready&&saveStatusNeedsAttention&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
@@ -2987,6 +3052,13 @@ export default function Home() {
         photoProtectedSources={photoProtectedSources}
         notice={materialStudioNotice}
         targetSource={materialStudioTargetSource}
+      />
+      <PageMaterialCutter
+        open={modal === 'material-cut'}
+        target={pageMaterialCutTarget}
+        onClose={()=>{setModal(null);setPageMaterialCutTarget(null)}}
+        onBeforeSave={verifyPageMaterialCutDraft}
+        onApply={applyPageMaterialCutOutputs}
       />
       <Dialog
         open={modal === 'settings'}

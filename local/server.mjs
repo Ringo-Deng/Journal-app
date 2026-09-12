@@ -188,6 +188,12 @@ function materialWrite(fn) {
   materialQueue = task.catch(() => {});
   return task;
 }
+let materialCutUploadQueue = Promise.resolve();
+function materialCutUpload(fn) {
+  const task = materialCutUploadQueue.then(fn);
+  materialCutUploadQueue = task.catch(() => {});
+  return task;
+}
 async function rawLibrary() {
   return [
     ...JSON.parse(
@@ -944,6 +950,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, job);
     }
     if (path === '/api/materials/add-data-item' && req.method === 'POST') {
+      // Compatibility for already-open clients from the former Material Studio workflow.
       const input = await body(req), saveId=String(input.saveId||'');
       if(saveId&&!/^[a-f0-9-]{20,100}$/.test(saveId))throw error('裁片保存标识无效。');
       const decoded = decodeUploadedImage(input.data);
@@ -1247,6 +1254,30 @@ const server = http.createServer(async (req, res) => {
         return { added: added.length, updated, assets: await library(), job:nextJob };
       });
       return json(res, result);
+    }
+    if (path === '/api/material-cuts/upload' && req.method === 'POST') {
+      const input = await body(req), saveId = String(input.saveId || '');
+      if (!/^[a-f0-9-]{20,100}$/.test(saveId)) throw error('裁片保存标识无效。');
+      const decoded = decodeUploadedImage(input.data);
+      if (decoded.format !== 'png') throw error('自由裁切结果必须是 PNG 图片。');
+      let metadata;
+      try { metadata = await sharp(decoded.buffer, { limitInputPixels: 40_000_000 }).metadata(); }
+      catch { throw error('无法读取裁片图片，请重新生成。'); }
+      if (!metadata.width || !metadata.height || metadata.width > 20000 || metadata.height > 20000 || metadata.format !== 'png')
+        throw error('裁片图片尺寸或格式无效。');
+      const name = createHash('sha256').update(`page-material-cut:${saveId}`).digest('hex') + '.png',
+        target = resolve(data, 'uploads', name);
+      await materialCutUpload(async () => {
+        let existing = null;
+        try { existing = await readFile(target); } catch (cause) { if (cause.code !== 'ENOENT') throw cause; }
+        if (existing && !existing.equals(decoded.buffer)) throw error('裁片保存标识已被其他内容使用，请重新打开自由裁切。', 409);
+        if (!existing) {
+          const temp = `${target}.${randomUUID()}.tmp`;
+          try { await writeFile(temp, decoded.buffer, { mode: 0o600 }); await rename(temp, target); }
+          catch (cause) { await unlink(temp).catch(()=>{}); throw cause; }
+        }
+      });
+      return json(res, { src: '/uploads/' + name, width: metadata.width, height: metadata.height });
     }
     if (path === '/api/upload' && req.method === 'POST') {
       const input = await body(req);

@@ -55,14 +55,14 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
       opened++;targetSource=source.source;
       if(!source.manualOnly){
        try{const job=await request<Job>('/segment',{src:uploaded.src,name:item.name,mode:'auto',tolerance:28});total+=job.items.length}
-       catch(error){fallbacks.push(`${item.name}：自动识别未完成，原图已保留，可直接自由裁切（${(error as Error).message}）`)}
+       catch(error){fallbacks.push(`${item.name}：自动识别未完成，原图已保留，可框选补漏；如需自由裁切，请点“导入新素材”并选择“整图入库”，放入手帐后从选中工具栏打开（${(error as Error).message}）`)}
       }
      }
     }catch(error){errors.push(`${item.name}：${(error as Error).message}`)}
     completed++;
    }
    const details=[...fallbacks,...errors].join('；');
-   const summary=mode==='whole'?`已将 ${total} 张整图加入素材库。${details}`:`已打开 ${opened} 张图片${total?`，自动拆出 ${total} 个素材`:'，可以直接使用自由裁切'}。${details}`;
+   const summary=mode==='whole'?`已将 ${total} 张整图加入素材库。${details}`:`已打开 ${opened} 张图片${total?`，自动拆出 ${total} 个素材`:'，可继续点选或框选补漏'}。${details}`;
    if(mode==='segment'&&opened&&targetSource)onReady(summary,targetSource);else setMessage(summary);
   }finally{setBusy(false);setProgress('');if(file.current)file.current.value=''}
  }
@@ -86,16 +86,16 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
     setMessage(result.added?'已将 Pinterest 整图加入素材库。':'这张整图已在素材库中，可直接使用。');
     return;
    }
-   setProgress(imported.duplicate?'已找到现有素材，正在打开处理记录…':imported.autoSegment?'下载完成，正在自动拆分素材…':'下载完成，正在打开手动裁切工作台…');
+   setProgress(imported.duplicate?'已找到现有素材，正在打开处理记录…':imported.autoSegment?'下载完成，正在自动拆分素材…':'下载完成，正在打开素材处理台…');
    const jobs=await request<Job[]>('/jobs');
    const existing=jobs.find(item=>item.source===imported.src);
    const source=await request<Job>('/source',{src:imported.src,name:imported.name});
    let automaticFallback='';
    if(!existing&&imported.autoSegment&&!source.manualOnly){
     try{await request<Job>('/segment',{src:imported.src,name:imported.name,mode:'auto',tolerance:28})}
-    catch(error){automaticFallback=`自动识别未完成，原图已保留，可直接自由裁切（${(error as Error).message}）`}
+    catch(error){automaticFallback=`自动识别未完成，原图已保留，可框选补漏；如需自由裁切，请点“导入新素材”并选择“整图入库”，放入手帐后从选中工具栏打开（${(error as Error).message}）`}
    }
-   const summary=automaticFallback?`Pinterest ${automaticFallback}`:imported.duplicate?'这个 Pinterest 素材已经导入过，已打开现有处理记录，可继续处理。':imported.autoSegment&&!source.manualOnly?'Pinterest 原图已保存，并进入自动拆素材流程。':'Pinterest 原图已保存，已打开自由裁切工作台。';
+   const summary=automaticFallback?`Pinterest ${automaticFallback}`:imported.duplicate?'这个 Pinterest 素材已经导入过，已打开现有处理记录，可继续处理。':imported.autoSegment&&!source.manualOnly?'Pinterest 原图已保存，并进入自动拆素材流程。':'Pinterest 原图已保存，已打开素材处理台，可继续框选保留。';
    onReady(summary,source.source);
   }catch(error){setMessage((error as Error).message)}finally{setBusy(false);setProgress('')}
  }
@@ -106,7 +106,7 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
   <fieldset className="material-import-modes" disabled={busy}>
    <legend>导入方式</legend>
    <label><input type="radio" name="material-import-mode" value="whole" checked={mode==='whole'} onChange={()=>{setMode('whole');setMessage('');setImportedCount(0)}}/><span><strong>整图入库</strong><small>保留背景和透明区域，一张图片作为一个素材</small></span></label>
-   <label><input type="radio" name="material-import-mode" value="segment" checked={mode==='segment'} onChange={()=>{setMode('segment');setMessage('');setImportedCount(0)}}/><span><strong>抠图／拆分</strong><small>进入素材台，去背景、拆分或裁切后再入库</small></span></label>
+   <label><input type="radio" name="material-import-mode" value="segment" checked={mode==='segment'} onChange={()=>{setMode('segment');setMessage('');setImportedCount(0)}}/><span><strong>抠图／拆分</strong><small>进入素材台，去背景、自动拆分或框选后再入库</small></span></label>
   </fieldset>
   <section className="material-import-local">
    <ImagePlus/>

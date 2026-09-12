@@ -26,6 +26,7 @@ import {
   type MaterialCutEdge,
   type MaterialCutPoint,
 } from "@/lib/material-cut";
+import type { PageMaterialCutPlacement } from "@/lib/page-material-cut";
 
 type CutMode = "line" | "free" | "move";
 type Tear = { path: MaterialCutPoint[]; seed: number };
@@ -66,7 +67,13 @@ type MoveGesture = {
 };
 type Gesture = CutGesture | MoveGesture;
 
-export type MaterialCutOutput = { data: string; width: number; height: number; name: string };
+export type MaterialCutOutput = {
+  data: string;
+  width: number;
+  height: number;
+  name: string;
+  placement: PageMaterialCutPlacement;
+};
 export type MaterialCutGuard = { dirty: boolean; busy: boolean };
 export type MaterialCutSaveProgress = { saveId: string; index: number; total: number };
 
@@ -121,6 +128,29 @@ function maskHas(piece: CutPiece, point: MaterialCutPoint, source: SourceState) 
 }
 function visibleBounds(piece: CutPiece, source: SourceState) {
   return materialCutMaskBounds(piece.mask, source.width, source.height, source.alpha);
+}
+function outputPlacement(
+  piece: CutPiece,
+  source: SourceState,
+  bounds = visibleBounds(piece, source),
+): PageMaterialCutPlacement | null {
+  if (!bounds) return null;
+  const radians = (piece.angle * Math.PI) / 180,
+    c = Math.abs(Math.cos(radians)),
+    s = Math.abs(Math.sin(radians)),
+    width = bounds.x1 - bounds.x0 + 1,
+    height = bounds.y1 - bounds.y0 + 1,
+    center = worldPoint(
+      piece,
+      { x: (bounds.x0 + bounds.x1 + 1) / 2, y: (bounds.y0 + bounds.y1 + 1) / 2 },
+      source,
+    );
+  return {
+    centerX: (center.x - STAGE_WIDTH / 2) / source.width,
+    centerY: (center.y - STAGE_HEIGHT / 2) / source.height,
+    width: (width * c + height * s) / source.width,
+    height: (width * s + height * c) / source.height,
+  };
 }
 function pathOn(context: CanvasRenderingContext2D, path: MaterialCutPoint[]) {
   context.beginPath();
@@ -303,12 +333,13 @@ async function exportAtSize(
     geometry.width,
     geometry.height,
   );
+  const placement = outputPlacement(piece, source, bounds)!;
+  const radians = (piece.angle * Math.PI) / 180,
+    c = Math.abs(Math.cos(radians)),
+    s = Math.abs(Math.sin(radians));
   let output = cropped;
   if (Math.abs(piece.angle) > 0.01) {
-    const radians = (piece.angle * Math.PI) / 180,
-      c = Math.abs(Math.cos(radians)),
-      s = Math.abs(Math.sin(radians)),
-      width = Math.ceil(cropped.width * c + cropped.height * s),
+    const width = Math.ceil(cropped.width * c + cropped.height * s),
       height = Math.ceil(cropped.width * s + cropped.height * c);
     output = makeCanvas(width, height);
     const rotated = output.getContext("2d")!;
@@ -324,6 +355,7 @@ async function exportAtSize(
     width: output.width,
     height: output.height,
     name: `${name.trim() || "素材"} 裁片 ${String(index + 1).padStart(2, "0")}`,
+    placement,
   };
 }
 
@@ -349,6 +381,9 @@ export default function MaterialCutEditor({
   name,
   saving,
   onCancel,
+  cancelLabel = "取消裁切",
+  actionLabel = "应用到手帐",
+  onBeforeSave,
   onSavePiece,
   onGuardChange,
 }: {
@@ -356,6 +391,9 @@ export default function MaterialCutEditor({
   name: string;
   saving: boolean;
   onCancel: () => void;
+  cancelLabel?: string;
+  actionLabel?: string;
+  onBeforeSave?: (placements: PageMaterialCutPlacement[]) => void | Promise<void>;
   onSavePiece: (output: MaterialCutOutput, progress: MaterialCutSaveProgress) => Promise<void>;
   onGuardChange: (guard: MaterialCutGuard) => void;
 }) {
@@ -856,7 +894,11 @@ export default function MaterialCutEditor({
     try {
       const ordered = [...piecesRef.current].sort((a, b) =>
         a.id === selected ? -1 : b.id === selected ? 1 : 0,
-      );
+      ),
+        placements = ordered.map((piece) => outputPlacement(piece, source));
+      if (placements.some((placement) => !placement))
+        throw Error('有裁片没有可见内容，请返回后调整。');
+      await onBeforeSave?.(placements as PageMaterialCutPlacement[]);
       if (!saveSessionRef.current) saveSessionRef.current = crypto.randomUUID();
       for (let index = savedOutputCountRef.current; index < ordered.length; index++) {
         setStatus(`正在生成裁片 ${index + 1} / ${ordered.length}…`);
@@ -1132,7 +1174,7 @@ export default function MaterialCutEditor({
           {saving ? "正在保存裁片…" : status}
         </span>
         <button className="outline" disabled={saving || exporting} onClick={onCancel}>
-          返回素材处理
+          {cancelLabel}
         </button>
         <button
           className="primary"
@@ -1140,7 +1182,7 @@ export default function MaterialCutEditor({
           onClick={() => void complete()}
         >
           {saving || exporting ? <Loader2 className="spinning" /> : <Check />}
-          {saveStarted ? `继续保存 ${remainingCount} 块` : `生成 ${pieceCount} 块裁片`}
+          {saveStarted ? `继续${actionLabel} ${remainingCount} 块` : `${actionLabel} · ${pieceCount} 块`}
         </button>
       </div>
     </div>
