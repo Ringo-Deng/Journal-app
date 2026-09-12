@@ -13,7 +13,6 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   RotateCcw,
-  Type,
   Maximize2,
   Layers3,
   Move,
@@ -91,7 +90,6 @@ export default function ElementControls({
   onMaterialCut,
   onDelete,
   onFinish,
-  onEdit,
   onReplace,
   onReset,
 }: {
@@ -105,7 +103,6 @@ export default function ElementControls({
   onMaterialCut: () => void;
   onDelete: () => void;
   onFinish: () => void;
-  onEdit: () => void;
   onReplace: () => void;
   onReset: () => void;
 }) {
@@ -131,10 +128,6 @@ export default function ElementControls({
 
       {p.kind === 'text' && (
         <>
-          <button className="quiet compact-edit-text" onClick={onEdit}>
-            <Type />
-            <span>编辑文字</span>
-          </button>
           <div className="compact-font-size">
             <NumberControl
               label="字号"
@@ -162,7 +155,7 @@ export default function ElementControls({
         </button>
       )}
 
-      <ToolbarPopover label="尺寸" icon={<Maximize2 />} align="center" className="compact-size-popover">
+      {p.kind !== 'text' && <ToolbarPopover label="尺寸" icon={<Maximize2 />} align="center" className="compact-size-popover">
         <div className="toolbar-popover-title">尺寸与旋转</div>
         <div className="toolbar-popover-grid">
           <NumberControl
@@ -199,7 +192,7 @@ export default function ElementControls({
             <RotateCcw />旋转归零
           </button>
         </div>
-        {p.kind !== 'text' && !vellumSheet && (
+        {!vellumSheet && (
           <div className="toolbar-popover-actions">
             <button className="quiet" onClick={() => onPatch({ flipX: !p.flipX })}>
               <FlipHorizontal2 />水平翻转
@@ -210,7 +203,7 @@ export default function ElementControls({
             <button className="quiet" onClick={onReset}>恢复比例</button>
           </div>
         )}
-      </ToolbarPopover>
+      </ToolbarPopover>}
 
       <ToolbarPopover label="位置" icon={<Move />} align="center" className={`compact-position-popover${vellumSheet?' compact-vellum-position':''}`}>
         <div className="toolbar-popover-title">{vellumSheet ? '位置' : '位置与透明度'}</div>
