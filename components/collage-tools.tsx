@@ -1,56 +1,32 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {Palette,SlidersHorizontal,Sparkles} from 'lucide-react';
+import {Highlighter,Palette,SlidersHorizontal,Sparkles} from 'lucide-react';
 import type {Piece} from '@/lib/journal';
 import {journalFonts} from '@/lib/collage';
+import {isCurrentTextSelection,textSelectionFromInput,type TextSelection} from '@/lib/text-runs';
+import {readUserFonts,USER_FONTS_CHANGED_EVENT,type UserFont} from '@/lib/user-fonts';
 import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,isVellumSheet,vellumColor,vellumDisplayOpacity} from '@/lib/vellum-sheet';
 import {NumberControl} from './element-controls';
 import ToolbarPopover from './toolbar-popover';
 
-type UserFont={id:string;name:string;family:string;url:string;size:number;originalName?:string};
 const vellumColors=[['#edf1f0','雾白'],['#dfe7e8','冷灰'],['#dce8ef','雾蓝'],['#eee1e5','雾粉'],['#e1e9df','雾绿']];
 
-function fontResponse(value:unknown):{fonts:UserFont[];error?:string}{
- if(!value||typeof value!=='object')throw Error('字体服务返回的数据无效。');
- const data=value as Record<string,unknown>;
- const fonts=Array.isArray(data.fonts)?data.fonts.filter((font:unknown):font is UserFont=>{
-  if(!font||typeof font!=='object')return false;
-  const item=font as Record<string,unknown>;
-  return ['id','name','family','url'].every(key=>typeof item[key]==='string'&&item[key]!=='' )&&typeof item.size==='number'&&Number.isFinite(item.size)&&item.size>=0&&(item.originalName===undefined||typeof item.originalName==='string');
- }):[];
- return {fonts,error:typeof data.error==='string'?data.error:undefined};
-}
-
-export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,onMask,cropping,onCrop,busy,hasTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;onMask:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;hasTextRange:boolean;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
+export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,onMask,cropping,onCrop,busy,textRange,onTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;onMask:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;textRange:TextSelection|null;onTextRange:(range:TextSelection|null)=>void;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
  const [userFonts,setUserFonts]=useState<UserFont[]>([]);
- const [fontMessage,setFontMessage]=useState('');
- const [fontError,setFontError]=useState(false);
- const [fontBusy,setFontBusy]=useState(false);
- const fontInput=useRef<HTMLInputElement>(null);
- useEffect(()=>{let live=true;fetch('/api/fonts').then(async r=>{const data=fontResponse(await r.json());if(!r.ok)throw Error(data.error||'读取字体失败。');if(live)setUserFonts(data.fonts);}).catch(()=>{});return()=>{live=false};},[]);
- async function importFonts(files:FileList|null){
-  if(!files?.length)return;
-  setFontBusy(true);setFontError(false);setFontMessage('正在导入字体…');
-  try{
-   const imported:UserFont[]=[];
-   for(const file of Array.from(files)){
-    if(file.size>80*1024*1024)throw Error(`${file.name} 太大，单个字体包不能超过 80 MB。`);
-    const response=await fetch(`/api/fonts/import?filename=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':file.name.toLowerCase().endsWith('.zip')?'application/zip':'application/octet-stream'},body:file});
-    const data=fontResponse(await response.json());
-    if(!response.ok)throw Error(data.error||`${file.name} 导入失败。`);
-    imported.push(...data.fonts);
-   }
-   const deduped=[...new Map([...userFonts,...imported].map(font=>[font.id,font])).values()];
-   setUserFonts(deduped);
-   for(const font of imported){
-    try{const face=new FontFace(font.family,`url("${font.url}")`);await face.load();document.fonts.add(face);}catch{/* CSS 刷新仍会再次加载，单个字体加载失败不影响其他字体。 */}
-   }
-   const link=document.querySelector<HTMLLinkElement>('link[data-user-fonts="true"]');
-   if(link)link.href=`/api/fonts.css?v=${Date.now()}`;
-   if(imported[0])onPatch({fontFamily:`user:${imported[0].id}`});
-   setFontMessage(imported.length?`已导入 ${imported.length} 个字体${imported[0]?'，已切换到第一个。':'。'}`:'没有找到可导入的字体文件。');
-  }catch(e){setFontError(true);setFontMessage(e instanceof Error?e.message:'字体导入失败。');}
-  finally{setFontBusy(false);if(fontInput.current)fontInput.current.value='';}
+ const textInput=useRef<HTMLTextAreaElement>(null);
+ const hasTextRange=isCurrentTextSelection(textRange,p);
+ useEffect(()=>{
+  let live=true,request=0;
+  const refresh=()=>{const current=++request;void readUserFonts().then(fonts=>{if(live&&current===request)setUserFonts(fonts)}).catch(()=>{});};
+  refresh();
+  window.addEventListener(USER_FONTS_CHANGED_EVENT,refresh);
+  return()=>{live=false;window.removeEventListener(USER_FONTS_CHANGED_EVENT,refresh);};
+ },[]);
+ function selectAllText(){
+  const input=textInput.current;
+  if(!input||!p.text)return;
+  input.focus();input.setSelectionRange(0,input.value.length);
+  onTextRange(textSelectionFromInput(p,input.value,0,input.value.length));
  }
 
  if(p.kind==='text') return <div className="collage-context-tools compact-context-tools" aria-label="文字细节">
@@ -68,20 +44,27 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
        <label>粗细<select aria-label="文字粗细" value={p.fontWeight||400} onChange={e=>onPatch({fontWeight:Number(e.target.value)})}><option value={400}>常规</option><option value={600}>加粗</option></select></label>
        <label>对齐<select aria-label="文字对齐" value={p.textAlign||'left'} onChange={e=>onPatch({textAlign:e.target.value as Piece['textAlign']})}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
      </div>
-     <div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">局部文字样式</span>
+   </ToolbarPopover>
+   <ToolbarPopover label="荧光笔" icon={<Highlighter/>} className="compact-text-marking" panelClassName="text-marking-popover">
+     <div className="toolbar-popover-title">局部文字样式</div>
+     <div className="text-marking-selection">
+       <div className="toolbar-popover-row"><span>选择要标记的字句</span><button type="button" className="quiet" disabled={!p.text} onClick={selectAllText}>全选文字</button></div>
+       <textarea key={p.id} ref={textInput} className="text-marking-input" aria-label="选择要标记的字句" readOnly value={p.text||''} placeholder="请先在文字框中输入文字" onSelect={e=>{const input=e.currentTarget;onTextRange(textSelectionFromInput(p,input.value,input.selectionStart,input.selectionEnd))}}/>
+       <small className="text-marking-selected" role="status">{hasTextRange?`已选：${textRange.text.slice(textRange.start,textRange.end)}`:'在上方拖选字句，或点击“全选文字”'}</small>
+     </div>
+     <div className="toolbar-popover-section">
        <div className="text-run-control"><span>文字颜色</span><div className="toolbar-popover-actions">
-         <label title="双击文字，选中要着色的字句">自定义<input type="color" aria-label="选中文字颜色" disabled={!hasTextRange} defaultValue="#af7856" onInput={e=>onTextColor(e.currentTarget.value)}/></label>
+         <label title="先在上方选择要着色的字句">自定义<input type="color" aria-label="选中文字颜色" disabled={!hasTextRange} defaultValue="#af7856" onInput={e=>onTextColor(e.currentTarget.value)}/></label>
          {hasTextRange&&<div className="text-color-swatches">{[['#b36742','赭色'],['#587a91','湖蓝'],['#608060','苔绿']].map(([color,name])=><button key={color} className="text-color-swatch" style={{background:color}} aria-label={`选中文字设为${name}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextColor(color)}/>)}</div>}
          {!!p.colorRuns?.length&&<button className="quiet" onClick={()=>onTextColor(null)}>清除局部颜色</button>}
        </div></div>
        <div className="text-run-control"><span>荧光笔</span><div className="toolbar-popover-actions">
-         <label title="双击文字，选中要标记的字句">自定义<input type="color" aria-label="自定义荧光笔颜色" disabled={!hasTextRange} defaultValue="#f2d45c" onChange={e=>onTextHighlight(e.currentTarget.value)}/></label>
+         <label title="先在上方选择要标记的字句">自定义<input type="color" aria-label="自定义荧光笔颜色" disabled={!hasTextRange} defaultValue="#f2d45c" onChange={e=>onTextHighlight(e.currentTarget.value)}/></label>
          <div className="text-color-swatches">{[['#f2d45c','柔黄'],['#ee9aa2','柔粉'],['#82bdd5','湖蓝'],['#9bc58a','苔绿'],['#b79ad0','柔紫']].map(([color,name])=><button key={color} className="text-color-swatch" disabled={!hasTextRange} style={{background:color}} aria-label={`选中文字添加${name}荧光标记`} onMouseDown={e=>e.preventDefault()} onClick={()=>onTextHighlight(color)}/>)}</div>
          {!!p.highlightRuns?.length&&<button className="quiet" onClick={()=>onTextHighlight(null)}>清除本框高亮</button>}
        </div></div>
-       <small className="text-highlight-hint">双击文字并选择字句，添加标记；完成编辑后显示。</small>
+       <small className="text-highlight-hint">选好字句再点颜色，纸面立即显示；可撤销。</small>
      </div>
-     <div className="toolbar-popover-section"><span className="toolbar-popover-subtitle">字体管理</span><button type="button" className="quiet font-import-button" disabled={fontBusy} onClick={()=>fontInput.current?.click()}>{fontBusy?'导入中…':'导入字体'}</button><input ref={fontInput} hidden type="file" multiple accept=".ttf,.otf,.woff,.woff2,.zip" onChange={e=>void importFonts(e.currentTarget.files)}/>{!!fontMessage&&<small className={`font-import-status${fontError?' is-error':''}`}>{fontMessage}</small>}</div>
    </ToolbarPopover>
  </div>;
 

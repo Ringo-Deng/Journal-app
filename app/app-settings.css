@@ -132,6 +132,35 @@
   line-height: 1.7;
 }
 
+.app-settings-fonts {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.app-settings-fonts .app-settings-section-heading {
+  padding-top: 0;
+}
+
+.app-settings-fonts .app-settings-section-heading > button {
+  min-height: 36px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.app-settings-font-feedback {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.app-settings-font-feedback.is-error {
+  color: #9b4b3d;
+}
+
 .app-settings-trash {
   display: flex;
   align-items: center;

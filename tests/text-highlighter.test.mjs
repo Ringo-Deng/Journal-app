@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { decoratedTextSegments, validTextRuns } from '../lib/text-runs.ts';
+import { decoratedTextSegments, validTextRuns, isCurrentTextSelection, textSelectionFromInput } from '../lib/text-runs.ts';
 import { regenerateSpread } from '../lib/journal.ts';
 
 test('text colour and highlighter runs render independently with the newest overlap winning', () => {
@@ -33,6 +33,29 @@ test('invalid and out-of-range runs never reach the renderer', () => {
     ]),
     [{ start: 0, end: 2, color: '#abcdef' }],
   );
+});
+
+test('text marking accepts only a nonempty selection of the current unchanged text box', () => {
+  const piece = { id: 'text-a', text: '今天去海边玩耍了' };
+  const selection = { id: piece.id, text: piece.text, start: 2, end: 5 };
+  assert.equal(isCurrentTextSelection(selection, piece), true);
+  assert.equal(isCurrentTextSelection({ ...selection, start: 0, end: piece.text.length }, piece), true);
+  for (const invalid of [null, { ...selection, id: 'text-b' }, { ...selection, text: '今天去公园玩耍了' },
+    { ...selection, start: -1 }, { ...selection, end: 99 }, { ...selection, end: 2 }, { ...selection, start: 1.5 }])
+    assert.equal(isCurrentTextSelection(invalid, piece), false);
+});
+
+test('panel selection preserves saved offsets for old line endings, emoji and repeated words', () => {
+  const piece = { id: 'text-a', text: '海边\r\n🌊海边\r下雨' };
+  const value = '海边\n🌊海边\n下雨';
+  const range = textSelectionFromInput(piece, value, 5, 7);
+  assert.deepEqual(range, { ...piece, start: 6, end: 8 });
+  assert.equal(piece.text.slice(range.start, range.end), '海边');
+  assert.deepEqual(textSelectionFromInput(piece, value, 0, value.length), { ...piece, start: 0, end: piece.text.length });
+  assert.equal(textSelectionFromInput(piece, value, 2, 2), null);
+  assert.equal(textSelectionFromInput(piece, value, -1, 2), null);
+  assert.equal(textSelectionFromInput(piece, '不同原文', 0, 2), null);
+  assert.equal(textSelectionFromInput(piece, value, 0, 99), null);
 });
 
 test('AI layout keeps highlights only while the original wording is unchanged', () => {

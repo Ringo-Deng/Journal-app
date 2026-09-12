@@ -1,6 +1,8 @@
 'use client';
 import StationeryCover from '@/components/stationery-cover';
 import CollageTools from '@/components/collage-tools';
+import FontSettings from '@/components/font-settings';
+import {isCurrentTextSelection,type TextSelection} from '@/lib/text-runs';
 import PhotoMaskTools from '@/components/photo-mask-tools';
 import PhotoTrash from '@/components/photo-trash';
 import {applyMaskToBooks,restorePhotoMask,type PhotoMaskDraft,type PhotoTrashEntry} from '@/lib/photo-mask-state';
@@ -235,7 +237,7 @@ export default function Home() {
   function cancelPhotoMask(){updateMaskDraft(null);drag.current=null;setCropping(false);}
   function editMaskDraft(patch:Partial<PhotoMaskDraft>){const d=maskDraftRef.current;if(d&&!d.generating)updateMaskDraft({...d,...patch});}
   const [layoutReport,setLayoutReport]=useState<{message:string;ids:string[];type:string}[]|null>(null);
-  const [textRange,setTextRange]=useState<{id:string;start:number;end:number;text:string}|null>(null);
+  const [textRange,setTextRange]=useState<TextSelection|null>(null);
   const [templateName,setTemplateName]=useState('我的照片拼贴');
   const [clusterBox,setClusterBox]=useState<Box|undefined>();
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
@@ -398,7 +400,7 @@ export default function Home() {
   const selectionLocked=activePieces.some(p=>p.locked);
   function setSelected(value:string|null){
     if(maskDraftRef.current&&value!==maskDraftRef.current.pieceId)cancelPhotoMask();
-    if(value!==selected)setCropping(false);
+    if(value!==selected){setCropping(false);setTextRange(null);}
     if(value===null){canvasMarquee.current=null;setSelectionMarquee(null);setSelectionPreviewIds([]);setMultiIds([]);setEditingGroup(null);setLayoutReport(null);}
     _setSelected(value);
   }
@@ -738,15 +740,15 @@ export default function Home() {
     setMultiIds([]);setEditingGroup(group);setSelected(addition.id);if(kind==='caption'){setInlineId(addition.id);setInlineText(addition.text!);}toast(kind==='caption'?'图注已与照片编组，可直接输入。':'胶带已与照片编组，可调整颜色、长度和透明度。');
   }
   function colorText(color:string|null){
-    if(!piece)return;
+    if(!piece||piece.kind!=='text'||selectionLocked)return;
     if(color===null){patchPiece(piece.id,{colorRuns:undefined});return;}
-    if(!textRange||textRange.id!==piece.id||textRange.text!==piece.text){toast('请重新选中文字后设置颜色。');return;}
+    if(!isCurrentTextSelection(textRange,piece)){toast('请在荧光笔面板中选择要着色的字句。');return;}
     patchPiece(piece.id,{colorRuns:[...(piece.colorRuns||[]),{start:textRange.start,end:textRange.end,color}].slice(-100)});
   }
   function highlightText(color:string|null){
-    if(!piece)return;
+    if(!piece||piece.kind!=='text'||selectionLocked)return;
     if(color===null){patchPiece(piece.id,{highlightRuns:undefined});return;}
-    if(!textRange||textRange.id!==piece.id||textRange.text!==piece.text){toast('请重新选中文字后添加荧光标记。');return;}
+    if(!isCurrentTextSelection(textRange,piece)){toast('请在荧光笔面板中选择要标记的字句。');return;}
     patchPiece(piece.id,{highlightRuns:[...(piece.highlightRuns||[]),{start:textRange.start,end:textRange.end,color}].slice(-100)});
   }
   function saveCluster(){
@@ -2069,7 +2071,7 @@ export default function Home() {
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
           {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onMaterialCut={startPageMaterialCut} onDelete={removePiece} onFinish={finishEditing} onEdit={()=>enterGroup(piece)} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
-          <CollageTools onMask={()=>void startPhotoMask()} piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} hasTextRange={!!textRange&&textRange.id===piece.id&&textRange.end>textRange.start} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
+          <CollageTools onMask={()=>void startPhotoMask()} piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} textRange={isCurrentTextSelection(textRange,piece)?textRange:null} onTextRange={setTextRange} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')} suspended={!!modal}/>}
@@ -3123,7 +3125,7 @@ export default function Home() {
         <DialogContent className="journal-dialog app-settings-dialog">
           <header className="app-settings-heading">
             <DialogTitle>设置</DialogTitle>
-            <DialogDescription>AI 创作与本机照片管理</DialogDescription>
+            <DialogDescription>AI 创作、字体与本机照片管理</DialogDescription>
           </header>
           <section className="app-settings-ai" aria-labelledby="app-settings-ai-title">
             <div className="app-settings-section-heading">
@@ -3170,6 +3172,7 @@ export default function Home() {
             </footer>
             {settingsFeedback && <output className="settings-feedback" aria-live="polite">{settingsFeedback}</output>}
           </section>
+          <FontSettings />
           <button className="app-settings-trash" onClick={()=>{setModal(null);cancelPhotoMask();setPhotoTrashOpen(true);}}>
             <Trash2 aria-hidden="true" />
             <span><strong>照片回收站</strong><small>恢复或清理照片蒙版保留的原图</small></span>
