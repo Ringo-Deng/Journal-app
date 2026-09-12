@@ -1,12 +1,14 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {SlidersHorizontal,Sparkles} from 'lucide-react';
+import {Palette,SlidersHorizontal,Sparkles} from 'lucide-react';
 import type {Piece} from '@/lib/journal';
 import {journalFonts} from '@/lib/collage';
+import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,isVellumSheet,vellumColor,vellumDisplayOpacity} from '@/lib/vellum-sheet';
 import {NumberControl} from './element-controls';
 import ToolbarPopover from './toolbar-popover';
 
 type UserFont={id:string;name:string;family:string;url:string;size:number;originalName?:string};
+const vellumColors=[['#edf1f0','雾白'],['#dfe7e8','冷灰'],['#dce8ef','雾蓝'],['#eee1e5','雾粉'],['#e1e9df','雾绿']];
 
 function fontResponse(value:unknown):{fonts:UserFont[];error?:string}{
  if(!value||typeof value!=='object')throw Error('字体服务返回的数据无效。');
@@ -96,7 +98,21 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
    </ToolbarPopover>
  </div>;
 
- if(p.kind==='doodle'&&p.frame==='vellum-sheet')return null;
+ if(isVellumSheet(p)){
+   const color=vellumColor(p),opacity=vellumDisplayOpacity(p);
+   return <div className="collage-context-tools compact-context-tools" aria-label="硫酸纸外观">
+     <ToolbarPopover label="纸张外观" icon={<Palette/>} className="compact-material-style" panelClassName="vellum-style-popover">
+       <div className="toolbar-popover-title">硫酸纸颜色与透明度</div>
+       <label className="vellum-custom-color">自定义颜色<input type="color" aria-label="硫酸纸颜色" value={color} onChange={e=>onPatch({color:e.target.value,opacity})}/></label>
+       <div className="vellum-color-swatches" aria-label="硫酸纸预设颜色">
+         {vellumColors.map(([value,name])=><button key={value} type="button" className="vellum-color-swatch" aria-label={`硫酸纸设为${name}`} aria-pressed={color===value} style={{background:value}} onClick={()=>onPatch({color:value,opacity})}/>)}
+       </div>
+       <div className="toolbar-popover-grid"><NumberControl label="透明度" value={opacity*100} min={0} max={100} unit="%" onCommit={value=>onPatch({color,opacity:value/100})}/></div>
+       <small className="vellum-style-hint">透明度越低，越能透出下方的照片和文字。</small>
+       <div className="toolbar-popover-actions"><button type="button" className="quiet" onClick={()=>onPatch({color:DEFAULT_VELLUM_COLOR,opacity:DEFAULT_VELLUM_OPACITY})}>恢复雾白</button></div>
+     </ToolbarPopover>
+   </div>;
+ }
 
  return <div className="collage-context-tools compact-context-tools" aria-label="素材细节">
    <ToolbarPopover label="质感" icon={<Sparkles/>} className="compact-material-style" panelClassName="material-style-popover">

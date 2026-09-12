@@ -30,6 +30,7 @@ test('toolbar popover closes on outside click and escape', async()=>{
   assert.match(source,/document\.addEventListener\('pointerdown', closeOutside\)/);
   assert.match(source,/event\.key === 'Escape'/);
   assert.match(source,/aria-expanded=\{open\}/);
+  assert.match(source,/closeOnAction && \(event\.target as Element\)\.closest\('button'\)/);
 });
 
 test('compact toolbar overrides horizontal scrolling without replacing global stylesheet', async()=>{
@@ -39,7 +40,7 @@ test('compact toolbar overrides horizontal scrolling without replacing global st
   assert.doesNotMatch(source,/overflow-x:auto/);
 });
 
-test('obsolete more button and element editor side panel are removed', async()=>{
+test('secondary inserts share an add menu while the obsolete more panel stays removed', async()=>{
   const [controls,popover,page]=await Promise.all([
     readFile(controlsPath,'utf8'),
     readFile(popoverPath,'utf8'),
@@ -49,5 +50,7 @@ test('obsolete more button and element editor side panel are removed', async()=>
   assert.doesNotMatch(popover,/compact-more-button/);
   assert.doesNotMatch(page,/setPanel\('edit'\)|panel\s*===\s*'edit'|调整这一小片|MAKE IT YOURS/);
   assert.match(page,/useState<'write' \| 'elements' \| null>/);
+  assert.match(page,/ToolbarPopover label="添加"[\s\S]*panelClassName="creation-add-menu"/);
   assert.match(page,/aria-label="插入硫酸纸"/);
+  assert.match(page,/aria-label="粘贴素材"/);
 });

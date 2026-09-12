@@ -25,7 +25,7 @@ test('group clipboard is headless and uses native copy paste shortcuts',async()=
   assert.doesNotMatch(source,/粘贴到当前跨页/);
 });
 
-test('clipboard buttons leave the single toolbar while all shortcut and grouped flows remain',async()=>{
+test('clipboard paste moves into the add menu while all shortcut and grouped flows remain',async()=>{
   const [studio,controls,page]=await Promise.all([
     readFile(studioPath,'utf8'),
     readFile(controlsPath,'utf8'),
@@ -39,7 +39,11 @@ test('clipboard buttons leave the single toolbar while all shortcut and grouped 
   assert.match(page,/cutRequest=\{clipboardCutRequest\}/);
   assert.match(page,/pasteRequest=\{clipboardPasteRequest\}/);
   assert.match(page,/suspended=\{!!modal\}/);
-  assert.match(page,/<ClipboardPaste\/><span>粘贴<\/span>/);
+  const addMenu=page.slice(page.indexOf('<ToolbarPopover label="添加"'),page.indexOf('</ToolbarPopover>',page.indexOf('<ToolbarPopover label="添加"')));
+  assert.match(addMenu,/panelClassName="creation-add-menu"/);
+  assert.match(addMenu,/aria-label="粘贴素材"/);
+  assert.match(addMenu,/onClick=\{\(\)=>setClipboardPasteRequest\(value=>value\+1\)\}/);
+  assert.doesNotMatch(page,/<button className="quiet"[^>]*><ClipboardPaste\/><span>粘贴<\/span>/);
   assert.match(studio,/lastCutRequest/);
   assert.match(studio,/lastPasteRequest/);
   assert.match(studio,/if\(suspended\|\|event\.repeat/);

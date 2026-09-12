@@ -212,8 +212,8 @@ export default function ElementControls({
         )}
       </ToolbarPopover>
 
-      <ToolbarPopover label="位置" icon={<Move />} align="center" className="compact-position-popover">
-        <div className="toolbar-popover-title">位置与透明度</div>
+      <ToolbarPopover label="位置" icon={<Move />} align="center" className={`compact-position-popover${vellumSheet?' compact-vellum-position':''}`}>
+        <div className="toolbar-popover-title">{vellumSheet ? '位置' : '位置与透明度'}</div>
         <div className="toolbar-popover-grid">
           <NumberControl
             label="横向"
@@ -231,14 +231,16 @@ export default function ElementControls({
             unit="%"
             onCommit={(y) => onPatch({ y })}
           />
-          <NumberControl
-            label="透明度"
-            value={(p.opacity ?? 1) * 100}
-            min={0}
-            max={100}
-            unit="%"
-            onCommit={(opacity) => onPatch({ opacity: opacity / 100 })}
-          />
+          {!vellumSheet && (
+            <NumberControl
+              label="透明度"
+              value={(p.opacity ?? 1) * 100}
+              min={0}
+              max={100}
+              unit="%"
+              onCommit={(opacity) => onPatch({ opacity: opacity / 100 })}
+            />
+          )}
         </div>
         <div className="toolbar-popover-section">
           <span className="toolbar-popover-subtitle">页面对齐</span>

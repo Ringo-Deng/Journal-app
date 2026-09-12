@@ -38,6 +38,8 @@ export default function ToolbarPopover({
   align = 'center',
   className = '',
   panelClassName = '',
+  disabled = false,
+  closeOnAction = false,
 }: {
   label: string;
   icon?: ReactNode;
@@ -45,6 +47,8 @@ export default function ToolbarPopover({
   align?: 'start' | 'center' | 'end';
   className?: string;
   panelClassName?: string;
+  disabled?: boolean;
+  closeOnAction?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -76,6 +80,7 @@ export default function ToolbarPopover({
         className="quiet toolbar-popover-trigger"
         aria-haspopup="dialog"
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
         {icon}
@@ -88,6 +93,9 @@ export default function ToolbarPopover({
           role="dialog"
           aria-label={label}
           onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            if (closeOnAction && (event.target as Element).closest('button')) setOpen(false);
+          }}
         >
           {children}
         </div>

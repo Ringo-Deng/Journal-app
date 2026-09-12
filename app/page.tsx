@@ -21,6 +21,7 @@ import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
+import ToolbarPopover from '@/components/toolbar-popover';
 import PageMaterialCutter from '@/components/page-material-cutter';
 import {
   applyPageMaterialCut,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/page-material-cut';
 import {isCornerResizeHandle,resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
 import {addBlankSpread} from '@/lib/journal';
+import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,VELLUM_BORDER_COLOR,pieceDisplayOpacity} from '@/lib/vellum-sheet';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye } from 'lucide-react';
 import ReadingDeck from '@/components/reading-deck';
@@ -1574,11 +1576,13 @@ export default function Home() {
       frame: 'vellum-sheet',
       material: 'paper',
       artLabel: '硫酸纸',
+      color: DEFAULT_VELLUM_COLOR,
+      opacity: DEFAULT_VELLUM_OPACITY,
       stretch: true,
       drawing: [{
         path: 'M 1 1 H 99 V 99 H 1 Z',
-        fill: '#f6f0e3bb',
-        stroke: '#bfb09244',
+        fill: DEFAULT_VELLUM_COLOR,
+        stroke: VELLUM_BORDER_COLOR,
         width: 1,
       }],
     }, {layerName:'硫酸纸',stackOrder:1});
@@ -1588,7 +1592,7 @@ export default function Home() {
     setPanel(null);
     setCropping(false);
     setInlineId(null);
-    toast('已插入硫酸纸，可调整尺寸、透明度和图层。');
+    toast('已插入硫酸纸，可调整颜色、透明度、尺寸和图层。');
   }
   async function cutout() {
     if (!piece?.src) return;
@@ -2026,7 +2030,6 @@ export default function Home() {
               <span className="tool-divider"/>
             </>}
             <button className="quiet" aria-label="添加文字" title="文字" disabled={!spread||busy||!opened} onClick={addText}><Type/><span>文字</span></button>
-            <button className="quiet" aria-label="插入硫酸纸" title="硫酸纸" disabled={!spread||busy||!opened} onClick={addVellumSheet}><FileIcon/><span>硫酸纸</span></button>
             <button className="quiet" aria-label={uploading?'正在添加照片':'添加照片'} title="照片" disabled={!book||uploading||busy} onClick={()=>canvasPhotoInput.current?.click()}><ImagePlus/><span>{uploading?'添加中':'照片'}</span></button>
             <button className="quiet" aria-label="打开素材库" title="素材" disabled={!book} onClick={()=>{setLibraryOpen(true);setPanel(null);}}><Sticker/><span>素材</span></button>
             <button
@@ -2040,7 +2043,13 @@ export default function Home() {
               <Layers/><span>图层</span>
             </button>
             <button className="quiet" aria-label="打开旅行拼贴" title="旅行拼贴" disabled={!spread||busy||!opened} onClick={()=>{finishEditing();setCollageOpen(true);}}><Feather/><span>旅行拼贴</span></button>
-            <button className="quiet" aria-label="粘贴素材" title="粘贴" disabled={!spread||busy||!opened} onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span>粘贴</span></button>
+            <ToolbarPopover label="添加" icon={<Plus/>} align="end" className="creation-add-popover" panelClassName="creation-add-menu" disabled={!spread||busy||!opened} closeOnAction>
+              <div className="toolbar-popover-title">添加到纸面</div>
+              <div className="creation-add-actions">
+                <button type="button" className="quiet creation-add-action" aria-label="插入硫酸纸" onClick={addVellumSheet}><FileIcon/><span><strong>硫酸纸</strong><small>可调颜色与透明度</small></span></button>
+                <button type="button" className="quiet creation-add-action" aria-label="粘贴素材" onClick={()=>setClipboardPasteRequest(value=>value+1)}><ClipboardPaste/><span><strong>粘贴素材</strong><small>使用复制或剪切的内容</small></span></button>
+              </div>
+            </ToolbarPopover>
             <span className="tool-divider"/>
             <button className="quiet" aria-label="撤销调整" title="撤销" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" title="重做" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
@@ -2268,7 +2277,7 @@ export default function Home() {
                             transform: `translate3d(var(--drag-x,0px),var(--drag-y,0px),0) rotate(${p.rotation}deg)`,
                             fontSize: `${(p.fontSize || 18) / 10}cqw`,
 
-                            opacity: p.opacity ?? 1,
+                            opacity: pieceDisplayOpacity(p),
                             color:p.color||(!isFlyleaf && book ? pageInk(book,spread,p.x>=50?'right':'left') : undefined),
                             height:p.h?`${p.h}%`:p.kind==='doodle'?'15%':undefined,
                             fontFamily:p.fontFamily==='serif'?'Georgia, Songti SC, serif':p.fontFamily==='sans'?'PingFang SC, sans-serif':undefined,
