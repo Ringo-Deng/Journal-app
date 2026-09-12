@@ -61,3 +61,36 @@
 .material-library .library-thumb {
   border-color: transparent;
 }
+
+/* Import sources use dividers; mode choices and image selection stay explicit. */
+.material-import-dialog .material-import-local,
+.material-import-dialog .material-import-pinterest {
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.material-import-dialog .material-import-pinterest > textarea {
+  font-family: var(--font-ui);
+}
+
+.material-import-dialog .pinterest-preview:has(.pinterest-placeholder) {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.material-import-dialog .pinterest-placeholder {
+  padding: 0;
+  text-align: left;
+}
+
+/* Keep floating tools distinct without stacking multiple shadows. */
+.toolbar-popover .toolbar-popover-panel {
+  border-color: var(--border);
+  box-shadow: 0 8px 24px #3d45331a;
+}

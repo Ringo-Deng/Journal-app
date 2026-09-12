@@ -6,7 +6,7 @@ const source=await readFile(new URL('../components/material-library.tsx',import.
 const css=await readFile(new URL('../app/material-library-refresh.css',import.meta.url),'utf8');
 
 test('material library keeps AI organize in the top bar and removes the right action sidebar',()=>{
-  assert.match(source,/className="primary ai-organize-top"/);
+  assert.match(source,/className="outline ai-organize-top"/);
   assert.match(source,/AI 一键整理/);
   assert.doesNotMatch(source,/className="library-actions"/);
   assert.doesNotMatch(source,/批量整理/);
