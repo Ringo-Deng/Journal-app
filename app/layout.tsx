@@ -16,6 +16,8 @@ import './photo-library.css';
 import './notebook-cover-previews.css';
 import './editor-reliability.css';
 import './editor-rounded-transition.css';
+import './interface-polish.css';
+import './app-settings.css';
 
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',

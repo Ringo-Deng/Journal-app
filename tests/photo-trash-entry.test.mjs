@@ -9,10 +9,9 @@ test('photo trash is opened from the lower-left settings instead of the editor t
  assert.doesNotMatch(toolbar,/照片回收站/);
  assert.match(source,/<button aria-label="设置" onClick={openSettings}><Settings\/><span>设置<\/span><\/button>/);
  assert.match(settings,/<DialogTitle>设置<\/DialogTitle>/);
- assert.match(settings,/管理 AI 连接与保留在本机的照片原图。/);
- assert.match(settings,/className="lock-card settings-photo-trash"/);
- assert.match(settings,/照片回收站<small>查看、恢复或清理照片蒙版保留的原图。<\/small>/);
- assert.ok(settings.indexOf('className="lock-card settings-photo-trash"')<settings.indexOf('className="settings-section-title"'));
- assert.match(settings,/onClick=\{\(\)=>\{setModal\(null\);cancelPhotoMask\(\);setPhotoTrashOpen\(true\);\}\}>打开<\/button>/);
+ assert.match(settings,/AI 创作与本机照片管理/);
+ assert.match(settings,/<button className="app-settings-trash" onClick=\{\(\)=>\{setModal\(null\);cancelPhotoMask\(\);setPhotoTrashOpen\(true\);\}\}>/);
+ assert.match(settings,/<strong>照片回收站<\/strong><small>恢复或清理照片蒙版保留的原图<\/small>/);
+ assert.ok(settings.indexOf('className="app-settings-trash"')>settings.indexOf('className="app-settings-actions"'));
  assert.equal([...source.matchAll(/>照片回收站</g)].length,1);
 });

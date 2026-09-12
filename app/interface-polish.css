@@ -1,0 +1,63 @@
+/* Interface typography stays separate from notebook and material artwork. */
+.journal-dialog [data-slot='dialog-title'],
+.side-panel h2,
+.material-library .library-heading h1,
+.material-studio .studio-empty h2,
+.photo-library-tools strong,
+.photo-library-empty strong,
+.library-page-head h1,
+.library-book-name,
+.notebook-settings-heading .eyebrow,
+.notebook-title-tools .picker,
+.editor-page-counter,
+.editor-page-zoom select,
+.compact-shell .rail button span,
+.fixed-element-tools .tool-number input,
+.floating-editor-toolbar .tool-number input,
+.toolbar-popover-panel .tool-number input,
+.toolbar-popover-panel .toolbar-popover-title {
+  font-family: var(--font-ui);
+}
+
+.editor-page-counter,
+.fixed-element-tools .tool-number input,
+.floating-editor-toolbar .tool-number input,
+.toolbar-popover-panel .tool-number input {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scope choices keep their emphasis; ordinary settings use simple dividers. */
+.notebook-settings-scroll .notebook-settings-section,
+.notebook-settings-scroll .notebook-settings-advanced {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.notebook-settings-scroll .notebook-settings-advanced > summary:hover {
+  background: var(--muted);
+}
+
+.notebook-settings-scroll .notebook-settings-advanced > summary:focus-visible {
+  outline: 2px solid #859577;
+  outline-offset: -2px;
+}
+
+/* Filters and artwork need one boundary, while selection remains explicit. */
+.material-library .library-tagfilter {
+  border: 0;
+  border-bottom: 1px solid var(--library-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.material-library .library-tagfilter .chip-select:not(.active):not(:hover) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.material-library .library-thumb {
+  border-color: transparent;
+}
