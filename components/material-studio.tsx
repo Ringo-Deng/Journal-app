@@ -2,7 +2,7 @@
 /* oxlint-disable next/no-img-element -- Local editable image previews use original files. */
 import {useEffect,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
-import {ImagePlus,Loader2,Check,Plus,CheckCheck,RotateCcw,Trash2,MousePointer2,ScanSearch,Crop} from 'lucide-react';
+import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,ScanSearch,Crop} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Checkbox} from '@/components/ui/checkbox';
 import type {Asset} from '@/lib/journal';
@@ -11,6 +11,7 @@ import PhotoLibrary,{type PhotoLibraryItem} from '@/components/photo-library';
 type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;bounds?:number[];cutSaveId?:string};
 type SourceMeta={type:'pinterest';pinId:string;originalUrl:string;imageUrl:string;sha256:string};
 type Job={id:string;source:string;name:string;createdAt:string;engine:string;mode?:string;strategy?:string;attempt?:number;tolerance?:number;manualOnly?:boolean;replaceAssetId?:string;replacementDone?:boolean;sourceMeta?:SourceMeta;items:Item[]};
+const recognitionModes=[{id:'auto',label:'自动分离'},{id:'panels',label:'底色 / 纹样分区'},{id:'paper',label:'带色纸底分离'},{id:'dense',label:'密集贴纸细分'},{id:'ai',label:'本机 AI 主体识别'}] as const;
 
 async function request<T>(path:string,data?:unknown):Promise<T>{
  const r=await fetch('/api/materials'+path,data===undefined?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -74,11 +75,11 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
  }
  function clearResultSelection(){setSelected([]);if(replacing)setReplacementItemId('')}
 
- async function processImage(src:string,name:string,rect?:number[],overrideMode?:string,adaptive=false){
+ async function processImage(src:string,name:string,rect?:number[],overrideMode?:string){
   const requestedMode=overrideMode||mode;
   // The native recognizer and server router compare candidates before saving.
   // One request commits one final result; previews never overwrite a good pass.
-  const next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength,...(rect?{rect}:{}),...(adaptive?{continue: true}:{})});
+  const next=await request<Job>('/segment',{src,name,mode:requestedMode,tolerance:strength,...(rect?{rect}:{})});
   setJobs(old=>[next,...old.filter(j=>j.source!==next.source)]);
   if(rect){selectResults(next.items.filter(i=>!job?.items.some(old=>old.id===i.id)).map(i=>i.id));setNames(Object.fromEntries(next.items.map(i=>[i.id,i.name])));setCrop(null)}else choose(next);
   return next;
@@ -93,10 +94,15 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
    const known=new Set(job.items.map(item=>item.id));const next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh});const fresh=next.items.filter(item=>!known.has(item.id)).map(item=>item.id);setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));selectResults(fresh);setCrop(null);setCropping(false);setMessage('已保留框选区域，并只选中这次的新结果；可继续处理或直接加入素材库。');
   }catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
  }
- async function rerun(rect?:number[],overrideMode?:string,adaptive=false){
+ async function rerun(rect?:number[],overrideMode?:string){
   if(!job)return;if(job.manualOnly&&overrideMode==='crop')return void browserCrop(rect);if(job.manualOnly&&overrideMode==='single'){setMessage('当前系统暂不支持自动去底；可使用“保留原底裁出”。');return}
-  setBusy(true);setProgress(rect?'正在分离框选区域…':adaptive?'正在换一种策略继续识别…':'正在重新识别整张素材…');
-  try{const next=await processImage(job.source,job.name,rect,overrideMode,adaptive);setMessage(next.items.length?(adaptive?`第 ${next.attempt||2} 次识别已换用「${next.engine}」。${(next.attempt||2)>=3?'如果仍不理想，建议直接框选，避免继续增加处理复杂度。':'选择满意的结果加入素材库。'}`:`拆出了 ${next.items.length} 个素材，选择满意的结果加入素材库。`):'没有识别到独立素材，请调低去底强度或改用其他识别模式。')}catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
+  const nextModeLabel=!rect?recognitionModes.find(item=>item.id===overrideMode)?.label:undefined;
+  setBusy(true);setProgress(rect?'正在分离框选区域…':nextModeLabel?`正在切换到「${nextModeLabel}」识别…`:'正在重新识别整张素材…');
+  try{const next=await processImage(job.source,job.name,rect,overrideMode);setMessage(next.items.length?`${nextModeLabel?`已切换到「${nextModeLabel}」，`:''}拆出了 ${next.items.length} 个素材，选择满意的结果加入素材库。`:'没有识别到独立素材，请调低去底强度或改用其他识别模式。')}catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
+ }
+ function recognizeWithNextMode(){
+  const current=recognitionModes.findIndex(item=>item.id===mode),next=recognitionModes[(current+1)%recognitionModes.length];
+  setMode(next.id);void rerun(undefined,next.id);
  }
  async function selectAtPoint(point:number[]){
   if(!job)return;setBusy(true);setPickPoint(point);setProgress('正在识别你点击的素材…');
@@ -143,11 +149,11 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
    <div className="studio-section-tabs" role="tablist" aria-label="素材工作台分类"><button role="tab" aria-selected={section==='process'} className={section==='process'?'active':''} disabled={busy} onClick={()=>setSection('process')}>素材处理</button><button role="tab" aria-selected={section==='photos'} className={section==='photos'?'active':''} disabled={busy} onClick={()=>setSection('photos')}>照片</button></div>
    {section==='process'&&<>
    <button className="outline" disabled={busy} onClick={onImport}><ImagePlus/>导入新素材</button>
-   <button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun(undefined,'auto')}><ScanSearch/>自动识别</button>
+   <button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun()}><ScanSearch/>识别素材</button>
    <button className="outline danger" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button>
    <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setPicking(false);setPickPoint(null);setCrop(null)}}><Crop/>{cropping?'退出框选':'框选补漏'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}
-   <details className="studio-advanced"><summary>更多设置</summary><div><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title="图片由已连接的 AI 定位，透明边缘在本机生成" onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}><option value="auto">自动分离</option><option value="panels">底色 / 纹样分区</option><option value="paper">带色纸底分离</option><option value="dense">密集贴纸细分</option><option value="ai">本机 AI 主体识别</option></select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun()}><RotateCcw/>按设置识别</button><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun(undefined,undefined,true)}>换一种策略</button></div></details>
+   <div className="studio-advanced" role="group" aria-label="识别设置"><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title="图片由已连接的 AI 定位，透明边缘在本机生成" onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}>{recognitionModes.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={recognizeWithNextMode}>换一种策略</button></div>
    </>}
   </div>
   {section==='photos'?<PhotoLibrary onInsert={onInsertPhotos} onProcess={processPhoto} protectedSources={photoProtectedSources}/>:<><div className="studio-body">
