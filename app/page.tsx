@@ -219,6 +219,7 @@ function Pick({
 export default function Home() {
   const [imageExportOpen,setImageExportOpen]=useState(false);
   const [multiIds,setMultiIds]=useState<string[]>([]);
+  const suppressSelectionClick=useRef(false);
   const [editingGroup,setEditingGroup]=useState<string|null>(null);
   const canvasMarquee=useRef<CanvasMarqueeGesture|null>(null);
   const [selectionMarquee,setSelectionMarquee]=useState<SelectionRect|null>(null);
@@ -1225,6 +1226,7 @@ export default function Home() {
     paper.classList.remove('is-moving-selection');
   }
   function pointerDown(e: React.PointerEvent, id: string, mode = 'move') {
+    suppressSelectionClick.current=false;
     if (reading || inlineId === id || e.button !== 0 || busy || turnRef.current || maskDraftRef.current?.generating) return;
     e.stopPropagation();
     const p=maskDraftRef.current?.pieceId===id?maskDraftRef.current.piece:spread?.elements.find(p=>p.id===id),paper=canvas.current;
@@ -1284,6 +1286,9 @@ export default function Home() {
     if(d?.started&&d.mode==='move'&&d.lastBox){
       const dx=(d.lastBox.x-d.box.x)/d.canvasW*100,dy=(d.lastBox.y-d.box.y)/d.canvasH*100,ids=new Set(d.members.map(p=>p.id));
       changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,x:p.x+dx,y:p.y+dy}:p)}),false);
+      // Pointer capture also sends a click after the drop. Keep it from selecting the piece again.
+      suppressSelectionClick.current=true;
+      setSelected(null);
     }
     clearPointerMovePreview();drag.current=null;setSnapGuides({});
   }
@@ -2284,6 +2289,7 @@ export default function Home() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if(suppressSelectionClick.current&&e.detail>0)return;
                             if (spread && !reading) {
                               selectPiece(p,e.shiftKey||e.metaKey||e.ctrlKey);
                             }
@@ -2294,7 +2300,7 @@ export default function Home() {
                               if(p.kind==='text'){setInlineId(p.id);setInlineText(p.text||'')}
                             }
                           }}
-                          onDoubleClick={()=>{if(!reading&&!p.locked)enterGroup(p)}}
+                          onDoubleClick={()=>{if(!suppressSelectionClick.current&&!reading&&!p.locked)enterGroup(p)}}
                           onPointerDown={(e) => pointerDown(e, p.id)}
                           onPointerMove={pointerMove}
                           onPointerUp={endPointerDrag}

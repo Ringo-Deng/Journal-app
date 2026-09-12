@@ -39,6 +39,53 @@ test('pointer moving previews directly and commits only positions for a moved gr
   assert.doesNotMatch(commit,/stretch|w:p\.w|h:p\.h/);
 });
 
+test('a completed move drops the shared selection and suppresses its follow-up click',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','setSnapGuides',`${commit}\nendPointerDrag();`);
+  const pieces=[{id:'a',x:10,y:20,w:12,h:18},{id:'b',x:30,y:40,w:15,h:10},{id:'other',x:60,y:50,w:9,h:9}];
+  let spread={elements:pieces},selected='a',previewCleared=false,guides;
+  const suppress={current:false};
+  const drag={current:{started:true,mode:'move',box:{x:100,y:100},lastBox:{x:140,y:130},canvasW:1000,canvasH:600,members:pieces.slice(0,2)}};
+  runEnd(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;},value=>{guides=value;});
+  assert.deepEqual(spread.elements,[{...pieces[0],x:14,y:25},{...pieces[1],x:34,y:45},pieces[2]]);
+  assert.equal(selected,null);
+  assert.equal(suppress.current,true);
+  assert.equal(drag.current,null);
+  assert.equal(previewCleared,true);
+  assert.deepEqual(guides,{});
+});
+
+test('clicks, cancelled previews and adjustment gestures keep their selection',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','setSnapGuides',`${commit}\nendPointerDrag();`);
+  for(const gesture of [null,{started:false,mode:'move'},{started:true,mode:'move'},{started:true,mode:'resize-se'},{started:true,mode:'rotate'},{started:true,mode:'crop'},{started:true,mode:'mask-crop'}]){
+    let selected='a',committed=false;
+    const drag={current:gesture},suppress={current:false};
+    runEnd(drag,()=>{committed=true;},suppress,value=>{selected=value;},()=>{},()=>{});
+    assert.equal(selected,'a',JSON.stringify(gesture));
+    assert.equal(committed,false,JSON.stringify(gesture));
+    assert.equal(suppress.current,false,JSON.stringify(gesture));
+    assert.equal(drag.current,null);
+  }
+  const cancel=page.slice(page.indexOf('function cancelPointerDrag'),page.indexOf('function insertLibraryAssets'));
+  assert.doesNotMatch(cancel,/changeSpread|setSelected|suppressSelectionClick/);
+});
+
+test('drop click suppression resets for a new gesture and preserves keyboard selection',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const down=page.slice(page.indexOf('function pointerDown'),page.indexOf('function pointerMove'));
+  assert.match(down,/suppressSelectionClick\.current=false;/);
+  assert.ok(down.indexOf('suppressSelectionClick.current=false;')<down.indexOf("if((e.shiftKey||e.metaKey||e.ctrlKey)&&mode==='move')return;"));
+  const piece=page.slice(page.indexOf('data-piece-id={p.id}'),page.indexOf('onPointerDown={(e) => pointerDown(e, p.id)}'));
+  assert.match(piece,/if\(suppressSelectionClick\.current&&e\.detail>0\)return;[\s\S]*selectPiece\(p,e\.shiftKey\|\|e\.metaKey\|\|e\.ctrlKey\)/);
+  assert.match(piece,/onDoubleClick=\{\(\)=>\{if\(!suppressSelectionClick\.current&&!reading&&!p\.locked\)enterGroup\(p\)\}\}/);
+  const keyboard=piece.slice(piece.indexOf('onKeyDown'),piece.indexOf('onDoubleClick'));
+  assert.match(keyboard,/e\.key === 'Enter'[\s\S]*selectPiece\(p,e\.shiftKey\|\|e\.metaKey\|\|e\.ctrlKey\)/);
+  assert.doesNotMatch(keyboard,/suppressSelectionClick/);
+});
+
 test('corner resize keeps the visible ratio by default and edge resize stays single-axis',async()=>{
   const page=await readFile(pagePath,'utf8');
   assert.match(page,/d\.members\.length>1\|\|isCornerResizeHandle\(handle\)\|\|\(!maskDraftRef\.current&&proportional\)\|\|e\.shiftKey/);
