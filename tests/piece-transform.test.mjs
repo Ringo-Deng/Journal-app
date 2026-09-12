@@ -13,6 +13,7 @@ const hooks = registerHooks({
   },
 });
 const {
+  isCornerResizeHandle,
   resizeBox,
   reorderPiece,
   normalizeAngle,
@@ -70,6 +71,30 @@ test('proportional scaling preserves the ratio and cannot invert the shape', () 
       near(b.w / b.h, 2);
       assert.ok(b.w >= 12 && b.h >= 12);
     }
+});
+test('corner handles lock aspect ratio while edge handles remain single-axis controls', () => {
+  for (const handle of ['nw', 'ne', 'se', 'sw']) assert.equal(isCornerResizeHandle(handle), true);
+  for (const handle of ['n', 'e', 's', 'w']) assert.equal(isCornerResizeHandle(handle), false);
+});
+test('locked corner resize preserves both ratio and opposite anchor after rotation', () => {
+  const corner = (value, hx, hy) => {
+    const a = (value.rotation * Math.PI) / 180;
+    return [
+      value.x + value.w / 2 + hx * value.w / 2 * Math.cos(a) - hy * value.h / 2 * Math.sin(a),
+      value.y + value.h / 2 + hx * value.w / 2 * Math.sin(a) + hy * value.h / 2 * Math.cos(a),
+    ];
+  };
+  for (const handle of ['nw', 'ne', 'se', 'sw']) {
+    const original = { ...box, rotation: 35 },
+      next = resizeBox(original, handle, 35, 29, true),
+      hx = handle.includes('e') ? -1 : 1,
+      hy = handle.includes('s') ? -1 : 1,
+      anchored = corner(original, hx, hy),
+      resized = corner(next, hx, hy);
+    near(next.w / next.h, original.w / original.h);
+    near(anchored[0], resized[0]);
+    near(anchored[1], resized[1]);
+  }
 });
 test('layer moves change canvas order while preserving sidebar order and no-op at an edge', () => {
   const a = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];

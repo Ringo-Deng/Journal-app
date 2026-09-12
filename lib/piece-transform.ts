@@ -17,6 +17,9 @@ export const resizeHandles = [
   ['sw', '左下角缩放'],
   ['w', '左右拉伸（左边）'],
 ] as const;
+export function isCornerResizeHandle(handle: string) {
+  return handle === 'nw' || handle === 'ne' || handle === 'se' || handle === 'sw';
+}
 export function resizeBox(
   box: Box,
   handle: string,

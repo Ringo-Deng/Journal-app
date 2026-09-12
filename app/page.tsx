@@ -21,7 +21,7 @@ import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
 import ElementControls from '@/components/element-controls';
-import {resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
+import {isCornerResizeHandle,resizeBox,resizeHandles,normalizeAngle,reorderPiece,type Box} from '@/lib/piece-transform';
 import {addBlankSpread} from '@/lib/journal';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye } from 'lucide-react';
@@ -1248,7 +1248,8 @@ export default function Home() {
       box.rotation=normalizeAngle(d.box.rotation+Math.atan2(e.clientY-d.cy,e.clientX-d.cx)*180/Math.PI-d.angle);
       if(e.shiftKey)box.rotation=Math.round(box.rotation/15)*15;
     }else if(d.mode.startsWith('resize-')){
-      box=resizeBox(d.box,d.mode.slice(7),dx,dy,d.members.length>1||(!maskDraftRef.current&&proportional)||e.shiftKey);
+      const handle=d.mode.slice(7);
+      box=resizeBox(d.box,handle,dx,dy,d.members.length>1||isCornerResizeHandle(handle)||(!maskDraftRef.current&&proportional)||e.shiftKey);
       const scale=Math.min(1,d.canvasW/box.w,d.canvasH/box.h);box.w*=scale;box.h*=scale;
       box.x=Math.max(0,Math.min(d.canvasW-box.w,box.x));box.y=Math.max(0,Math.min(d.canvasH-box.h,box.y));
     }else{
@@ -2217,7 +2218,7 @@ export default function Home() {
                       >
                         {multiSelection&&<><span className="selection-move-edge edge-top" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-right" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-bottom" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-left" onPointerDown={e=>pointerDown(e,piece.id,'move')}/></>}
                         {(multiSelection||cluster)&&<span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个对象`: '组合 · 等比缩放'}</span>}
-                        {!multiSelection&&resizeHandles.map(([handle,label])=><button key={handle} className={`resize-handle handle-${handle}`} aria-label={label} title={label+' · Shift 保持比例'} onPointerDown={e=>pointerDown(e,piece.id,'resize-'+handle)}/>)}
+                        {!multiSelection&&resizeHandles.map(([handle,label])=><button key={handle} className={`resize-handle handle-${handle}`} aria-label={label} title={`${label} · ${isCornerResizeHandle(handle)?'自动保持比例':'可单独调整比例'}`} onPointerDown={e=>pointerDown(e,piece.id,'resize-'+handle)}/>)}
                         {!multiSelection&&<button className="rotate-handle" aria-label="拖动旋转" title="围绕中心旋转 · Shift 按 15° 吸附" onPointerDown={e=>pointerDown(e,piece.id,'rotate')}><RefreshCw/></button>}
                       </div>}
                       {!spread && !reading && (

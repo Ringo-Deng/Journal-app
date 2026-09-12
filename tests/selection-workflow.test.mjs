@@ -39,6 +39,12 @@ test('pointer moving previews directly and commits only positions for a moved gr
   assert.doesNotMatch(commit,/stretch|w:p\.w|h:p\.h/);
 });
 
+test('corner resize keeps the visible ratio by default and edge resize stays single-axis',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  assert.match(page,/d\.members\.length>1\|\|isCornerResizeHandle\(handle\)\|\|\(!maskDraftRef\.current&&proportional\)\|\|e\.shiftKey/);
+  assert.match(page,/isCornerResizeHandle\(handle\)\?'自动保持比例':'可单独调整比例'/);
+});
+
 test('page item rows show stable group parents with indented selectable members', async()=>{
   const [page,css]=await Promise.all([readFile(pagePath,'utf8'),readFile(cssPath,'utf8')]);
   assert.match(page,/const pageElementRows=\(\(\)=>\{/);
