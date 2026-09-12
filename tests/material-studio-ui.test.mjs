@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const ui = await readFile('components/material-studio.tsx', 'utf8');
+const styles = await readFile('app/globals.css', 'utf8');
 const server = await readFile('local/server.mjs', 'utf8');
 const segment = await readFile('local/segment.swift', 'utf8');
 
@@ -14,6 +15,22 @@ test('processed material keeps fallback-recognition and delete actions', () => {
   assert.doesNotMatch(ui, /continue: true/);
   assert.match(ui, /正在切换到「\$\{nextModeLabel\}」识别/);
   assert.match(server, /\/api\/materials\/delete/);
+});
+
+test('whole-image recognition keeps the original preview ready', () => {
+  assert.match(ui, /function choose\(j:Job,preservePreview=false\)/);
+  assert.match(ui, /if\(!preservePreview\)\{setZoom\(100\);setImageReady\(false\);setDimensions\(\{w:1,h:1\}\)\}/);
+  assert.match(ui, /else choose\(next,next\.source===job\?\.source\)/);
+  assert.match(ui, /onClick=\{\(\)=>choose\(j\)\}/);
+});
+
+test('delete action is the left footer action without a visible status line', () => {
+  assert.equal((ui.match(/>删除记录</g)||[]).length, 1);
+  assert.match(ui, /<footer className="studio-footer"><button className="outline danger studio-delete"/);
+  assert.match(ui, /<Trash2\/>删除记录<\/button><span className="studio-accessible-status" role="status">/);
+  assert.doesNotMatch(ui, /className="studio-status"/);
+  assert.match(styles, /\.studio-accessible-description,\.studio-accessible-status\{/);
+  assert.match(styles, /\.studio-footer\{[^}]*justify-content:space-between/);
 });
 
 test('paper removal uses border-connected background instead of global deletion', () => {
