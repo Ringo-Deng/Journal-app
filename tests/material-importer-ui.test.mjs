@@ -9,11 +9,16 @@ const [page,importer,studio,library]=await Promise.all([
   readFile(new URL('../components/material-library.tsx',import.meta.url),'utf8'),
 ]);
 
-test('the main left rail opens Material Studio without requiring a new image',()=>{
+test('the main left rail separates Material Studio from importing new material',()=>{
   const rail=page.slice(page.indexOf('<aside className="rail"'),page.indexOf('</aside>'));
-  assert.match(rail,/aria-label="素材工作台"/);
+  assert.match(rail,/className=\{modal==='studio'\?'active':''\} aria-label="素材工作台"/);
   assert.match(rail,/setMaterialStudioNotice\(''\);setMaterialStudioTargetSource\(''\);setModal\('studio'\)/);
-  assert.doesNotMatch(rail,/onClick=\{\(\)=>setModal\('material-import'\)\}/);
+  assert.match(rail,/<Sticker\/><span>素材<br\/>工作台<\/span>/);
+  assert.match(rail,/className=\{modal==='material-import'\?'active':''\} aria-label="导入新素材"/);
+  assert.match(rail,/setMaterialStudioTargetSource\(''\);setModal\('material-import'\)/);
+  assert.match(rail,/<ImagePlus\/><span>导入<br\/>新素材<\/span>/);
+  assert.doesNotMatch(rail,/aria-label="素材库"/);
+  assert.match(page,/aria-label="打开素材库"/);
   assert.match(page,/<MaterialImporter/);
   assert.match(page,/open=\{modal === 'material-import'\}/);
 });
