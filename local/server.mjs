@@ -871,7 +871,7 @@ const server = http.createServer(async (req, res) => {
       const parsed = parsePinterestInput(input.input);
       const resolved = await downloadPinterestImage(parsed.pinId, input.imageUrl || '');
       const sha256 = createHash('sha256').update(resolved.buffer).digest('hex');
-      let existing = pinterestImports.find((item) => item.pinId === parsed.pinId || item.sha256 === sha256);
+      let existing = pinterestImports.find((item) => item.sha256 === sha256);
       if (existing) {
         try { await stat(resolve(data, existing.src.slice(1))); }
         catch { pinterestImports = pinterestImports.filter((item) => item !== existing); existing = null; await atomic('pinterest-imports.json', pinterestImports); }
@@ -905,7 +905,7 @@ const server = http.createServer(async (req, res) => {
           sha256,
           createdAt: new Date().toISOString(),
         };
-        pinterestImports = [record, ...pinterestImports.filter((item) => item.pinId !== parsed.pinId && item.sha256 !== sha256)].slice(0, 2000);
+        pinterestImports = [record, ...pinterestImports.filter((item) => item.sha256 !== sha256)].slice(0, 2000);
         await atomic('pinterest-imports.json', pinterestImports);
         return json(res, { ...record, duplicate: false, autoSegment: nativeCapabilities.segment, platform: platform() });
       } catch (e) {

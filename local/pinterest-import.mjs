@@ -1,5 +1,6 @@
 const PIN_ID_RE = /^\d{6,30}$/;
 const ALLOWED_IMAGE_HOST = /(^|\.)pinimg\.com$/i;
+const IMAGE_SIZE_PATH_RE = /\/(?:originals|\d{1,5}x(?:\d{1,5})?)\//i;
 
 export function parsePinterestInput(value) {
   const raw = String(value || '').trim();
@@ -44,14 +45,17 @@ function isPinImageUrl(value) {
 }
 function score(url) {
   if (/\/originals\//i.test(url)) return 1_000_000;
-  const width = /\/(\d{3,5})x(?:\d{3,5})?\//i.exec(url)?.[1] || /\/(\d{3,5})x\//i.exec(url)?.[1];
+  const width = /\/(\d{1,5})x(?:\d{1,5})?\//i.exec(url)?.[1];
   return Number(width || 0);
+}
+function imageIdentity(url) {
+  return new URL(url).pathname.replace(IMAGE_SIZE_PATH_RE, '/SIZE/');
 }
 function originalVariant(url) {
   try {
     const u = new URL(url);
     if (!ALLOWED_IMAGE_HOST.test(u.hostname)) return null;
-    u.pathname = u.pathname.replace(/\/(?:\d{3,5}x(?:\d{3,5})?|\d{3,5}x)\//i, '/originals/');
+    u.pathname = u.pathname.replace(IMAGE_SIZE_PATH_RE, '/originals/');
     return u.toString();
   } catch { return null; }
 }
@@ -63,37 +67,47 @@ export function extractPinterestMetadata(html, pinId) {
     /["']content_type["']\s*:\s*["']video["']/i.test(text);
   if (video) return { pinId, video: true, candidates: [] };
 
-  const candidates = new Set();
-  for (const re of [
-    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi,
-    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/gi,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/gi,
-  ]) {
-    let match; while ((match = re.exec(text))) { const url = decode(match[1]); if (isPinImageUrl(url)) candidates.add(url); }
-  }
-  const urlPattern = /https:(?:\\u002F|\\\/|\/){2}i\.pinimg\.com(?:\\u002F|\\\/|\/)[^"'<>\s]+/gi;
-  for (const match of text.matchAll(urlPattern)) {
-    const url = decode(match[0]).replace(/[},\]]+$/, '');
-    if (isPinImageUrl(url)) candidates.add(url);
-  }
-  for (const current of [...candidates]) {
-    const original = originalVariant(current);
-    if (original && original !== current) candidates.add(original);
-  }
-  const sorted = [...candidates].sort((a, b) => score(b) - score(a));
-  const identity = (url) => {
-    try { const u = new URL(url); return u.pathname.replace(/\/(?:originals|\d{3,5}x(?:\d{3,5})?|\d{3,5}x)\//i, '/SIZE/'); } catch { return url; }
-  };
   const groups = new Map();
-  for (const url of sorted) { const key = identity(url); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(url); }
-  const images = [...groups.values()].map((urls, index) => ({
-    id: String(index + 1),
-    previewUrl: urls.find((u) => !/\/originals\//i.test(u)) || urls[0],
-    downloadUrl: urls[0],
-    candidates: urls,
-  }));
-  return { pinId, video: false, candidates: sorted, images, previewUrl: images[0]?.previewUrl || '' };
+  const addCandidate = (value, priority = 0) => {
+    const url = decode(value);
+    if (!isPinImageUrl(url)) return;
+    const key = imageIdentity(url);
+    if (!groups.has(key)) groups.set(key, { priority, observed: new Set() });
+    const group = groups.get(key);
+    group.priority = Math.max(group.priority, priority);
+    group.observed.add(url);
+  };
+  for (const [re, priority] of [
+    [/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi, 2],
+    [/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi, 2],
+    [/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/gi, 1],
+    [/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/gi, 1],
+  ]) {
+    let match; while ((match = re.exec(text))) addCandidate(match[1], priority);
+  }
+  const contentText = text.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '');
+  const urlPattern = /https:(?:\\u002F|\\\/|\/){2}i\.pinimg\.com(?:\\u002F|\\\/|\/)[^"'<>\s(){}[\]]+/gi;
+  for (const match of contentText.matchAll(urlPattern)) {
+    const url = decode(match[0]).replace(/[},\]]+$/, '');
+    addCandidate(url);
+  }
+  // Rank image identities before adding speculative original URLs, so page
+  // recommendations and synthesized sizes cannot outrank the Pin's main image.
+  const ranked = [...groups.values()].map((group) => ({
+    priority: group.priority,
+    observed: [...group.observed].sort((a, b) => score(b) - score(a)),
+  })).sort((a, b) => b.priority - a.priority || score(b.observed[0]) - score(a.observed[0]));
+  const images = ranked.map(({ observed }, index) => {
+    const originals = observed.map(originalVariant).filter((url) => url && /\/originals\//i.test(url));
+    const candidates = [...new Set([...originals, ...observed])];
+    return {
+      id: String(index + 1),
+      previewUrl: observed[0],
+      downloadUrl: candidates[0],
+      candidates,
+    };
+  });
+  return { pinId, video: false, candidates: images.flatMap((image) => image.candidates), images, previewUrl: images[0]?.previewUrl || '' };
 }
 
 async function fetchText(url, timeoutMs = 15000) {
@@ -172,8 +186,11 @@ async function fetchImage(url) {
 
 export async function downloadPinterestImage(pinId, selectedUrl = '') {
   const metadata = await resolvePinterestPin(pinId);
-  const selected = selectedUrl && metadata.images?.find((image) => image.downloadUrl === selectedUrl || image.previewUrl === selectedUrl);
-  const candidates = selected?.candidates || metadata.candidates;
+  const selected = selectedUrl
+    ? metadata.images?.find((image) => image.candidates.includes(selectedUrl))
+    : metadata.images?.[0];
+  if (selectedUrl && !selected) throw Object.assign(new Error('没有找到所选图片，请重新预览后选择。'), { status: 422 });
+  const candidates = selected?.candidates || [];
   let last;
   for (const url of candidates) {
     try { return { ...await fetchImage(url), metadata }; } catch (e) { last = e; if (e?.status === 413) throw e; }

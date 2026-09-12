@@ -3,6 +3,7 @@
 import {useRef,useState} from 'react';
 import {ImagePlus,Loader2} from 'lucide-react';
 import type {Asset} from '@/lib/journal';
+import {normalizePinterestResolvePayload} from '@/lib/pinterest-resolve-compat';
 import {Dialog,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
 
 type Job={source:string;items:{id:string}[];manualOnly?:boolean};
@@ -33,6 +34,7 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
  const file=useRef<HTMLInputElement>(null),pinterestSeq=useRef(0);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[progress,setProgress]=useState('');
  const [pinterestInput,setPinterestInput]=useState(''),[pinterestPreview,setPinterestPreview]=useState<PinterestPreview|null>(null),[pinterestSelected,setPinterestSelected]=useState(''),[pinterestStatus,setPinterestStatus]=useState('等待粘贴'),[pinterestResolving,setPinterestResolving]=useState(false);
+ const selectedPinterestImage=pinterestPreview?.images.find(image=>image.downloadUrl===pinterestSelected);
 
  async function upload(files:FileList|null){
   if(!files?.length)return;
@@ -68,15 +70,21 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
  }
 
  async function recognizePinterest(value:string){
-  setPinterestInput(value);const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
+  setPinterestInput(value);setPinterestSelected('');const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
   if(!value.trim()){setPinterestPreview(null);setPinterestStatus('等待粘贴');setPinterestResolving(false);return}
   if(!pinId){setPinterestPreview(null);setPinterestStatus('未识别到 Pinterest Pin');setPinterestResolving(false);return}
   setPinterestPreview(null);setPinterestStatus(`已识别 Pin ${pinId} · 正在读取预览…`);setPinterestResolving(true);
-  try{const result=await request<PinterestPreview>('/pinterest/resolve',{input:value});if(seq!==pinterestSeq.current)return;setPinterestPreview(result);setPinterestSelected(result.images[0]?.downloadUrl||'');setPinterestStatus(result.images.length>1?`已识别 Pin ${result.pinId} · 请选择 1 张图片`:`已识别 Pin ${result.pinId}`)}catch(error){if(seq===pinterestSeq.current){setPinterestPreview(null);setPinterestStatus((error as Error).message)}}finally{if(seq===pinterestSeq.current)setPinterestResolving(false)}
+  try{
+   const payload=await request<PinterestPreview>('/pinterest/resolve',{input:value});if(seq!==pinterestSeq.current)return;
+   const normalized=normalizePinterestResolvePayload(payload);
+   if(!normalized?.images.length)throw Error('没有读取到可用图片，请重新粘贴链接。');
+   const result={...payload,images:normalized.images};
+   setPinterestPreview(result);setPinterestSelected(result.images[0].downloadUrl);setPinterestStatus('已自动选好图片，导入时优先下载高清原图');
+  }catch(error){if(seq===pinterestSeq.current){setPinterestPreview(null);setPinterestStatus((error as Error).message)}}finally{if(seq===pinterestSeq.current)setPinterestResolving(false)}
  }
 
  async function importPinterest(){
-  if(!pinterestPreview||!pinterestInput.trim())return;
+  if(busy||pinterestResolving||!selectedPinterestImage||!pinterestInput.trim())return;
   setBusy(true);setProgress('正在下载 Pinterest 最高质量素材图…');setMessage('');setImportedCount(0);
   try{
    const imported=await request<{src:string;name:string;duplicate:boolean;autoSegment:boolean;pinId:string}>('/pinterest/import',{input:pinterestInput,imageUrl:pinterestSelected});
@@ -117,7 +125,14 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
    <label htmlFor="pinterest-material-input">Pinterest 链接、Pin ID 或嵌入代码</label>
    <textarea id="pinterest-material-input" placeholder={'粘贴 Pinterest 链接、Pin ID 或嵌入代码\n例如：<iframe src="https://assets.pinterest.com/ext/embed.html?id=…"></iframe>'} value={pinterestInput} disabled={busy} onChange={event=>void recognizePinterest(event.target.value)}/>
    <span className={`pinterest-state ${pinterestPreview?'ready':''}`}>{pinterestResolving?'正在读取…':pinterestStatus}</span>
-   <div className="pinterest-preview">{pinterestPreview?<><div className="pinterest-image-choices">{pinterestPreview.images.map(image=><button type="button" key={image.id} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>setPinterestSelected(image.downloadUrl)}><img src={image.previewUrl} alt={`Pinterest 图片 ${image.id}`}/><span>{pinterestSelected===image.downloadUrl?'已选择':'选择这张'}</span></button>)}</div><div><strong>Pin {pinterestPreview.pinId}</strong><small>{pinterestPreview.images.length>1?'这个 Pin 有多张图，请先选择其中 1 张。':mode==='whole'?'已准备好整图入库。':'已准备好进入素材台。'}</small></div></>:<div className="pinterest-placeholder">粘贴后会自动识别 Pin 并显示预览</div>}</div>
+   <div className="pinterest-preview">{pinterestPreview&&selectedPinterestImage?<>
+    <img className="pinterest-selected-image" src={selectedPinterestImage.previewUrl} alt="当前选中的 Pinterest 图片，完整预览" draggable={false}/>
+    <div className="pinterest-preview-caption"><strong>已选图片</strong><small>完整显示，不裁切；导入时优先使用此图的最高分辨率版本。</small></div>
+    {pinterestPreview.images.length>1&&<details className="pinterest-alternatives" key={pinterestPreview.pinId}>
+     <summary>换一张图片（{pinterestPreview.images.length} 张可选）</summary>
+     <div className="pinterest-image-choices" aria-label="Pinterest 候选图片">{pinterestPreview.images.map((image,index)=><button type="button" key={image.id} disabled={busy} aria-pressed={pinterestSelected===image.downloadUrl} aria-label={`选择图片 ${index+1}`} className={pinterestSelected===image.downloadUrl?'selected':''} onClick={()=>{setPinterestSelected(image.downloadUrl);setPinterestStatus('已手动选择图片，导入时优先下载高清原图')}}><img src={image.previewUrl} alt={`Pinterest 图片 ${index+1}`} loading="lazy" draggable={false}/><span>{pinterestSelected===image.downloadUrl?'已选择':`图片 ${index+1}`}</span></button>)}</div>
+    </details>}
+   </>:<div className="pinterest-placeholder">粘贴后会自动选图并显示完整预览</div>}</div>
    <button className="primary" disabled={busy||pinterestResolving||!pinterestPreview||!pinterestSelected} onClick={()=>void importPinterest()}>{busy?'正在导入…':mode==='whole'?'整图加入素材库':'导入并进入素材台'}</button>
   </section>
   <output className="material-import-status" aria-live="polite">{busy?(progress||'正在导入…'):message}</output>
