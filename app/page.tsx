@@ -1249,6 +1249,11 @@ export default function Home() {
     paper.querySelectorAll<HTMLElement>('[data-piece-id],[data-selection-box]').forEach(node=>{node.style.removeProperty('--drag-x');node.style.removeProperty('--drag-y');});
     paper.classList.remove('is-moving-selection');
   }
+  function settlePointerMovePreview(d:NonNullable<typeof drag.current>,dx:number,dy:number){
+    for(const member of d.members){const node=selectedNode(member.id);node?.style.setProperty('left',`${member.x+dx}%`);node?.style.setProperty('top',`${member.y+dy}%`);}
+    const selection=canvas.current?.querySelector<HTMLElement>('[data-selection-box]');
+    if(selection&&d.lastBox){selection.style.setProperty('left',`${d.lastBox.x}px`);selection.style.setProperty('top',`${d.lastBox.y}px`);}
+  }
   function pointerDown(e: React.PointerEvent, id: string, mode = 'move') {
     suppressSelectionClick.current=false;
     if (reading || inlineId === id || e.button !== 0 || !e.isPrimary || busy || turnRef.current || maskDraftRef.current?.generating) return;
@@ -1302,6 +1307,9 @@ export default function Home() {
     const d=drag.current;
     if(d?.started&&d.mode==='move'&&d.lastBox){
       const dx=(d.lastBox.x-d.box.x)/d.canvasW*100,dy=(d.lastBox.y-d.box.y)/d.canvasH*100,ids=new Set(d.members.map(p=>p.id));
+      // Move the current DOM base position before removing its transform preview.
+      // React then renders the same coordinates without exposing the old position for a frame.
+      settlePointerMovePreview(d,dx,dy);
       changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,x:p.x+dx,y:p.y+dy}:p)}),false);
       // Pointer capture also sends a click after the drop. Keep it from selecting the piece again.
       suppressSelectionClick.current=true;

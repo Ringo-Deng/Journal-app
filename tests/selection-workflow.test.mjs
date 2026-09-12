@@ -40,6 +40,21 @@ test('pointer moving previews directly and commits only positions for a moved gr
   assert.doesNotMatch(commit,/stretch|w:p\.w|h:p\.h/);
 });
 
+test('a moved piece settles at its final DOM position before the preview is cleared',async()=>{
+  const page=await readFile(pagePath,'utf8');
+  const source=page.slice(page.indexOf('function settlePointerMovePreview'),page.indexOf('function pointerDown'));
+  const runSettle=new Function('canvas','selectedNode','dragValue','dx','dy',`${stripTypeScriptTypes(source)}\nsettlePointerMovePreview(dragValue,dx,dy);`);
+  const properties=new Map(),selectionProperties=new Map();
+  const style=properties=>({setProperty:(name,value)=>properties.set(name,value)});
+  const piece={style:style(properties)},selection={style:style(selectionProperties)};
+  runSettle({current:{querySelector:()=>selection}},()=>piece,{members:[{id:'asset',x:12,y:18}],lastBox:{x:365,y:276}},24.5,28);
+  assert.deepEqual(Object.fromEntries(properties),{left:'36.5%',top:'46%'});
+  assert.deepEqual(Object.fromEntries(selectionProperties),{left:'365px',top:'276px'});
+  const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
+  assert.ok(commit.indexOf('settlePointerMovePreview(d,dx,dy)')<commit.indexOf('changeSpread('));
+  assert.ok(commit.indexOf('changeSpread(')<commit.indexOf('clearPointerMovePreview()'));
+});
+
 test('canvas movement stays free of automatic snapping and blue guides',async()=>{
   const page=await readFile(pagePath,'utf8');
   const move=page.slice(page.indexOf('function pointerDown'),page.indexOf('function endPointerDrag'));
@@ -53,28 +68,30 @@ test('canvas movement stays free of automatic snapping and blue guides',async()=
 test('a completed move drops the shared selection and suppresses its follow-up click',async()=>{
   const page=await readFile(pagePath,'utf8');
   const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
-  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${commit}\nendPointerDrag();`);
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','settlePointerMovePreview',`${commit}\nendPointerDrag();`);
   const pieces=[{id:'a',x:10,y:20,w:12,h:18},{id:'b',x:30,y:40,w:15,h:10},{id:'other',x:60,y:50,w:9,h:9}];
   let spread={elements:pieces},selected='a',previewCleared=false;
   const suppress={current:false};
   const drag={current:{started:true,mode:'move',box:{x:100,y:100},lastBox:{x:140,y:130},canvasW:1000,canvasH:600,members:pieces.slice(0,2)}};
-  runEnd(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;});
+  let settled=null;
+  runEnd(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;},(_drag,dx,dy)=>{settled={dx,dy};});
   assert.deepEqual(spread.elements,[{...pieces[0],x:14,y:25},{...pieces[1],x:34,y:45},pieces[2]]);
   assert.equal(selected,null);
   assert.equal(suppress.current,true);
   assert.equal(drag.current,null);
   assert.equal(previewCleared,true);
+  assert.deepEqual(settled,{dx:4,dy:5});
 });
 
 test('an interrupted move commits its last visible position instead of jumping back',async()=>{
   const page=await readFile(pagePath,'utf8');
   const source=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function insertLibraryAssets'));
-  const runCancel=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${source}\ncancelPointerDrag();`);
+  const runCancel=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','settlePointerMovePreview',`${source}\ncancelPointerDrag();`);
   const pieces=[{id:'asset',kind:'asset',x:12,y:18,w:20,h:14},{id:'other',kind:'asset',x:70,y:60,w:10,h:10}];
   let spread={elements:pieces},selected='asset',previewCleared=false;
   const suppress={current:false};
   const drag={current:{started:true,mode:'move',box:{x:120,y:108},lastBox:{x:365,y:276},canvasW:1000,canvasH:600,members:[pieces[0]]}};
-  runCancel(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;});
+  runCancel(drag,update=>{spread=update(spread);},suppress,value=>{selected=value;},()=>{previewCleared=true;},()=>{});
   assert.deepEqual(spread.elements,[{...pieces[0],x:36.5,y:46},pieces[1]]);
   assert.equal(selected,null);
   assert.equal(suppress.current,true);
@@ -85,7 +102,7 @@ test('an interrupted move commits its last visible position instead of jumping b
 test('clicks and adjustment gestures without a move preview keep their selection',async()=>{
   const page=await readFile(pagePath,'utf8');
   const commit=page.slice(page.indexOf('function endPointerDrag'),page.indexOf('function cancelPointerDrag'));
-  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview',`${commit}\nendPointerDrag();`);
+  const runEnd=new Function('drag','changeSpread','suppressSelectionClick','setSelected','clearPointerMovePreview','settlePointerMovePreview',`${commit}\nendPointerDrag();`);
   for(const gesture of [null,{started:false,mode:'move'},{started:true,mode:'move'},{started:true,mode:'resize-se'},{started:true,mode:'rotate'},{started:true,mode:'crop'},{started:true,mode:'mask-crop'}]){
     let selected='a',committed=false;
     const drag={current:gesture},suppress={current:false};
