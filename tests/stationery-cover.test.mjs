@@ -22,7 +22,7 @@ test('regular stationery face is clean NOTES artwork without old branding or bak
 test('all regular stationery colours have a matching physical spine palette',()=>{
  assert.equal(stationerySpineColor('#f4ce75'),'#684631');
  assert.equal(stationerySpineColor('#E8B9BA'),'#6c596b');
- assert.equal(stationerySpineColor(' #91a9b5 '),'#3c5b6a');
+ assert.equal(stationerySpineColor(' #91a9b5 '),'#20394f');
  assert.equal(stationerySpineColor('#000000'),undefined);
  assert.equal(stationeryPaletteForColor('#e8b9ba')?.base,'#e8b9ba');
 });

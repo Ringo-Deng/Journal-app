@@ -73,29 +73,19 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
 
   if (blueStationery) {
     // Map only the flat face of regular-blue-notes.svg (124,64)-(540,741).
-    // Its five cream columns, weave and label exclude the illustrated book furniture.
+    // Keep its five cream columns and label, with no fine weave or secondary grid.
     ctx.save();
     ctx.scale(canvas.width / 416, canvas.height / 677);
     ctx.translate(-124, -64);
     ctx.fillStyle = "#849dad";
     ctx.fillRect(124, 64, 416, 677);
-    const threads: [number, number, string, number, number][] = [
-      [29, 13, "#fff1d7", 0.73, 80],
-      [9, 1.5, "#617f92", 0.22, 80],
-      [67, 1.5, "#617f92", 0.22, 80],
-      [37, 2, "#fff1d7", 0.35, 80],
-      [0.5, 0.7, "#fffdf0", 0.19, 6],
-      [3.5, 0.55, "#617f92", 0.13, 6],
-    ];
-    for (const [offset, width, color, opacity, step] of threads) {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = opacity;
-      // Fill both axes together so intersections keep the reference's even tone.
-      ctx.beginPath();
-      for (let x = offset; x < 540; x += step) ctx.rect(x - width / 2, 64, width, 677);
-      for (let y = offset; y < 741; y += step) ctx.rect(124, y - width / 2, 416, width);
-      ctx.fill();
-    }
+    ctx.fillStyle = "#fff1d7";
+    ctx.globalAlpha = 0.73;
+    // Fill both axes together so intersections keep the same even tone.
+    ctx.beginPath();
+    for (let x = 29; x < 540; x += 80) ctx.rect(x - 6.5, 64, 13, 677);
+    for (let y = 29; y < 741; y += 80) ctx.rect(124, y - 6.5, 416, 13);
+    ctx.fill();
     ctx.restore();
     bumpCtx.fillStyle = "#808080";
     bumpCtx.fillRect(0, 0, bumpCanvas.width, bumpCanvas.height);

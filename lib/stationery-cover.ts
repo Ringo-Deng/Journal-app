@@ -25,7 +25,7 @@ const STATIONERY_PALETTES = {
     band: '#7898a8',
     light: '#f2f7f7',
     label: '#fffaf0',
-    spine: '#3c5b6a',
+    spine: '#20394f',
   },
 } as const;
 
