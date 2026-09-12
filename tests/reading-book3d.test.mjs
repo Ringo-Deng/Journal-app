@@ -153,3 +153,35 @@ test("appreciation and standalone cover preview both route to the first-edition 
   assert.doesNotMatch(view, /content \? "original" : paperStyle/);
   assert.match(preview, /第一版翻页/);
 });
+
+test("appreciation and its preview map the two page sounds to opposite directions", async () => {
+  const [view, preview, appreciation, sound, forwardAudio, backwardAudio] = await Promise.all([
+    readFile(new URL("../components/book3d/Book3DView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/book3d/Book3DTest.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/reading-book3d.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../components/book3d/use-page-turn-sound.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../public/sounds/mixkit-single-book-paging-1101-first.wav", import.meta.url),
+    ),
+    readFile(
+      new URL("../public/sounds/mixkit-single-book-paging-1101-second.wav", import.meta.url),
+    ),
+  ]);
+
+  assert.match(view, /onPageTurnStart\?: \(direction: -1 \| 1\) => void/);
+  assert.match(view, /state\.motion\?\.kind === "page"/);
+  assert.match(view, /onPageTurnStart\?\.\(state\.motion\.to > state\.motion\.from \? 1 : -1\)/);
+  assert.match(sound, /forward = new Audio\("\/sounds\/mixkit-single-book-paging-1101-first\.wav"\)/);
+  assert.match(sound, /backward = new Audio\("\/sounds\/mixkit-single-book-paging-1101-second\.wav"\)/);
+  assert.match(sound, /direction === 1 \? sounds\.forward : sounds\.backward/);
+  assert.match(sound, /audio\.volume = 0\.22/);
+  assert.match(preview, /onPageTurnStart=\{playPageTurnSound\}/);
+  assert.match(appreciation, /onPageTurnStart=\{playPageTurnSound\}/);
+  for (const audio of [forwardAudio, backwardAudio]) {
+    assert.equal(audio.subarray(0, 4).toString("ascii"), "RIFF");
+    assert.equal(audio.subarray(8, 12).toString("ascii"), "WAVE");
+  }
+});

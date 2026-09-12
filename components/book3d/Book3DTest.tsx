@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Book3DView from "./Book3DView";
+import { usePageTurnSound } from "./use-page-turn-sound";
 
 type CompareMode = "before" | "after";
 
 export default function Book3DTest({ appVersion }: { appVersion?: string }) {
   const [mode, setMode] = useState<CompareMode>("after");
   const paperStyle = mode === "before" ? "original" : "bound";
+  const playPageTurnSound = usePageTurnSound();
 
   return (
     <div className="book3d-compare-shell">
@@ -16,6 +18,7 @@ export default function Book3DTest({ appVersion }: { appVersion?: string }) {
         appVersion={appVersion}
         experiment
         initialPaperStyle={paperStyle}
+        onPageTurnStart={playPageTurnSound}
       />
       <button
         type="button"

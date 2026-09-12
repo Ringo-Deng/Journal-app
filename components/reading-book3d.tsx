@@ -11,6 +11,7 @@ import {
 import Book3DView from "./book3d/Book3DView";
 import { createReadingTextures } from "./book3d/reading-textures";
 import { type Book3DContent, type Book3DHandle } from "./book3d/book-scene-context";
+import { usePageTurnSound } from "./book3d/use-page-turn-sound";
 import { bookFormat, coverInfo, type Book, type Asset } from "@/lib/journal";
 import { stationerySpineColor } from "@/lib/stationery-cover";
 import { readingBookPlan } from "@/lib/reading-book-plan";
@@ -77,6 +78,7 @@ export default forwardRef<
     return () => source.dispose();
   }, [book, assets]);
   const fail = useCallback((error?: unknown) => latest.current.onError(error), []);
+  const playPageTurnSound = usePageTurnSound();
   const position = useCallback((value: BookPosition) => {
     latest.current.onPosition(value);
     if (value.opened) {
@@ -97,6 +99,7 @@ export default forwardRef<
         initialPaperStyle="bound"
         toolbar={props.toolbar}
         ref={ref}
+        onPageTurnStart={playPageTurnSound}
         onPosition={position}
         onError={fail}
       />

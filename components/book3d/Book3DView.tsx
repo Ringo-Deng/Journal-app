@@ -820,11 +820,20 @@ type ViewProps = {
   toolbar?: HTMLDivElement | null;
   appVersion?: string;
   content?: Book3DContent;
+  onPageTurnStart?: (direction: -1 | 1) => void;
   onPosition?: (position: BookPosition) => void;
   onError?: (error?: unknown) => void;
 };
 const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
-  { appVersion = "dev", onPosition, onError, toolbar, experiment = false, initialPaperStyle },
+  {
+    appVersion = "dev",
+    onPageTurnStart,
+    onPosition,
+    onError,
+    toolbar,
+    experiment = false,
+    initialPaperStyle,
+  },
   ref,
 ) {
   const { BOOK, content, nextBookTurn } = useBookScene();
@@ -866,6 +875,13 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
   useEffect(() => {
     if (!state.motion) onPosition?.(state);
   }, [state, onPosition]);
+  const lastStartedMotion = useRef<Motion | null>(null);
+  useEffect(() => {
+    if (state.motion !== lastStartedMotion.current && state.motion?.kind === "page") {
+      onPageTurnStart?.(state.motion.to > state.motion.from ? 1 : -1);
+    }
+    lastStartedMotion.current = state.motion;
+  }, [state.motion, onPageTurnStart]);
   const [material, setMaterial] = useState<CoverMaterial>(
     content?.material ?? (experiment ? "fabric" : "leather"),
   );
