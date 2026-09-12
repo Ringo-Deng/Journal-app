@@ -16,7 +16,8 @@ import { restorePosition, restoreHistoryPosition, type WorkspacePosition } from 
 import { JournalApiError, saveJournalSnapshot, shouldShowSaveStatus } from '@/lib/journal-save';
 import FullBackup from '@/components/full-backup';
 import JournalHistory from '@/components/journal-history';
-import NotebookImageExport from '@/components/notebook-image-export';
+import NotebookPageOverview from '@/components/notebook-page-overview';
+import {removeNotebookSpread,pageAfterSpreadRemoval} from '@/lib/notebook-pages';
 import NotebookPaper from '@/components/notebook-paper';
 import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
@@ -39,7 +40,6 @@ import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,VELLUM_BORDER_COLOR,pieceDis
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye } from 'lucide-react';
 import ReadingDeck from '@/components/reading-deck';
-import ReadingJpgImage from '@/components/reading-jpg-image';
 import PageTurn, {SpreadPreview} from '@/components/page-turn';
 import type { CSSProperties } from 'react';
 import { paperSettings, applyPaper, type PaperStyle, type PaperRulingSize } from '@/lib/journal';
@@ -77,12 +77,11 @@ import {
   Loader2,
   Type,
   PanelRightClose,
-  Image as ImageIcon,
   FolderOpen,
   RefreshCw,
   PanelTop,
   File as FileIcon,
-  List,
+  LayoutGrid,
   ClipboardPaste,
 } from 'lucide-react';
 import {
@@ -219,7 +218,6 @@ function Pick({
   );
 }
 export default function Home() {
-  const [imageExportOpen,setImageExportOpen]=useState(false);
   const [multiIds,setMultiIds]=useState<string[]>([]);
   const suppressSelectionClick=useRef(false);
   const [editingGroup,setEditingGroup]=useState<string|null>(null);
@@ -318,6 +316,7 @@ export default function Home() {
   const scrollRestore=useRef<{scrollTop:number;scrollLeft:number}|null>(null);
   function switchMode(value: unknown) {
     if(value==='read' && book){
+      finishEditing();
       editingPosition.current={page,opened,zoom,selected,scrollTop:workArea.current?.scrollTop||0,scrollLeft:workArea.current?.scrollLeft||0};
       change(all=>all.map(b=>b.id===book.id?ensureFlyleaf(b):b),false);
       setReadingPage(0);
@@ -906,6 +905,29 @@ export default function Home() {
       setSelected(null);
     }
   };
+  function deleteOverviewSpread(spreadId: string) {
+    if (!book || busy || uploading || opening || closing || flipping) return;
+    const before = booksRef.current.find(item => item.id === book.id);
+    if (!before) return;
+    const after = removeNotebookSpread(before, spreadId);
+    if (after === before) return;
+    const nextPage = pageAfterSpreadRemoval(before, after, page);
+    const nextReading = pageAfterSpreadRemoval(before, after, readingPage - Number(!!before.flyleaf));
+    change(all => all.map(item => item.id === before.id ? removeNotebookSpread(item, spreadId) : item));
+    setPage(nextPage);
+    setOpened(value => value && !!sheetAt(after, nextPage));
+    setReadingPage(Math.max(0, nextReading + Number(!!after.flyleaf)));
+    const position = editingPosition.current;
+    if (position) {
+      const rememberedPage = pageAfterSpreadRemoval(before, after, position.page);
+      editingPosition.current = { ...position, page: rememberedPage,
+        opened: position.opened && !!sheetAt(after, rememberedPage), selected: null };
+    }
+    setInlineId(null);setTextRange(null);setSelected(null);
+    drag.current = null;scrollRestore.current = null;
+    setSnapGuides({});setDesignPreview(null);
+    toast('跨页已删除，可在编辑模式撤销，也可从历史备份恢复。');
+  }
   const openBook = () => {
     if (opened || opening || closing || !book) return;
     change(all=>all.map(b=>b.id===book.id?ensureFlyleaf(b.spreads.length?b:addBlankSpread(b)):b));
@@ -1836,6 +1858,8 @@ export default function Home() {
       if (
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
         target.isContentEditable ||
+        target.closest('[role="dialog"], [role="alertdialog"], [data-page-overview]') ||
+        reading ||
         modal ||
         busy
       )
@@ -1865,8 +1889,6 @@ export default function Home() {
         const dx=Math.max(-box.x,Math.min(cw-box.x-box.w,e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0))/cw*100;
         const dy=Math.max(-box.y,Math.min(ch-box.y-box.h,e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0))/ch*100;
         const ids=new Set(activePieces.map(p=>p.id));changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,x:p.x+dx,y:p.y+dy}:p)}),false);
-      } else if (reading && book && ['ArrowRight','ArrowLeft'].includes(e.key)) {
-        e.preventDefault();setPage(p=>Math.max(-1,Math.min(book.spreads.length-1,p+(e.key==='ArrowRight'?1:-1))));
       } else if (e.key === 'ArrowRight') flip(1);
       else if (e.key === 'ArrowLeft') flip(-1);
       else if (e.key === 'Escape') finishEditing();
@@ -1986,7 +2008,6 @@ export default function Home() {
         <button className={modal==='studio'||modal==='material-import'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setMaterialStudioTargetSource('');setModal('studio')}}><ImagePlus/><span>导入</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
-        <button aria-label="导出笔记图片" disabled={!book||(!opened&&!reading)||opening||closing||!!flipping} onClick={()=>{finishEditing();setImageExportOpen(true);}}><ImageIcon/><span>导出图片</span></button>
         <button aria-label="备份与恢复" disabled={!ready||busy||uploading} onClick={()=>{finishEditing();setModal('backup');}}><Download/><span>备份</span></button>
         <button aria-label="设置" onClick={openSettings}><Settings/><span>设置</span></button>
         <small className="build-version" title="当前版本">v0.1.20</small>
@@ -1996,7 +2017,7 @@ export default function Home() {
           <div className="notebook-title-tools">
             {books.length>1?<Pick label="切换笔记本" value={book?.id||''} onChange={id=>{const b=books.find(x=>x.id===id);if(b)chooseBook(b);}} items={orderedBooks.map(b=>({id:b.id,name:b.title}))}/>:<strong>{book?.title}</strong>}
             <button className="quiet" aria-label="笔记本设置" title="笔记本设置" disabled={!book} onClick={()=>startCover()}><Settings/></button>
-            <button className="quiet" aria-label="记录索引" title="记录索引" onClick={()=>setModal('index')}><List/></button>
+            <button className="quiet" aria-label="全部跨页" title="全部跨页" disabled={!book||busy||uploading||opening||closing||!!flipping} onClick={()=>{finishEditing();setModal('index');}}><LayoutGrid/></button>
           </div>
           <fieldset className="book-tools creation-tools" aria-label="编辑工具">
             {opened && <>
@@ -2062,7 +2083,7 @@ export default function Home() {
             <button className="quiet" aria-label="撤销调整" title="撤销" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" title="重做" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
-        {!reading&&!libraryOpen&&!photoMaskDraft&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||imageExportOpen||collageOpen?'hidden':undefined}}>
+        {!reading&&!libraryOpen&&!photoMaskDraft&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个对象`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'空白拖框 · ⌘/Ctrl 或 Shift 追加'}</span>
@@ -2188,7 +2209,7 @@ export default function Home() {
                   VOLUME {currentMonth.slice(-2)} ·{' '}
                   {monthName(currentMonth).toUpperCase()}
                 </span>
-                {reading && book ? (<ReadingDeck book={book} assets={assets} page={readingPage} onSelect={setReadingPage}/>) : !book ? (
+                {reading && book ? (<ReadingDeck book={book} assets={assets} page={readingPage} onSelect={setReadingPage} onDelete={deleteOverviewSpread} actionsDisabled={busy||uploading}/>) : !book ? (
                   <div className="cover-stage">
                     <p className="microcopy">笔记库里还没有笔记本。</p>
                     <button className="primary" onClick={()=>setView('library')}>
@@ -3183,7 +3204,6 @@ export default function Home() {
           </button>
         </DialogContent>
       </Dialog>
-      {imageExportOpen && book && (()=>{const index=reading?readingPage-1:page;const target=index<0?book.flyleaf:book.spreads[index];return target?<NotebookImageExport key={`${book.id}-${index}`} book={book} spread={target} assets={assets} pageIndex={index} flyleaf={index<0} open onClose={()=>setImageExportOpen(false)}/>:null;})()}
       <Dialog open={!!deletingBook} onOpenChange={value=>!value&&setDeletingBook(null)}>
         <DialogContent className="journal-dialog delete-notebook-dialog">
           <DialogTitle>删除「{deletingBook?.title}」？</DialogTitle>
@@ -3531,39 +3551,16 @@ export default function Home() {
         onOpenChange={(v) => !v && setModal(null)}
       >
         <DialogContent className="journal-dialog page-index-dialog">
-          <DialogTitle>页面与记录索引</DialogTitle>
+          <DialogTitle>全部跨页</DialogTitle>
           <DialogDescription>
-            {book?.title || '当前笔记本'} · 包含封面、扉页与全部跨页，点击预览直接跳转。
+            {book?.title || '当前笔记本'} · 点击预览跳转，或选择需要导出的页面。
           </DialogDescription>
-          {book ? (
-            <div className="page-index-grid">
-              <button className="page-index-item" aria-label="跳转到封面" aria-current={!opened?'page':undefined}
-                onClick={()=>{setSelected(null);setOpened(false);setModal(null);}}
-              >
-                <div className="page-index-preview" style={{aspectRatio:bookFormat(book).ratio}} aria-hidden="true"><ReadingJpgImage book={book} assets={assets} index={null} alt=""/></div>
-                <strong>封面</strong>
-                <small>{book.title}</small>
-              </button>
-              {[...(book.flyleaf?[{sheet:book.flyleaf,index:-1}]:[]),...book.spreads.map((sheet,index)=>({sheet,index}))].map(({sheet,index})=><button
-                className="page-index-item" key={sheet.id} aria-label={index===-1?'跳转到扉页':`跳转到第 ${index+1} 跨页`} aria-current={opened&&index===page?'page':undefined}
-                onClick={()=>{setSelected(null);setPage(index);setOpened(true);setModal(null);}}
-              >
-                <div className="page-index-preview" style={{aspectRatio:bookFormat(book).ratio}} aria-hidden="true"><ReadingJpgImage book={book} assets={assets} index={index===-1?0:index+(book.flyleaf?1:0)} alt=""/></div>
-                <strong>{index===-1?'扉页':`第 ${index+1} 跨页`}</strong>
-                <small>{sheet.days.length?sheet.days.map(d=>`${d.date} · ${d.title}`).join(' / '):`${sheet.date?sheet.date+' · ':''}${sheet.elements.length?`手工排版 · ${sheet.elements.length} 个元素`:'空白页'}`}</small>
-              </button>)}
-            </div>
-          ) : (
-            <p className="microcopy">这本笔记本还没有内页。</p>
-          )}
-          <div className="row">
-            {book && (
-              <button className="outline" onClick={() => startCover()}>
-                <Settings />
-                当前笔记本设置
-              </button>
-            )}
-          </div>
+          {book && <NotebookPageOverview key={book.id} book={book} assets={assets}
+            currentPage={opened?page:null} showCover
+            disabled={busy||uploading||opening||closing||!!flipping}
+            onDelete={deleteOverviewSpread}
+            onSelect={index=>{finishEditing();if(index===null)setOpened(false);else{setPage(index);setOpened(true);}setModal(null);}}
+          />}
         </DialogContent>
       </Dialog>
       <PhotoTrash open={photoTrashOpen} onClose={()=>setPhotoTrashOpen(false)} onPrepare={preparePhotoSave} onRestore={restoreTrashPhoto}/>

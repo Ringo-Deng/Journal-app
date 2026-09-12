@@ -11,6 +11,7 @@ import {
 } from "react";
 import { BookOpen, LayoutGrid } from "lucide-react";
 import ReadingJpgImage from "./reading-jpg-image";
+import NotebookPageOverview from "./notebook-page-overview";
 import type { ReadingBook3DHandle } from "./reading-book3d";
 const ReadingBook3D = lazy(() => import("./reading-book3d"));
 import { bookFormat, coverInfo, type Asset, type Book } from "@/lib/journal";
@@ -20,11 +21,15 @@ export default function ReadingDeck({
   assets,
   page,
   onSelect,
+  onDelete,
+  actionsDisabled = false,
 }: {
   book: Book;
   assets: Asset[];
   page: number;
   onSelect: (page: number) => void;
+  onDelete: (spreadId: string) => void;
+  actionsDisabled?: boolean;
 }) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [grid, setGrid] = useState(false);
@@ -127,7 +132,6 @@ export default function ReadingDeck({
           <button
             aria-label="全部跨页"
             aria-pressed={grid}
-            disabled={!opened}
             onClick={() => setGrid(true)}
           >
             <LayoutGrid />
@@ -141,30 +145,16 @@ export default function ReadingDeck({
       </header>
 
       {grid ? (
-        <div className="deck-grid">
-          {sheets.map((sheet, index) => (
-            <button
-              className="deck-thumbnail"
-              key={sheet.spread.id}
-              aria-label={sheet.flyleaf ? "打开扉页" : `打开第 ${index - offset + 1} 个跨页`}
-              onClick={() => {
-                onSelect(index);
-                setOpened(true);
-                setGrid(false);
-              }}
-            >
-              <div className="deck-thumbnail-paper">
-                <ReadingJpgImage
-                  book={book}
-                  assets={assets}
-                  index={index}
-                  alt={sheet.flyleaf ? "扉页" : `第 ${index - offset + 1} 个跨页`}
-                />
-              </div>
-              <span>{sheet.flyleaf ? "扉页" : `第 ${index - offset + 1} 个跨页`}</span>
-            </button>
-          ))}
-        </div>
+        <NotebookPageOverview key={book.id} book={book} assets={assets}
+          currentPage={opened ? current - offset : null} showCover={false}
+          disabled={actionsDisabled} onDelete={onDelete}
+          onSelect={index => {
+            if (index === null) return;
+            onSelect(index + offset);
+            setOpened(true);
+            setGrid(false);
+          }}
+        />
       ) : engineFailed ? (
         <div className="reading-static-fallback">
           <div className="reading-fallback-notice" role="status">
@@ -225,6 +215,10 @@ export default function ReadingDeck({
       )}
 
       <style>{`
+        .reading-jpg-deck.deck-large .deck-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 0; margin-bottom: 10px; min-height: 42px; opacity: 1; pointer-events: auto; }
+        .reading-jpg-deck .deck-heading h1 { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+        .reading-jpg-deck .deck-view-switch { position: static; flex: none; z-index: auto; opacity: 1; pointer-events: auto; }
+
         .reading-fallback-notice { text-align: center; font-size: 13px; color: #626b59; padding: 0 16px 18px; }
         .reading-fallback-notice button { padding: 8px 14px; border: 1px solid #c3cbb9; border-radius: 6px; }
         .reading-fallback-notice details { max-width: 600px; overflow-wrap: anywhere; margin-bottom: 12px; }

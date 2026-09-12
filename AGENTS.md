@@ -60,6 +60,7 @@
 | 完整资料备份 | `components/full-backup.tsx` 提供统一入口；`local/full-backup.mjs` 管理导出、预检和恢复，`local/backup-archive.mjs` 分段打包与校验，`local/backup-restore.mjs` 追加恢复并在启动前重放中断事务；`backup-imports.json` 记录重复导入，密钥不入包 |
 | 备份与撤销 | `local/server.mjs` 保留 `journal.previous.json`，经同一保存队列调用 `local/journal-history.mjs` 留存每日首份及删除前快照，自动快照保留最近 30 份，完整备份恢复的历史另行保留；`components/journal-history.tsx` 提供预览，恢复副本交回 `app/page.tsx` 原保存流；`app/page.tsx` 管理会话撤销与导入导出，`lib/journal-backup.ts` 复制本子并收集、重映射图片引用，`lib/notebook-material-sources.mjs` 仅在无素材库的导出副本中物化当前素材图片 |
 | 3D 阅读 | `components/reading-deck.tsx` → `components/reading-book3d.tsx` → `components/book3d/Book3DView.tsx`；`lib/book3d-motion.ts` 控制翻页几何；`app/three-test/page.tsx` 为独立测试入口 |
+| 跨页预览、删除与图片导出 | `components/notebook-page-overview.tsx` 供编辑索引与欣赏四宫格共用，按跨页 ID 多选并确认删除；`app/page.tsx` 经 `lib/notebook-pages.ts` 调整页面位置，删除仍进入原 `change` 保存及撤销流；`components/notebook-image-export.tsx` 串行生成高清 PNG，多页打包 ZIP |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
 

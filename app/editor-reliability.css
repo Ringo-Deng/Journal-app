@@ -14,12 +14,5 @@
 .journal-save-bar.has-conflict { justify-content: flex-start; background: #fff0e4; color: #844b2d; }
 .journal-save-bar button { font-size: 11px; padding: 5px 9px; }
 /* Override the legacy .journal-dialog size cap only for the page index. */
-.journal-dialog.page-index-dialog { width: min(860px, calc(100vw - 32px)) !important; max-width: 860px !important; }
-.page-index-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); align-content: start; gap: 10px; max-height: 60dvh; overflow: auto; padding: 4px; }
-.page-index-item { display: flex; flex-direction: column; gap: 5px; min-width: 0; text-align: left; padding: 7px; background: #fafbf5; border: 1px solid #dce1d4; border-radius: 9px; content-visibility: auto; contain-intrinsic-size: auto 210px; }
-.page-index-item[aria-current='page'] { border-color: #728264; }
-.page-index-preview { position: relative; width: 100%; overflow: hidden; background: #fff; pointer-events: none; }
-.page-index-preview > div { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.page-index-item strong { font-size: 13px; }
-.page-index-item small { color: #777e70; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-@media(max-width:560px) { .page-index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.journal-dialog.page-index-dialog { width: min(1200px, calc(100vw - 32px)) !important; max-width: 1200px !important; height: min(820px, calc(100dvh - 48px)); display: flex; flex-direction: column; overflow: hidden; }
+.page-index-dialog > [data-slot='dialog-title'], .page-index-dialog > [data-slot='dialog-description'] { flex: none; }

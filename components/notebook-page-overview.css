@@ -1,0 +1,196 @@
+.notebook-page-overview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: #526047;
+  background: #e8e9e2;
+}
+
+.notebook-overview-toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  padding: 8px 32px 18px;
+}
+
+.notebook-overview-hint {
+  margin: 0;
+  color: #737c6b;
+  font-size: 12px;
+}
+
+.notebook-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.notebook-overview-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.notebook-overview-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
+.notebook-overview-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-content: start;
+  gap: 26px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px 32px 24px;
+}
+
+.notebook-overview-card {
+  position: relative;
+  min-width: 0;
+}
+
+.notebook-overview-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  text-align: center;
+}
+
+.notebook-overview-preview {
+  position: relative;
+  aspect-ratio: var(--overview-spread-ratio, 1.43);
+  overflow: hidden;
+  border-radius: 7px;
+  background: #f7f7f5;
+  box-shadow: 0 8px 20px #29302626;
+}
+
+.notebook-overview-preview [role='status'] {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 14px;
+  color: #7b8374;
+  font-size: 12px;
+}
+
+.notebook-overview-caption {
+  display: block;
+  min-height: 40px;
+  padding: 12px 36px 6px;
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.notebook-overview-delete {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 7px;
+  border-radius: 6px;
+  background: transparent;
+  color: #818878;
+}
+
+.notebook-overview-delete svg {
+  width: 16px;
+  height: 16px;
+}
+
+.notebook-overview-delete:hover:not(:disabled) {
+  background: #a34b4010;
+  color: #a34b40;
+}
+
+.notebook-overview-checkbox {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 6px;
+  background: #fffef9ed;
+  box-shadow: 0 1px 5px #29302626;
+  cursor: pointer;
+}
+
+.notebook-overview-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #647556;
+  cursor: pointer;
+}
+
+.notebook-overview-card.is-selected .notebook-overview-preview {
+  outline: 3px solid #7d916b;
+  outline-offset: 3px;
+}
+
+.notebook-page-overview button:focus-visible,
+.notebook-overview-checkbox:focus-within {
+  outline: 3px solid #7d916b;
+  outline-offset: 4px;
+}
+
+.notebook-overview-cover .notebook-overview-open:disabled {
+  opacity: 0.55;
+}
+
+.notebook-overview-empty {
+  grid-column: 1 / -1;
+  margin: 48px 0;
+  color: #737c6b;
+  text-align: center;
+}
+
+.notebook-overview-delete-dialog [data-slot='dialog-description'] {
+  line-height: 1.8;
+}
+
+@media (max-width: 650px) {
+  .notebook-overview-toolbar {
+    padding: 8px 16px 14px;
+  }
+
+  .notebook-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 8px 16px 20px;
+  }
+
+  .notebook-overview-caption {
+    padding-inline: 22px;
+    font-size: 11px;
+  }
+
+  .notebook-overview-delete {
+    right: -5px;
+  }
+}
