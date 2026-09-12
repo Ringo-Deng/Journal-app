@@ -59,3 +59,20 @@ test('ZIP font packs import supported font files and reject non-font payloads',a
   const invalid=await importFile('bad.ttf',Buffer.from('not a font'));
   assert.equal(invalid.status,400);assert.match(invalid.data.error,/有效的字体文件/);
 });
+
+test('the additional font pack is served locally with complete files and source notices', async () => {
+  const { createHash } = await import('node:crypto');
+  const manifest = JSON.parse(await readFile(new URL('../public/fonts/licenses/font-pack-v2-sources.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.fonts.length, 8);
+  for (const font of manifest.fonts) {
+    const response = await fetch(`${base}/fonts/${font.bundled_file}`);
+    assert.equal(response.status, 200, font.id);
+    assert.equal(response.headers.get('content-type'), 'font/woff2', font.id);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.subarray(0, 4).toString(), 'wOF2', font.id);
+    assert.equal(bytes.length, font.bundled_bytes, font.id);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), font.bundled_sha256, font.id);
+    const license = await readFile(new URL('../public/fonts/licenses/' + font.license_file, import.meta.url), 'utf8');
+    assert.match(license, /SIL OPEN FONT LICENSE/i, font.id);
+  }
+});

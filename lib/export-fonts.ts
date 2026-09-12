@@ -13,6 +13,14 @@ const embeddedFonts:Record<string,{family:string;url:string;format?:string;weigh
   'comic-neue':{family:'Journal Comic Neue',url:'/fonts/comic-neue.otf',format:'opentype',fallbackPen:true},
   'lobster-two':{family:'Journal Lobster Two',url:'/fonts/lobster-two.otf',format:'opentype',fallbackPen:true},
   purisa:{family:'Journal Purisa',url:'/fonts/purisa.otf',format:'opentype',fallbackPen:true},
+  'wenkai':{family:'Journal Wenkai',url:'/fonts/lxgw-wenkai.woff2',format:'woff2',fallbackPen:true},
+  'chill-round':{family:'Journal Chill Round',url:'/fonts/chill-round.woff2',format:'woff2',fallbackPen:true},
+  'zcool-kuaile':{family:'Journal Zcool Kuaile',url:'/fonts/zcool-kuaile.woff2',format:'woff2',fallbackPen:true},
+  'zcool-huangyou':{family:'Journal Zcool Huangyou',url:'/fonts/zcool-huangyou.woff2',format:'woff2',fallbackPen:true},
+  'zcool-xiaowei':{family:'Journal Zcool Xiaowei',url:'/fonts/zcool-xiaowei.woff2',format:'woff2',fallbackPen:true},
+  'noto-serif-sc':{family:'Journal Noto Serif SC',url:'/fonts/noto-serif-sc.woff2',format:'woff2',fallbackPen:true},
+  'patrick-hand':{family:'Journal Patrick Hand',url:'/fonts/patrick-hand.woff2',format:'woff2',fallbackPen:true},
+  'dancing-script':{family:'Journal Dancing Script',url:'/fonts/dancing-script.woff2',format:'woff2',weight:'400 700',fallbackPen:true},
 };
 
 async function dataURL(url:string){

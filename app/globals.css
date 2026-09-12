@@ -3456,6 +3456,14 @@ fieldset.book-tools{border-top:0;}
 @font-face{font-family:'Journal Comic Neue';src:url('/fonts/comic-neue.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap;}
 @font-face{font-family:'Journal Lobster Two';src:url('/fonts/lobster-two.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap;}
 @font-face{font-family:'Journal Purisa';src:url('/fonts/purisa.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Wenkai';src:url('/fonts/lxgw-wenkai.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Chill Round';src:url('/fonts/chill-round.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Zcool Kuaile';src:url('/fonts/zcool-kuaile.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Zcool Huangyou';src:url('/fonts/zcool-huangyou.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Zcool Xiaowei';src:url('/fonts/zcool-xiaowei.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Noto Serif SC';src:url('/fonts/noto-serif-sc.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Patrick Hand';src:url('/fonts/patrick-hand.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+@font-face{font-family:'Journal Dancing Script';src:url('/fonts/dancing-script.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap;}
 .piece.has-typography>.piece-text,.piece.has-typography>.inline-writing{font-family:var(--piece-font);}
 .piece>.piece-text,.piece>.inline-writing{line-height:var(--piece-leading,1.9);letter-spacing:var(--piece-tracking,.03em);font-weight:var(--piece-weight,400);text-align:var(--piece-align,left);}
 .piece.title>.piece-text,.piece.title>.inline-writing{line-height:var(--piece-leading,1.4);letter-spacing:var(--piece-tracking,.08em);}
