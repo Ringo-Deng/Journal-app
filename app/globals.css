@@ -2683,16 +2683,154 @@ button {
 .reading-shelf>.row{display:none}
 .book-scene{position:relative}.canvas-editbar{position:absolute;z-index:75;left:50%;top:40px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 24px);width:max-content;padding:7px 10px;background:#fffef5f5;border:1px solid #ced3c2;border-radius:8px;box-shadow:0 6px 20px #25331f24}.canvas-editbar>span{font-size:12px;color:#839073}.canvas-editbar .quiet{padding:4px;font-size:12px;white-space:nowrap}.canvas-editbar label{display:flex;align-items:center;gap:4px;font-size:11px}.canvas-editbar input{width:48px;padding:4px;font-size:12px}.inline-writing{box-sizing:border-box;width:100%;min-height:2.4em;max-height:40cqw;height:auto;padding:.2em .3em;font:inherit;color:inherit;line-height:1.9;background:#fffef84d;border:0;border-radius:3px;box-shadow:inset 0 0 0 1px #9b958326;outline:none;resize:vertical;cursor:text;user-select:text;touch-action:auto;field-sizing:content}.inline-writing:focus,.inline-writing:focus-visible{border:0;box-shadow:inset 0 0 0 1px #8c967242;outline:none;outline-offset:0}.piece:has(.inline-writing){z-index:70!important;cursor:text;user-select:text}.piece:has(.inline-writing) .resize-handle,.piece:has(.inline-writing) .rotate-handle{display:none}
 
-/* Editable paper treatments also render in page-turn snapshots. */
+/* Editable paper treatments also render in page-turn snapshots and exports. */
 .piece-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .piece-text { min-height: 1.5em; }
 .piece-text .inline-writing { color: inherit; }
 .piece-text, .piece-doodle { box-sizing: border-box; }
-.piece-text.note, .piece-text.outline, .piece-text.torn { padding: 1.2cqw; }
-.piece-text.note { background: #fff3c9; box-shadow: .2cqw .3cqw .5cqw #46351e20; }
-.piece-text.outline { border: 1.5px solid currentColor; border-radius: 1.3cqw .5cqw 1cqw .7cqw; }
-.piece-text.torn { background: #fffaf0; border-block: 2px dashed #ac987960; box-shadow: 0 .2cqw .5cqw #46351e18; }
-.piece-text.underline { border-bottom: 2px solid currentColor; padding-bottom: .5cqw; }
+.piece.piece-text:is(.note,.collage,.outline,.torn,.underline,.ticket,.postcard,.vellum,.label) > .piece-text,
+.piece.piece-text:is(.note,.collage,.outline,.torn,.underline,.ticket,.postcard,.vellum,.label) > .inline-writing {
+  position:relative;
+  z-index:1;
+}
+.piece.piece-text:is(.note,.collage,.outline,.torn,.underline,.ticket,.postcard,.vellum,.label) > .inline-writing,
+.piece.piece-text:is(.note,.collage,.outline,.torn,.underline,.ticket,.postcard,.vellum,.label) > .inline-writing:focus,
+.piece.piece-text:is(.note,.collage,.outline,.torn,.underline,.ticket,.postcard,.vellum,.label) > .inline-writing:focus-visible {
+  padding:0;
+  background:transparent;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+}
+.piece.piece-text.note {
+  padding:1.35cqw 1.5cqw;
+  background:linear-gradient(145deg,#f8edc7,#f3e3ad);
+  border:1px solid #ad915237;
+  border-radius:.18cqw .24cqw .65cqw .16cqw;
+  box-shadow:.12cqw .22cqw .45cqw #4f3b2020;
+}
+.piece.piece-text.note::after {
+  content:'';
+  position:absolute;
+  right:0;
+  bottom:0;
+  width:1.35cqw;
+  height:1.35cqw;
+  background:linear-gradient(135deg,#d5bd7d99 0 49%,#fff8df55 50% 100%);
+  border-radius:.1cqw 0 .55cqw 0;
+  pointer-events:none;
+}
+.piece.piece-text.outline {
+  padding:1.2cqw 1.35cqw;
+  border:1px solid color-mix(in srgb,currentColor 58%,transparent);
+  border-radius:.72cqw 1.08cqw .66cqw 1.18cqw;
+}
+.piece.piece-text.torn {
+  padding:1.5cqw 1.6cqw;
+  background:linear-gradient(105deg,#fbf5e7,#f6ecd5);
+  border:0;
+  clip-path:polygon(0 2%,7% 0,14% 2%,22% .5%,31% 2%,41% 0,51% 1.7%,62% .4%,73% 2%,84% .3%,93% 1.8%,100% .5%,99% 98%,91% 100%,82% 98.2%,72% 99.6%,61% 98%,50% 100%,39% 98.3%,29% 99.7%,18% 98%,8% 100%,0 98.2%);
+  filter:drop-shadow(.12cqw .24cqw .3cqw #4b351a24);
+}
+.piece.piece-text.underline {
+  padding:0 .2cqw .7cqw;
+  border:0;
+}
+.piece.piece-text.underline::after {
+  content:'';
+  position:absolute;
+  left:3%;
+  right:2%;
+  bottom:.12cqw;
+  height:1px;
+  background:color-mix(in srgb,currentColor 58%,transparent);
+  transform:rotate(-.2deg);
+  transform-origin:left center;
+  pointer-events:none;
+}
+.piece.piece-text.collage {
+  padding:1.55cqw 1.65cqw;
+  background:#fbf2df;
+  border:1px solid #a98f6740;
+  box-shadow:-.45cqw .42cqw 0 #d6ddbf,var(--piece-shadow,.12cqw .25cqw .42cqw #5943291c);
+}
+.piece.piece-text.collage::before {
+  content:'';
+  position:absolute;
+  z-index:2;
+  top:-1.05cqw;
+  left:18%;
+  width:42%;
+  height:2.1cqw;
+  transform:rotate(-4deg);
+  background-color:#d8bd8c99;
+  background-image:repeating-linear-gradient(90deg,#fff3 0 2px,transparent 2px 5px);
+  clip-path:polygon(2% 0,98% 2%,96% 17%,100% 34%,97% 52%,100% 72%,96% 100%,2% 98%,4% 78%,0 61%,3% 42%,0 22%);
+  pointer-events:none;
+}
+.piece.piece-text.ticket {
+  padding:1.35cqw 2cqw 1.35cqw 1.2cqw;
+  background:linear-gradient(105deg,#f5e8cf,#eddbbd);
+  border:1px solid #99745652;
+  clip-path:polygon(0 0,100% 0,100% 39%,97% 50%,100% 61%,100% 100%,0 100%,0 61%,3% 50%,0 39%);
+  filter:drop-shadow(.12cqw .22cqw .26cqw #51381e20);
+}
+.piece.piece-text.ticket::before {
+  content:'';
+  position:absolute;
+  top:.8cqw;
+  right:.85cqw;
+  bottom:.8cqw;
+  border-left:1px dashed #8f6b4e70;
+  pointer-events:none;
+}
+.piece.piece-text.postcard {
+  padding:1.5cqw 2.35cqw 1.5cqw .85cqw;
+  background:linear-gradient(120deg,#fdf9ef,#f6eedc);
+  border:1px solid #99876755;
+  border-radius:.18cqw;
+  box-shadow:.1cqw .18cqw .32cqw #58432c17;
+}
+.piece.piece-text.postcard::before {
+  content:'';
+  position:absolute;
+  top:.4cqw;
+  right:.4cqw;
+  width:1.75cqw;
+  height:1.35cqw;
+  border:1px solid #8f79565c;
+  background:repeating-linear-gradient(0deg,transparent 0 .2cqw,#99876720 .2cqw .28cqw);
+  box-shadow:inset 0 0 0 .14cqw #fffaf075;
+  transform:rotate(1.2deg);
+  pointer-events:none;
+}
+.piece.piece-text.vellum {
+  padding:1.45cqw 1.65cqw;
+  background:linear-gradient(115deg,rgb(252 249 239 / .82),rgb(235 229 211 / .78));
+  border:1px solid #aa9c8038;
+  box-shadow:inset 0 0 0 1px #fff9,.1cqw .2cqw .4cqw #493a2417;
+}
+.piece.piece-text.label {
+  padding:1.1cqw 1.4cqw 1.1cqw 1.8cqw;
+  background:linear-gradient(100deg,#e8d6ad,#f0e2c4);
+  border:0;
+  border-radius:0;
+  clip-path:polygon(8% 0,100% 0,100% 100%,8% 100%,0 50%);
+  filter:drop-shadow(.1cqw .2cqw .24cqw #4d351d24);
+}
+.piece.piece-text.label::before {
+  content:'';
+  position:absolute;
+  left:.5cqw;
+  top:calc(50% - .28cqw);
+  width:.56cqw;
+  height:.56cqw;
+  border:1px solid #806b4b70;
+  border-radius:50%;
+  background:#fbf3e2;
+  box-shadow:inset 0 .08cqw .12cqw #5f482b28;
+  pointer-events:none;
+}
 .canvas-editbar select { max-width: 95px; font-size: 12px; padding: 4px; }
 .canvas-editbar input[type=color] { width: 28px; height: 26px; padding: 0; }
 .piece-doodle { min-height: 15px; }
@@ -2723,15 +2861,6 @@ button {
   width:min(100%, calc(100cqw - 32px));
 }
 .piece-doodle.sticker { background:#fffefa; border:4px solid #fffefa; border-radius:24% 30% 22% 28%; padding:5px; filter:drop-shadow(1px 3px 2px #44311f38); }
-/* Paper objects, not application cards. */
-.piece-text.ticket,.piece-text.postcard,.piece-text.vellum,.piece-text.label { padding:1.4cqw 1.6cqw; }
-.piece-text.ticket { background:#f6ead8; border:1px solid #aa775e66; border-block:2px dashed #aa775e88; box-shadow:.15cqw .25cqw .25cqw #58432c17; }
-.piece-text.ticket::before { content:''; position:absolute; left:1cqw;right:1cqw;top:.5cqw;border-top:1px solid #aa775e66; }
-.piece-text.postcard { background:#fcf7ec; border:1px solid #a8977866; outline:1px solid #a8977833; outline-offset:-.6cqw;box-shadow:.15cqw .2cqw .3cqw #58432c15; }
-.piece-text.vellum { background:#f6f0e3bb; border:1px solid #bfb09244; }
-.piece-text.label { background:#f7ead3; border:1px solid #957c5666; border-radius:1.5cqw .4cqw 1.5cqw .4cqw; }
-.piece-text.note { border:1px solid #ae977044; box-shadow:.1cqw .15cqw .2cqw #58432c16; }
-.piece-text.torn { clip-path:polygon(0 1%,12% 0,23% 1%,35% 0,48% 1%,63% 0,78% 1%,90% 0,100% 1%,99% 100%,87% 98%,72% 100%,58% 99%,42% 100%,28% 98%,15% 100%,0 99%); }
 .piece-doodle.sticker { background:transparent;border:0;border-radius:0;padding:0;filter:drop-shadow(0 1px 1px #4a302126); }
 .design-preview-dialog { width: min(1160px,96vw)!important; max-width:1160px!important; max-height:96dvh; overflow:auto; }
 .design-preview-paper { position:relative; width:100%; aspect-ratio:var(--spread-ratio, 1.43); border:1px solid #bdab90; box-shadow:0 6px 18px #44332120; }
@@ -2758,19 +2887,6 @@ button {
 .piece-doodle.hand-doodle {filter:none!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0;}
 .piece-doodle:has(svg[data-hand-doodle]){filter:none!important;background:transparent!important;min-height:0;}
 
-/* Layered paper is shared by the editable canvas and page-turn/AI previews. */
-/* Keep paper and tape visible after editing; scroll only the note text. */
-.piece.body.collage { overflow: visible; }
-.piece.body.collage > .piece-text,
-.piece.body.collage.selected > .piece-text {
-  max-height: 100%;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-.piece-text.collage { padding:1.5cqw 1.6cqw;background:#faf3e2;box-shadow:.2cqw .35cqw .45cqw #59432920;isolation:isolate; }
-.piece-text.collage::before {content:'';position:absolute;inset:-.7cqw -.5cqw;transform:rotate(-3deg);background:repeating-linear-gradient(0deg,#a0927130 0 1px,transparent 1px 1.2cqw),repeating-linear-gradient(90deg,#a092711c 0 1px,#e7d9b7 1px 1.2cqw);z-index:-2;clip-path:polygon(0 1%,17% 0,36% 1%,57% 0,81% 1%,100% 0,99% 100%,78% 99%,56% 100%,33% 99%,0 100%);}
-.piece-text.collage::after {content:'';position:absolute;inset:0;background:inherit;z-index:-1;clip-path:polygon(0 1%,18% 0,36% 1%,57% 0,81% 1%,100% 0,99% 100%,78% 99%,56% 100%,33% 99%,0 100%);}
-.piece-text.collage > .piece-text::before {content:'';position:absolute;top:-1.4cqw;left:12%;width:9cqw;height:2.5cqw;transform:rotate(-6deg);background:repeating-linear-gradient(90deg,#bd987259 0 2px,#bd987244 2px 4px);pointer-events:none;}
 .piece-asset:has(img[src*='collage-arrow']) {filter:drop-shadow(1px 2px 1px #63442c25);}
 .piece-asset.collage-paper img {height:100%;max-height:none;object-fit:fill;filter:drop-shadow(1px 3px 2px #63442c18);}
 
@@ -3488,7 +3604,12 @@ fieldset.book-tools{border-top:0;}
 .piece>.piece-text,.piece>.inline-writing{line-height:var(--piece-leading,1.9);letter-spacing:var(--piece-tracking,.03em);font-weight:var(--piece-weight,400);text-align:var(--piece-align,left);}
 .piece.title>.piece-text,.piece.title>.inline-writing{line-height:var(--piece-leading,1.4);letter-spacing:var(--piece-tracking,.08em);}
 .piece.body,.piece.body>.piece-text,.piece.body.collage>.piece-text,.piece.body.collage.selected>.piece-text{max-height:none;overflow:visible;}
-.piece.has-shadow:not(.material-tape):not(.material-botanical):not(.cutout){box-shadow:var(--piece-shadow);}
+.piece.has-shadow:not(.piece-text):not(.material-tape):not(.material-botanical):not(.cutout){box-shadow:var(--piece-shadow);}
+.piece.piece-text:is(.note,.postcard).has-shadow,.piece.piece-text.outline.has-shadow{box-shadow:var(--piece-shadow);}
+.piece.piece-text.vellum.has-shadow{box-shadow:inset 0 0 0 1px #fff9,var(--piece-shadow);}
+.piece.piece-text.collage.has-shadow{box-shadow:-.45cqw .42cqw 0 #d6ddbf,var(--piece-shadow);}
+.piece.piece-text:is(.torn,.ticket,.label).has-shadow{filter:drop-shadow(var(--piece-shadow));}
+.piece.piece-text.underline.has-shadow::after{box-shadow:var(--piece-shadow);}
 .piece.material-botanical{filter:drop-shadow(.12cqw .23cqw .15cqw #59432930);}
 .piece.mounted-photo{padding:var(--photo-border,.7cqw);padding-bottom:calc(var(--photo-border,.7cqw) * 2.3);}
 .piece.mounted-photo.torn,.piece.mounted-photo.stamp{padding:var(--photo-border,.55cqw);}
@@ -3547,6 +3668,7 @@ fieldset.book-tools{border-top:0;}
 
 /* 翻页性能：动画期间关闭昂贵滤镜与阴影。 */
 .page-turn-layer .piece{filter:none!important;box-shadow:none!important;text-shadow:none!important;}
+.page-turn-layer .piece.piece-text.collage{box-shadow:-.45cqw .42cqw 0 #d6ddbf!important;}
 
 .build-version {
   margin-top: -8px;

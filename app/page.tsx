@@ -16,7 +16,7 @@ import FullBackup from '@/components/full-backup';
 import JournalHistory from '@/components/journal-history';
 import NotebookImageExport from '@/components/notebook-image-export';
 import NotebookPaper from '@/components/notebook-paper';
-import { pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
+import { pageSpread, patchPage, pageInk, reserveHeaderSpace, textFrameInk } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
@@ -2165,7 +2165,7 @@ export default function Home() {
                             fontSize: `${(p.fontSize || 18) / 10}cqw`,
 
                             opacity: p.opacity ?? 1,
-                            color:p.color || (!isFlyleaf && book ? pageInk(book,spread,p.x>=50?'right':'left') : undefined),background:p.kind==='text'?p.background:undefined,
+                            color:textFrameInk(p,!isFlyleaf && book ? pageInk(book,spread,p.x>=50?'right':'left') : undefined),background:p.kind==='text'?p.background:undefined,
                             height:p.h?`${p.h}%`:p.kind==='doodle'?'15%':undefined,
                             fontFamily:p.fontFamily==='serif'?'Georgia, Songti SC, serif':p.fontFamily==='sans'?'PingFang SC, sans-serif':undefined,
                           }}
