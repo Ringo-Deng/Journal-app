@@ -8,13 +8,12 @@ export function createReadingTextures(book: Book, assets: Asset[]) {
   const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
   const coverInfoValue = coverInfo(book.cover);
   const stationery = !book.coverAsset && coverInfoValue.material.id === "linen";
-  // Every built-in stationery edition uses the same physical construction on both boards.
-  // Copy the real back-cover canvas once and hand that copy to the 3D front-cover path,
-  // instead of feeding it the separately rendered cover JPG.
+  // Use front-face artwork without the shelf preview's illustrated book furniture.
+  // The back texture deliberately omits the front label.
   const sharedStationeryCover = (() => {
     if (!stationery) return undefined;
     const textures = createCoverTextures("leather", coverInfoValue.colorway.color);
-    const source = textures.back.image as HTMLCanvasElement;
+    const source = textures.front.image as HTMLCanvasElement;
     const canvas = document.createElement("canvas");
     canvas.width = source.width;
     canvas.height = source.height;

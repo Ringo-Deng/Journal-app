@@ -61,6 +61,7 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   const settings = { ...COVER_MATERIALS[kind], ...(color ? { color } : {}) };
   // All built-in stationery colours share one clean physical-cover treatment.
   const stationeryPalette = stationeryPaletteForColor(settings.color);
+  const blueStationery = stationeryPalette?.base === "#91a9b5";
   const canvas = document.createElement("canvas");
   canvas.width = 768;
   canvas.height = stationeryPalette ? 1152 : 1024;
@@ -70,7 +71,35 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   bumpCanvas.height = canvas.height;
   const bumpCtx = bumpCanvas.getContext("2d")!;
 
-  if (stationeryPalette) {
+  if (blueStationery) {
+    // Map only the flat face of regular-blue-notes.svg (124,64)-(540,741).
+    // Its five cream columns, weave and label exclude the illustrated book furniture.
+    ctx.save();
+    ctx.scale(canvas.width / 416, canvas.height / 677);
+    ctx.translate(-124, -64);
+    ctx.fillStyle = "#849dad";
+    ctx.fillRect(124, 64, 416, 677);
+    const threads: [number, number, string, number, number][] = [
+      [29, 13, "#fff1d7", 0.73, 80],
+      [9, 1.5, "#617f92", 0.22, 80],
+      [67, 1.5, "#617f92", 0.22, 80],
+      [37, 2, "#fff1d7", 0.35, 80],
+      [0.5, 0.7, "#fffdf0", 0.19, 6],
+      [3.5, 0.55, "#617f92", 0.13, 6],
+    ];
+    for (const [offset, width, color, opacity, step] of threads) {
+      ctx.fillStyle = color;
+      ctx.globalAlpha = opacity;
+      // Fill both axes together so intersections keep the reference's even tone.
+      ctx.beginPath();
+      for (let x = offset; x < 540; x += step) ctx.rect(x - width / 2, 64, width, 677);
+      for (let y = offset; y < 741; y += step) ctx.rect(124, y - width / 2, 416, width);
+      ctx.fill();
+    }
+    ctx.restore();
+    bumpCtx.fillStyle = "#808080";
+    bumpCtx.fillRect(0, 0, bumpCanvas.width, bumpCanvas.height);
+  } else if (stationeryPalette) {
     // Match the plaid proportions used by the stationery face in every colourway.
     const scale = canvas.width / 600;
     const step = 56 * scale;
@@ -108,14 +137,43 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
     bumpCtx.putImageData(bumps, 0, 0);
   }
 
-  // Back cover follows the same material. Stationery editions use the same
-  // clean plaid on both boards and intentionally carry no maker mark.
+  // Copy the unlabelled fabric before adding front-only artwork.
   const backCanvas = document.createElement("canvas");
   backCanvas.width = canvas.width;
   backCanvas.height = canvas.height;
   const backCtx = backCanvas.getContext("2d")!;
   backCtx.drawImage(canvas, 0, 0);
-  if (!stationeryPalette) {
+  if (blueStationery) {
+    ctx.save();
+    ctx.scale(canvas.width / 416, canvas.height / 677);
+    ctx.translate(-124, -64);
+    ctx.fillStyle = "#fbf3df";
+    ctx.strokeStyle = "#d5cdb7";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(244, 192, 190, 107, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#536f79";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(252, 200, 174, 91, 5);
+    ctx.stroke();
+    ctx.fillStyle = "#4c6672";
+    ctx.font = "23px Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.letterSpacing = "6px";
+    ctx.fillText("NOTES", 342, 239);
+    ctx.strokeStyle = "#82908c";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(266, 260);
+    ctx.lineTo(413, 260);
+    ctx.moveTo(281, 277);
+    ctx.lineTo(398, 277);
+    ctx.stroke();
+    ctx.restore();
+  } else if (!stationeryPalette) {
     backCtx.textAlign = "center";
     backCtx.fillStyle = settings.ink;
     backCtx.font = "14px Georgia";
