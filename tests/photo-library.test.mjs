@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import {mkdtemp,mkdir,readFile,rm,stat,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {createPhotoLibrary,journalPhotoSources} from '../local/photo-library.mjs';
+import {createPhotoLibrary,journalPhotoSources,photoMaskSourceMap} from '../local/photo-library.mjs';
 
 const folders=[];
 test.after(async()=>{for(const folder of folders)await rm(folder,{recursive:true,force:true})});
@@ -33,6 +33,53 @@ test('existing journal photos are indexed without copying or changing journal da
  assert.deepEqual(await library.reconcile(journalPhotoSources(state)),{added:1,skipped:0});
  const item=(await library.list()).items[0];assert.equal(item.src,'/uploads/existing.png');assert.equal(item.originalFile,'uploads/existing.png');assert.deepEqual(state,before);
  assert.equal((await library.reconcile(journalPhotoSources(state))).added,0);
+});
+
+test('masked results resolve to originals across days, pages, flyleaves and templates',()=>{
+ const original='/uploads/original.png',result='/uploads/masked.png',unknown='/uploads/imported-mask.png';
+ const state={books:[{flyleaf:{elements:[{kind:'photo',src:result,frame:'masked'}]},spreads:[{days:[{photos:[result,unknown,'/uploads/ordinary.png']}],elements:[]}],collageTemplates:[{elements:[{kind:'photo',src:unknown,frame:'masked'}]}]}]};
+ const before=structuredClone(state),masks=photoMaskSourceMap(state,[{src:original,resultSrc:result}]);
+ assert.deepEqual(journalPhotoSources(state,masks),[original,'/uploads/ordinary.png']);
+ assert.deepEqual(journalPhotoSources(state),['/uploads/ordinary.png']);
+ assert.deepEqual(state,before);
+ // A copied plain-frame result is still derived when its trash provenance remains.
+ const copied={books:[{spreads:[{elements:[{kind:'photo',src:result,photoOriginal:result,frame:'plain'}]}]}]};
+ assert.deepEqual(journalPhotoSources(copied,photoMaskSourceMap(copied,[{src:original,resultSrc:result}])),[original]);
+ assert.deepEqual(journalPhotoSources(copied,new Map([[result,unknown],[unknown,result]])),[]);
+});
+
+test('legacy automatic mask entries stay out of the timeline and photo backup without removing data',async()=>{
+ const {dir,atomic}=await fixture(),src='/uploads/original.png',result='/uploads/masked.png';
+ const original=await image('#b43b34'),masked=await sharp({create:{width:18,height:12,channels:4,background:'#00000000'}}).png().toBuffer();
+ await writeFile(join(dir,src.slice(1)),original);await writeFile(join(dir,result.slice(1)),masked);
+ const old=createPhotoLibrary({data:dir,atomic});await old.reconcile([src,result]);
+ const before=await readFile(join(dir,'photo-library.json'));
+ const masks=photoMaskSourceMap({books:[]},[{src,resultSrc:result}]);
+ const library=createPhotoLibrary({data:dir,atomic,getMaskSources:async()=>masks});
+ assert.deepEqual(await library.reconcile([result]),{added:0,skipped:0});
+ const page=await library.list(0,1);assert.equal(page.total,1);assert.equal(page.nextOffset,null);assert.equal(page.items[0].src,src);
+ const records=[];for await(const record of library.backupRecords())records.push(record);
+ assert.equal(records.length,1);assert.deepEqual(Buffer.from(records[0].data,'base64'),original);
+ assert.deepEqual(await readFile(join(dir,'photo-library.json')),before);
+ assert.deepEqual(await readFile(join(dir,result.slice(1))),masked);
+ assert.ok((await library.sources()).includes(src));assert.ok((await library.sources()).includes(result));
+ // Explicitly importing a transparent result is a separate user choice, even after old auto-indexing.
+ const imported=await library.import(masked,{name:'透明照片.png'});
+ assert.equal(imported.duplicate,false);assert.match(imported.item.originalFile,/^photo-originals\//);
+ assert.equal((await library.list()).total,2);
+ assert.equal((await library.import(masked,{name:'重复透明照片.png'})).duplicate,true);
+ assert.deepEqual(await readFile(join(dir,result.slice(1))),masked);
+});
+
+test('masked photos are never newly auto-indexed and intentional imports remain visible',async()=>{
+ const {dir,atomic}=await fixture(),result='/uploads/masked.png',bytes=await image('#446699');
+ await writeFile(join(dir,result.slice(1)),bytes);
+ const masks=new Map([[result,'']]);
+ const library=createPhotoLibrary({data:dir,atomic,getMaskSources:async()=>masks});
+ assert.deepEqual(await library.reconcile([result]),{added:0,skipped:0});assert.equal((await library.list()).total,0);
+ const imported=await library.import(bytes,{name:'单独导入.png'});masks.set(imported.item.src,'');
+ assert.equal((await library.list()).items[0].id,imported.item.id);
+ const records=[];for await(const record of library.backupRecords())records.push(record);assert.equal(records.length,1);
 });
 
 test('photo library backup restores originals and skips existing photos',async()=>{

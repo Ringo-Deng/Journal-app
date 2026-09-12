@@ -70,6 +70,7 @@ export function createPhotoMaskStore({data,atomic,getState,getProtectedSources=a
   }
   return {
     assertSavable,reconcile,
+    async sourceLinks(){await load();return store.entries.map(entry=>({src:entry.original.photoOriginal||entry.src,resultSrc:entry.resultSrc}))},
     async generate(raw){
       const input=validateMaskInput(raw);await load();
       const state=getState(),b=state.books.find(b=>b.id===input.bookId),s=[b?.flyleaf,...(b?.spreads||[])].find(s=>s?.id===input.spreadId),p=s?.elements.find(p=>p.id===input.pieceId);

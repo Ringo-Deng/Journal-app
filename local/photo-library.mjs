@@ -67,19 +67,37 @@ async function writeNew(path,buffer){
 
 async function readable(path){try{return (await stat(path)).isFile()}catch{return false}}
 
-export function journalPhotoSources(state){
+function photoSheets(state){
+  return (state?.books||[]).flatMap(book=>[book.flyleaf,...(book.spreads||[]),...(book.collageTemplates||[])]).filter(Boolean);
+}
+
+export function photoMaskSourceMap(state,maskEntries=[]){
+  const sources=new Map();
+  for(const entry of maskEntries)if(PHOTO_SOURCE.test(entry.resultSrc))sources.set(entry.resultSrc,entry.src);
+  // Notebook-only backups can contain masked pages without the local trash records.
+  for(const sheet of photoSheets(state))for(const piece of sheet.elements||[]){
+    if(piece?.kind==='photo'&&piece.frame==='masked'&&PHOTO_SOURCE.test(piece.src)&&!sources.has(piece.src))sources.set(piece.src,piece.photoOriginal||'');
+  }
+  return sources;
+}
+
+export function journalPhotoSources(state,maskSources=photoMaskSourceMap(state)){
   const found=[];
-  const add=value=>{if(typeof value==='string'&&PHOTO_SOURCE.test(value))found.push(value)};
+  const add=value=>{
+    const seen=new Set();
+    while(maskSources.has(value)){if(seen.has(value))return;seen.add(value);value=maskSources.get(value)}
+    if(typeof value==='string'&&PHOTO_SOURCE.test(value))found.push(value);
+  };
   const sheet=spread=>{
     if(!spread)return;
     for(const day of spread.days||[])for(const src of day.photos||[])add(src);
     for(const piece of spread.elements||[])if(piece?.kind==='photo')add(piece.photoOriginal||piece.src);
   };
-  for(const book of state?.books||[]){sheet(book.flyleaf);for(const spread of book.spreads||[])sheet(spread);for(const template of book.collageTemplates||[])sheet({elements:template.elements||[]});}
+  for(const spread of photoSheets(state))sheet(spread);
   return [...new Set(found)];
 }
 
-export function createPhotoLibrary({data,atomic,isReferenced=async()=>false}){
+export function createPhotoLibrary({data,atomic,isReferenced=async()=>false,getMaskSources=async()=>new Map()}){
   const originals=join(data,'photo-originals'),thumbs=join(data,'photo-thumbnails'),uploads=join(data,'uploads');
   let entries,queue=Promise.resolve();
   const task=fn=>{const next=queue.then(fn);queue=next.catch(()=>{});return next};
@@ -90,6 +108,12 @@ export function createPhotoLibrary({data,atomic,isReferenced=async()=>false}){
     if(!Array.isArray(entries)||entries.some(item=>!item||!/^[a-f0-9]{64}$/.test(item.id)||item.sha256!==item.id||!PHOTO_SOURCE.test(item.src)||!ORIGINAL_FILE.test(item.originalFile||'')||item.thumbnailSrc!==`/api/photos/thumbnail/${item.id}`||typeof item.originalName!=='string'||item.originalName.length>180||typeof item.capturedAt!=='string'||Number.isNaN(Date.parse(item.capturedAt)))){entries=undefined;throw fail('照片分类数据不完整，已停止修改以保护原片。',500)}
   }
   async function persist(next){await atomic('photo-library.json',next);entries=next}
+  async function visibleEntries(){
+    await load();const masks=await getMaskSources();
+    // Hide old automatic mask imports without deleting their files or metadata.
+    // Explicit imports have their own original file and remain valid library photos.
+    return entries.filter(item=>item.originalFile!==item.src.slice(1)||!masks.has(item.src));
+  }
   async function normalized(buffer,format,originalPath){
     const render=async input=>{
       const metadata=await sharp(input,{limitInputPixels:MAX_PHOTO_PIXELS,animated:false}).metadata();
@@ -112,8 +136,11 @@ export function createPhotoLibrary({data,atomic,isReferenced=async()=>false}){
     const format=photoFormat(buffer,name,probe),sha=createHash('sha256').update(buffer).digest('hex'),existing=entries.find(item=>item.sha256===sha||item.id===sha);
     if(existing){
       const original=join(data,existing.originalFile||existing.src.slice(1));
-      if(await readable(original))return {item:existing,duplicate:true};
-      entries=entries.filter(item=>item!==existing);
+      if(await readable(original)){
+        const explicitMaskImport=!reuseSource&&existing.originalFile===existing.src.slice(1)&&(await getMaskSources()).has(existing.src);
+        if(!explicitMaskImport)return {item:existing,duplicate:true};
+        // An intentional import of a previously hidden result gets its own library original.
+      }else entries=entries.filter(item=>item!==existing);
     }
     const importedAt=new Date().toISOString(),originalFile=reuseSource?reuseSource.slice(1):`photo-originals/${sha}${format.ext}`;
     const originalPath=join(data,originalFile);let wroteOriginal=false,wroteDisplay=false,wroteThumb=false;
@@ -135,14 +162,15 @@ export function createPhotoLibrary({data,atomic,isReferenced=async()=>false}){
   return {
     async import(buffer,meta){return task(()=>importUnsafe(buffer,meta))},
     async reconcile(sources){return task(async()=>{
-      await load();let added=0,skipped=0;
+      await load();const masks=await getMaskSources();let added=0,skipped=0;
       for(const src of sources){
+        if(masks.has(src))continue;
         if(entries.some(item=>item.src===src||item.originalFile===src.slice(1)))continue;
         try{const path=join(data,src.slice(1)),info=await stat(path),buffer=await readFile(path),result=await importUnsafe(buffer,{name:basename(src),lastModified:info.mtimeMs,reuseSource:src});if(!result.duplicate)added++}catch{skipped++}
       }
       return {added,skipped};
     })},
-    async list(offset=0,limit=60){await load();const ordered=[...entries].sort((a,b)=>b.capturedAt.localeCompare(a.capturedAt)||b.importedAt.localeCompare(a.importedAt));const start=Math.max(0,offset),size=Math.max(1,Math.min(120,limit));return {items:ordered.slice(start,start+size),total:ordered.length,nextOffset:start+size<ordered.length?start+size:null}},
+    async list(offset=0,limit=60){const ordered=(await visibleEntries()).sort((a,b)=>b.capturedAt.localeCompare(a.capturedAt)||b.importedAt.localeCompare(a.importedAt));const start=Math.max(0,offset),size=Math.max(1,Math.min(120,limit));return {items:ordered.slice(start,start+size),total:ordered.length,nextOffset:start+size<ordered.length?start+size:null}},
     async thumbnail(id){await load();const item=entries.find(entry=>entry.id===id);if(!item)throw fail('照片不存在。',404);return readFile(join(thumbs,`${id}.webp`))},
     async remove(id,protectedSources=[]){return task(async()=>{
       await load();const item=entries.find(entry=>entry.id===id);if(!item)throw fail('照片不存在。',404);
@@ -153,7 +181,7 @@ export function createPhotoLibrary({data,atomic,isReferenced=async()=>false}){
       return {deleted:true};
     })},
     async sources(){await load();return [...new Set(entries.flatMap(item=>[item.src,'/'+item.originalFile]))]},
-    async *backupRecords(){await load();for(const item of [...entries].sort((a,b)=>a.importedAt.localeCompare(b.importedAt))){const bytes=await readFile(join(data,item.originalFile));yield {name:item.originalName,capturedAt:item.capturedAt,data:bytes.toString('base64')}}},
+    async *backupRecords(){for(const item of (await visibleEntries()).sort((a,b)=>a.importedAt.localeCompare(b.importedAt))){const bytes=await readFile(join(data,item.originalFile));yield {name:item.originalName,capturedAt:item.capturedAt,data:bytes.toString('base64')}}},
     async restoreRecord(record){
       if(!record||typeof record.name!=='string'||typeof record.data!=='string'||record.data.length>Math.ceil(MAX_PHOTO_BYTES*4/3)+16||!/^[A-Za-z0-9+/]*={0,2}$/.test(record.data))throw fail('照片库备份中包含无效照片。');
       const buffer=Buffer.from(record.data,'base64');return this.import(buffer,{name:record.name,capturedAt:record.capturedAt});

@@ -15,7 +15,7 @@ import { validatePlan } from './design-plan.mjs';
 import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
 import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
 import { createPhotoMaskStore, photoTrashProtection, references } from './photo-mask.mjs';
-import { createPhotoLibrary, journalPhotoSources } from './photo-library.mjs';
+import { createPhotoLibrary, journalPhotoSources, photoMaskSourceMap } from './photo-library.mjs';
 import { createJournalHistory } from './journal-history.mjs';
 import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
 import {commitMaterialImportFiles} from '../lib/material-import-commit.mjs';
@@ -223,7 +223,8 @@ async function photoReferencedOutsideLibrary(src){
   }catch{return true}
   return false;
 }
-let photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
+async function photoLibraryMaskSources(){return photoMaskSourceMap(state,await photoMasks.sourceLinks())}
+let photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary,getMaskSources:photoLibraryMaskSources});
 let photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
 function photoTask(fn){const task=writeQueue.then(fn);writeQueue=task.catch(()=>{});return task;}
 const publicSettings = () => ({
@@ -626,7 +627,7 @@ const fullBackup=createFullBackup({data,publicDir:resolve(root,'public'),appVers
     backupRecoveryRequired=true;
     state=await readJSON('journal.json',{revision:0,books:[]});customAssets=await readJSON('materials.json',[]);materialJobs=consolidatedJobs(await readJSON('material-jobs.json',[]));pinterestImports=await readJSON('pinterest-imports.json',[]);userFonts=await readJSON('fonts.json',[]);
     journalHistory=createJournalHistory({data,atomicAt,validate:validateState});
-    photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary});
+    photoLibrary=createPhotoLibrary({data,atomic,isReferenced:photoReferencedOutsideLibrary,getMaskSources:photoLibraryMaskSources});
     photoMasks=createPhotoMaskStore({data,atomic,getState:()=>state,getProtectedSources:()=>photoLibrary.sources()});
     catalogService=await createMaterialCatalog({readJSON,atomic,readAssets:rawLibrary,getSettings:publicSettings,requestAI:designRequest,root,data});pendingMaterialReopen=null;paletteCache.clear();backupRecoveryRequired=false;
   },
@@ -685,7 +686,7 @@ const server = http.createServer(async (req, res) => {
       return json(res,{fonts:[...new Map(imported.map(font=>[font.id,fontPublic(font)])).values()]});
     }
     if(path==='/api/photos'&&req.method==='GET'){
-      const reconciled=await photoLibrary.reconcile(journalPhotoSources(state));
+      const reconciled=await photoLibrary.reconcile(journalPhotoSources(state,await photoLibraryMaskSources()));
       const result=await photoLibrary.list(Number(url.searchParams.get('offset')||0),Number(url.searchParams.get('limit')||60));
       return json(res,{...result,...(reconciled.skipped?{warning:`有 ${reconciled.skipped} 张旧照片暂时无法读取，未改变原手帐。`}:{})});
     }
