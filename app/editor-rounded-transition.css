@@ -62,6 +62,12 @@
   border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
 }
 
+/* The right-hand curl is mirrored for the previous-page control, so rounding
+   its exposed bottom corner keeps both small page curls on the paper outline. */
+.is-editing .book-scene .page-corner::after {
+  border-radius: 0 0 var(--editor-paper-radius) 0;
+}
+
 /* Page pieces carry their own z-index. Contain the destination snapshot so a
    high layer cannot paint above the sheet that is still turning over it. */
 .is-editing .book-scene .page-turn-layer .turn-reveal {

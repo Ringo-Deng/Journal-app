@@ -23,4 +23,5 @@ test('editor covers and paper share rounded exposed corners without rounding the
   assert.match(css, /\.notebook-page-layer\.left-paper[^}]*border-radius: var\(--editor-paper-radius\) 0 0 var\(--editor-paper-radius\)/s);
   assert.match(css, /\.notebook-page-layer\.right-paper[^}]*border-radius: 0 var\(--editor-paper-radius\) var\(--editor-paper-radius\) 0/s);
   assert.match(css, /\.turn-snapshot\s*\{[^}]*border-radius: var\(--editor-paper-radius\)/s);
+  assert.match(css, /\.page-corner::after\s*\{[^}]*border-radius: 0 0 var\(--editor-paper-radius\) 0/s);
 });
