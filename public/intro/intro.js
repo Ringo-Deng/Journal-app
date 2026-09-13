@@ -1,10 +1,3 @@
-const descriptions = {
-  "tab-collage": "文字、照片、贴纸各自独立。拖动、旋转、叠放，把喜欢的东西摆在喜欢的位置。",
-  "tab-materials":
-    "花卉、邮票、旧纸片，收好每一次心动。导入自己的图片，裁出喜欢的部分，下次做手帐时继续用。",
-  "tab-reading":
-    "合上时是一本书，翻开时是自己的日常。封面、书脊、跨页与翻页，让写过的日子值得再读一遍。",
-};
 const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
 function selectTab(tab) {
   for (const item of tabs) {
@@ -13,7 +6,6 @@ function selectTab(tab) {
     item.tabIndex = selected ? 0 : -1;
     document.getElementById(item.getAttribute("aria-controls")).hidden = !selected;
   }
-  document.getElementById("feature-description").textContent = descriptions[tab.id];
 }
 for (const tab of tabs) {
   tab.addEventListener("click", () => selectTab(tab));
@@ -30,17 +22,61 @@ for (const tab of tabs) {
     tabs[next].focus();
   });
 }
-const swatches = Array.from(document.querySelectorAll("[data-paper].paper-swatch"));
-for (const swatch of swatches) {
-  swatch.addEventListener("click", () => {
-    document.querySelector(".demo-spread").dataset.paper = swatch.dataset.paper;
-    for (const item of swatches) item.setAttribute("aria-pressed", String(item === swatch));
+
+const viewer = document.querySelector(".screenshot-viewer");
+const viewerImage = document.getElementById("viewer-image");
+let screenshotOpener;
+for (const link of document.querySelectorAll("[data-screenshot]")) {
+  link.addEventListener("click", (event) => {
+    if (
+      typeof viewer.showModal !== "function" ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    screenshotOpener = link;
+    document.getElementById("viewer-title").textContent = link.dataset.title;
+    document.getElementById("viewer-original").href = link.href;
+    viewerImage.src = link.href;
+    viewerImage.alt = link.querySelector("img").alt;
+    viewer.querySelector(".viewer-image").scrollLeft = 0;
+    viewer.showModal();
+    document.getElementById("viewer-close").focus();
   });
 }
-const bookToggle = document.querySelector(".book-toggle");
-bookToggle.addEventListener("click", () => {
-  const expanded = bookToggle.getAttribute("aria-expanded") !== "true";
-  bookToggle.setAttribute("aria-expanded", String(expanded));
-  document.getElementById("mini-book").classList.toggle("is-open", expanded);
-  bookToggle.firstChild.textContent = expanded ? "合上手帐 " : "翻开这本手帐 ";
+document.getElementById("viewer-close").addEventListener("click", () => viewer.close());
+viewer.addEventListener("click", (event) => {
+  const bounds = viewer.getBoundingClientRect();
+  if (
+    event.target === viewer &&
+    (event.clientX < bounds.left ||
+      event.clientX > bounds.right ||
+      event.clientY < bounds.top ||
+      event.clientY > bounds.bottom)
+  )
+    viewer.close();
 });
+viewer.addEventListener("close", () => screenshotOpener?.focus({ preventScroll: true }));
+
+// Check this page's own local service only; do not probe other ports or hosts.
+async function showRunningApp() {
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) return;
+  try {
+    const response = await fetch("/api/health", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!response.ok) return;
+    const health = await response.json();
+    if (health.ok !== true || health.runtimeId !== "page-elements-v0.1.20") return;
+    document.getElementById("running-app-link").hidden = false;
+    document.getElementById("running-app-note").textContent =
+      "当前地址的拾光已在运行，可以直接进入。这里的按钮只负责打开页面。";
+  } catch {
+    // A standalone introduction page still provides the complete installation path.
+  }
+}
+showRunningApp();
