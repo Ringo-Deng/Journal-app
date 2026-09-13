@@ -1,5 +1,5 @@
 'use client';
-import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,ColoredWriting} from './piece-appearance';
+import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,TextArtwork} from './piece-appearance';
 import ReadingLeaf from './reading-leaf';
 import NotebookPaper from './notebook-paper';
 import { pageInk } from '@/lib/journal';
@@ -93,7 +93,7 @@ function SpreadPreviewImpl({
           }}
         >
           {p.kind === 'text' ? (
-            <div className="piece-text"><ColoredWriting piece={p}/></div>
+            <TextArtwork piece={p}/>
           ) : p.kind==='photo' ? <PhotoArtwork piece={p}/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (<JournalDrawing piece={p}/>) : (
             <img
               src={

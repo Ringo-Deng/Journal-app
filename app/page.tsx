@@ -8,7 +8,7 @@ import PhotoTrash from '@/components/photo-trash';
 import {applyMaskToBooks,restorePhotoMask,type PhotoMaskDraft,type PhotoTrashEntry} from '@/lib/photo-mask-state';
 import {maskImageRect,rotatedMaskBounds} from '@/lib/photo-mask.mjs';
 import CollageStudio,{type ClipboardSource} from '@/components/collage-studio';
-import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,ColoredWriting} from '@/components/piece-appearance';
+import {pieceAppearance,pieceClasses,pieceFrameClass,PhotoArtwork,TapeArtwork,TextArtwork,TextContourFloats} from '@/components/piece-appearance';
 import {creamTravel,unionBoxes,transformCluster,cloneCluster,instantiateTemplate} from '@/lib/collage';
 import {layoutIssues,tidyLayout} from '@/lib/layout-safety.mjs';
 import type {CollageTemplate} from '@/lib/journal';
@@ -52,6 +52,7 @@ import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 import {leafFrame} from '@/lib/page-motion';
 import {clampSelectionMove,idsInSelectionRect,mergeSelection,selectionRect,selectionRectSize,type SelectionPoint,type SelectionRect} from '@/lib/selection-geometry';
+import {moveTextContourNode,normalizedTextContour,TEXT_CONTOUR_Y} from '@/lib/text-contour';
 /* oxlint-disable next/no-img-element -- Local editable images intentionally bypass remote image optimization. */
 /* oxlint-disable jsx-a11y/no-static-element-interactions -- Draggable canvas objects expose keyboard selection and coordinate controls. */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -406,6 +407,7 @@ export default function Home() {
   const multiSelection=activeUnitCount>1;
   const cluster=activePieces.length>1;
   const selectionLocked=activePieces.some(p=>p.locked);
+  const selectedTextContour=piece?.kind==='text'&&piece.textFlow==='contour'?normalizedTextContour(piece):undefined;
   function setSelected(value:string|null){
     if(maskDraftRef.current&&value!==maskDraftRef.current.pieceId)cancelPhotoMask();
     if(value!==selected){setCropping(false);setTextRange(null);}
@@ -1332,6 +1334,11 @@ export default function Home() {
       patchPiece(d.id,{crop:Math.max(0,Math.min(100,(p.crop??50)-(r.width>bounds.width+.01?ix/(r.width-bounds.width)*100:0))),cropY:Math.max(0,Math.min(100,(p.cropY??50)-(r.height>bounds.height+.01?iy/(r.height-bounds.height)*100:0)))},false);return;
     }
     if(d.mode==='crop'){patchPiece(d.id,{crop:Math.max(0,Math.min(100,d.crop!.x-dx/d.box.w*100)),cropY:Math.max(0,Math.min(100,d.crop!.y-dy/d.box.h*100))},false);return;}
+    if(d.mode.startsWith('text-contour-')){
+      const [, ,side,indexValue]=d.mode.split('-'),index=Number(indexValue),source=d.members[0];
+      if(source?.kind==='text'&&(side==='left'||side==='right'))patchPiece(d.id,moveTextContourNode(source,side,index,(side==='left'?dx:-dx)/d.box.w*100),false);
+      return;
+    }
     let box={...d.box};
     if(d.mode==='rotate'){
       box.rotation=normalizeAngle(d.box.rotation+Math.atan2(e.clientY-d.cy,e.clientX-d.cx)*180/Math.PI-d.angle);
@@ -2175,7 +2182,7 @@ export default function Home() {
             {cluster&&<button className="quiet" onClick={finishEditing}>完成</button>}
           </div>
           {!cluster&&<fieldset disabled={selectionLocked} className="single-piece-tools"><ElementControls piece={piece} height={piece.h??(selectionSize.h||15)} proportional={proportional} onProportional={()=>setProportional(!proportional)} onPatch={patch=>patchPiece(piece.id,patch)} onSize={changeSize} onLayer={changeLayer} onMaterialCut={startPageMaterialCut} onDelete={removePiece} onFinish={finishEditing} onReplace={()=>replaceInput.current?.click()} onReset={()=>patchPiece(piece.id,{h:undefined,stretch:false})}/>
-          <CollageTools onMask={()=>void startPhotoMask()} piece={piece} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} textRange={isCurrentTextSelection(textRange,piece)?textRange:null} onTextRange={setTextRange} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
+          <CollageTools onMask={()=>void startPhotoMask()} piece={piece} height={piece.h??(selectionSize.h||15)} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} textRange={isCurrentTextSelection(textRange,piece)?textRange:null} onTextRange={setTextRange} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
         {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')} suspended={!!modal}/>}
@@ -2414,7 +2421,7 @@ export default function Home() {
                           onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
                         >
                           {p.kind === 'text' ? (
-                            inlineId===p.id&&!reading?<textarea className="inline-writing" aria-label="直接编辑纸面文字" rows={1} ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>:<div className="piece-text"><ColoredWriting piece={p}/></div>
+                            inlineId===p.id&&!reading?(p.textFlow?<div className="inline-writing inline-shaped-writing"><TextContourFloats/><span className="inline-shaped-content" aria-label="直接编辑轮廓文字" role="textbox" aria-multiline="true" contentEditable="plaintext-only" suppressContentEditableWarning ref={el=>{if(!el)return;if(el.dataset.editingId!==p.id){el.dataset.editingId=p.id;el.textContent=inlineText}if(document.activeElement!==el){el.focus();const range=document.createRange(),selection=window.getSelection();range.selectNodeContents(el);range.collapse(false);selection?.removeAllRanges();selection?.addRange(range)}}} onInput={e=>{let next=e.currentTarget.innerText.replaceAll('\r','');if(next.length>8000){next=next.slice(0,8000);e.currentTarget.textContent=next}setInlineText(next);setTextRange(null)}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();e.currentTarget.blur()}}} onBlur={e=>{if(inlineId===p.id){patchPiece(p.id,{text:e.currentTarget.innerText.replaceAll('\r','').slice(0,8000)});setInlineId(null)}}}/></div>:<textarea className="inline-writing" aria-label="直接编辑纸面文字" rows={1} ref={el=>{if(el && document.activeElement!==el)el.focus()}} value={inlineText} maxLength={8000} onChange={e=>{setInlineText(e.target.value);setTextRange(null)}} onSelect={e=>{const t=e.currentTarget;if(t.selectionEnd>t.selectionStart)setTextRange({id:p.id,start:t.selectionStart,end:t.selectionEnd,text:t.value});}} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){setInlineId(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter')e.currentTarget.blur()}} onBlur={()=>{if(inlineId===p.id){patchPiece(p.id,{text:inlineText});setInlineId(null)}}}/>):<TextArtwork piece={p}/>
                           ) : p.kind==='photo' ? <PhotoArtwork piece={p} alt="当天照片" maskPreview={maskActive&&p.id===photoMaskDraft!.pieceId?{shape:photoMaskDraft!.shape,photoRotation:photoMaskDraft!.photoRotation,ratio:p.w/(p.h||15)*(canvas.current?canvas.current.clientWidth/canvas.current.clientHeight:bookFormat(book).ratio)}:undefined}/> : p.material==='tape' ? <TapeArtwork piece={p}/> : p.kind==='doodle' ? (
                             <JournalDrawing piece={p}/>
                           ) : (
@@ -2443,6 +2450,13 @@ export default function Home() {
                         onPointerCancel={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
                         onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPointerDrag();}}
                       >
+                        {!cluster&&selectedTextContour&&<>
+                          <svg className="text-contour-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                            <polyline points={[[selectedTextContour.left[0],0],...selectedTextContour.left.map((value,index)=>[value,TEXT_CONTOUR_Y[index]]),[selectedTextContour.left.at(-1)||0,100]].map(point=>point.join(',')).join(' ')}/>
+                            <polyline points={[[100-selectedTextContour.right[0],0],...selectedTextContour.right.map((value,index)=>[100-value,TEXT_CONTOUR_Y[index]]),[100-(selectedTextContour.right.at(-1)||0),100]].map(point=>point.join(',')).join(' ')}/>
+                          </svg>
+                          {(['left','right'] as const).flatMap(side=>selectedTextContour[side].map((inset,index)=><button key={`${side}-${index}`} type="button" className={`text-contour-handle contour-${side}`} aria-label={`${side==='left'?'左':'右'}侧轮廓节点 ${index+1}`} style={{left:`${side==='left'?inset:100-inset}%`,top:`${TEXT_CONTOUR_Y[index]}%`}} onPointerDown={e=>pointerDown(e,piece.id,`text-contour-${side}-${index}`)}/>))}
+                        </>}
                         {multiSelection&&<><span className="selection-move-edge edge-top" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-right" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-bottom" onPointerDown={e=>pointerDown(e,piece.id,'move')}/><span className="selection-move-edge edge-left" onPointerDown={e=>pointerDown(e,piece.id,'move')}/></>}
                         {(multiSelection||cluster)&&<span className="selection-label">{multiSelection?`已选 ${activeUnitCount} 个对象`: '组合 · 等比缩放'}</span>}
                         {!multiSelection&&resizeHandles.map(([handle,label])=><button key={handle} className={`resize-handle handle-${handle}`} aria-label={label} title={`${label} · ${isCornerResizeHandle(handle)?'自动保持比例':'可单独调整比例'}`} onPointerDown={e=>pointerDown(e,piece.id,'resize-'+handle)}/>)}

@@ -107,5 +107,5 @@ test('legacy warm vellum becomes neutral while preserving its effective transpar
 
 test('paper renderer invalidates cached reading images after vellum rendering changes',()=>{
   const book={id:'b',title:'硫酸纸',month:'2026-09',cover:'linen-oat',spreads:[{id:'s',days:[],elements:[]}]};
-  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,9);
+  assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,10);
 });

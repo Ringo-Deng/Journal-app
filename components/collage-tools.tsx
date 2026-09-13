@@ -8,10 +8,11 @@ import {readUserFonts,USER_FONTS_CHANGED_EVENT,type UserFont} from '@/lib/user-f
 import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,isVellumSheet,vellumColor,vellumDisplayOpacity} from '@/lib/vellum-sheet';
 import {NumberControl} from './element-controls';
 import ToolbarPopover from './toolbar-popover';
+import {TEXT_CONTOUR_PRESETS} from '@/lib/text-contour';
 
 const vellumColors=[['#edf1f0','雾白'],['#dfe7e8','冷灰'],['#dce8ef','雾蓝'],['#eee1e5','雾粉'],['#e1e9df','雾绿']];
 
-export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,onMask,cropping,onCrop,busy,textRange,onTextRange,onTextColor,onTextHighlight}:{piece:Piece;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;onMask:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;textRange:TextSelection|null;onTextRange:(range:TextSelection|null)=>void;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
+export default function CollageTools({piece:p,height,onPatch,onCaption,onTape,onCutout,onMask,cropping,onCrop,busy,textRange,onTextRange,onTextColor,onTextHighlight}:{piece:Piece;height:number;onPatch:(patch:Partial<Piece>)=>void;onCaption:()=>void;onTape:()=>void;onCutout:()=>void;onMask:()=>void;cropping:boolean;onCrop:()=>void;busy:boolean;textRange:TextSelection|null;onTextRange:(range:TextSelection|null)=>void;onTextColor:(color:string|null)=>void;onTextHighlight:(color:string|null)=>void}) {
  const [userFonts,setUserFonts]=useState<UserFont[]>([]);
  const textInput=useRef<HTMLTextAreaElement>(null);
  const hasTextRange=isCurrentTextSelection(textRange,p);
@@ -43,6 +44,21 @@ export default function CollageTools({piece:p,onPatch,onCaption,onTape,onCutout,
      <div className="toolbar-popover-row">
        <label>粗细<select aria-label="文字粗细" value={p.fontWeight||400} onChange={e=>onPatch({fontWeight:Number(e.target.value)})}><option value={400}>常规</option><option value={600}>加粗</option></select></label>
        <label>对齐<select aria-label="文字对齐" value={p.textAlign||'left'} onChange={e=>onPatch({textAlign:e.target.value as Piece['textAlign']})}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
+     </div>
+     <div className="toolbar-popover-section text-flow-controls">
+       <label>文字轮廓<select aria-label="文字轮廓" value={p.textFlow||'rect'} onChange={e=>onPatch(e.target.value==='contour'
+         ? {textFlow:'contour',textContourLeft:[...TEXT_CONTOUR_PRESETS.straight.textContourLeft],textContourRight:[...TEXT_CONTOUR_PRESETS.straight.textContourRight],h:p.h??Math.max(6,height),stretch:true}
+         : {textFlow:undefined,textContourLeft:undefined,textContourRight:undefined})}><option value="rect">普通矩形</option><option value="contour">自由轮廓</option></select></label>
+       {p.textFlow&&<>
+         <div className="toolbar-popover-actions text-contour-presets">
+           <button type="button" className="quiet" onClick={()=>onPatch({textContourLeft:[...TEXT_CONTOUR_PRESETS.leftUpper.textContourLeft],textContourRight:[...TEXT_CONTOUR_PRESETS.leftUpper.textContourRight]})}>左上绕开</button>
+           <button type="button" className="quiet" onClick={()=>onPatch({textContourLeft:[...TEXT_CONTOUR_PRESETS.rightUpper.textContourLeft],textContourRight:[...TEXT_CONTOUR_PRESETS.rightUpper.textContourRight]})}>右上绕开</button>
+           <button type="button" className="quiet" onClick={()=>onPatch({textContourLeft:[...TEXT_CONTOUR_PRESETS.hourglass.textContourLeft],textContourRight:[...TEXT_CONTOUR_PRESETS.hourglass.textContourRight]})}>两侧收腰</button>
+           <button type="button" className="quiet" onClick={()=>onPatch({textContourLeft:[...TEXT_CONTOUR_PRESETS.straight.textContourLeft],textContourRight:[...TEXT_CONTOUR_PRESETS.straight.textContourRight]})}>恢复直边</button>
+         </div>
+         <div className="toolbar-popover-grid"><NumberControl label="文字区高度" value={p.h??height} min={3} max={100} unit="%" onCommit={h=>onPatch({h,stretch:true})}/></div>
+         <small className="text-flow-hint">拖动文字框左右两侧的绿色节点塑形；外框边线仍调整整体宽高。</small>
+       </>}
      </div>
    </ToolbarPopover>
    <ToolbarPopover label="荧光笔" icon={<Highlighter/>} className="compact-text-marking" panelClassName="text-marking-popover">

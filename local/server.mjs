@@ -294,6 +294,7 @@ function validateState(s) {
     if (settings?.paperRulingSize !== undefined && !['small', 'medium', 'large'].includes(settings.paperRulingSize))
       throw error('内页线格大小无效。');
   };
+  const validContourSide = (values) => Array.isArray(values) && values.length === 5 && values.every((value) => Number.isFinite(value) && value >= 0 && value <= 45);
   for (const book of s.books) {
     if (
       !/^\d{4}-(0[1-9]|1[0-2])$/.test(book.month) ||
@@ -343,6 +344,16 @@ function validateState(s) {
           throw error('页面元素格式不正确。');
         if (el.src && !/^\/(materials|uploads)\/[a-zA-Z0-9._-]+$/.test(el.src))
           throw error('图片路径不正确。');
+        if (
+          (el.textFlow !== undefined || el.textContourLeft !== undefined || el.textContourRight !== undefined) &&
+          (
+            el.kind !== 'text' || el.textFlow !== 'contour' ||
+            !Number.isFinite(el.h) || el.h < 1 || el.h > 100 ||
+            !validContourSide(el.textContourLeft) || !validContourSide(el.textContourRight) ||
+            el.textContourLeft.some((value, index) => value + el.textContourRight[index] > 80)
+          )
+        )
+          throw error('文字形状格式不正确。');
         if (
           el.highlightRuns !== undefined &&
           (

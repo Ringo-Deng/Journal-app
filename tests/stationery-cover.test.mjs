@@ -30,7 +30,7 @@ test('cover cache changes without invalidating saved inner pages or editing the 
  const book={id:'a',title:'旅行',cover:'linen-oat',spreads:[]};
  const original=structuredClone(book);
  assert.equal(JSON.parse(readingJpgInput(book,[],null)).version,11);
- assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,9);
+ assert.equal(JSON.parse(readingJpgInput(book,[],0)).version,10);
  assert.equal(readingJpgInput(book,[],null),readingJpgInput({...book,title:'改名后'},[],null));
  assert.deepEqual(book,original);
 });

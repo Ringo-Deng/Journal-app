@@ -56,6 +56,9 @@ export type Piece = {
   letterSpacing?: number;
   fontWeight?: number;
   textAlign?: 'left' | 'center' | 'right';
+  textFlow?: 'contour';
+  textContourLeft?: number[];
+  textContourRight?: number[];
   groupId?: string;
   attachedTo?: string;
   cropY?: number;
