@@ -22,6 +22,13 @@ test('photo category supports lazy file and folder import, time groups and expli
  assert.match(page,/function insertPhotoLibrary\(sources:string\[\]\)/);assert.match(page,/kind:'photo',src,photoOriginal:src/);assert.match(page,/setMultiIds\(pieces\.length>1/);
 });
 
+test('photo selection uses one outer highlight and keeps its checkmark visible',()=>{
+ assert.doesNotMatch(styles,/article>label:(?:hover|focus-within)/);
+ assert.doesNotMatch(styles,/article:(?:hover|focus-within)/);
+ assert.match(styles,/article\.chosen\{border-color:#789365;box-shadow:0 0 0 1px #789365;\}/);
+ assert.match(styles,/\[data-slot=checkbox\]\[data-checked\]\{border-color:#789365;background:#789365;color:#fff;\}/);
+});
+
 test('photo category preserves backup, preview, processing and deletion protection controls',()=>{
  assert.match(library,/\/api\/photos\/backup/);assert.match(library,/\/api\/photos\/restore/);assert.match(library,/送到素材处理/);assert.match(library,/电脑上的原文件不会受影响/);assert.match(library,/protectedSources/);
  assert.match(page,/photoProtectedSources=/);assert.match(page,/onProcess=\{processPhotoLibraryItem\}/);assert.match(page,/api<\{source:string\}>\('\/materials\/source'/);assert.match(page,/setMaterialStudioTargetSource\(job\.source\)/);
