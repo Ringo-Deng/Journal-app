@@ -21,6 +21,7 @@ import { createJournalHistory } from './journal-history.mjs';
 import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
 import {commitMaterialImportFiles} from '../lib/material-import-commit.mjs';
 import {mapMaterialSourceBounds,normalizeMaterialSourceBounds} from '../lib/material-source-bounds.mjs';
+import {nameSegmentedMaterialItems} from './material-batch-naming.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import { execFile } from 'node:child_process';
@@ -1120,6 +1121,23 @@ const server = http.createServer(async (req, res) => {
         result = { items: [], engine: '识别未完成，请框选或切换模式' };
       }
       if(!result.items?.length)throw error('未拆出素材，请切换模式或框选；原有结果已保留。',422);
+      const namingDiagnostic={at:new Date().toISOString(),stage:'material-batch-naming',model:settings.model,total:result.items.length,named:0};
+      let suggestedNames=new Map();
+      if(!configIssue(settings)&&settings.vision){
+        try{
+          suggestedNames=await nameSegmentedMaterialItems({
+            items:result.items,
+            uploadsDir:resolve(data,'uploads'),
+            requestAI:async messages=>designRequest(messages,0,namingDiagnostic),
+          });
+          namingDiagnostic.named=suggestedNames.size;
+          namingDiagnostic.ok=suggestedNames.size===result.items.length;
+        }catch(cause){
+          namingDiagnostic.ok=false;
+          namingDiagnostic.error=String(cause?.message||cause).slice(0,180);
+        }
+        await atomic('ai-last-material-naming.json',namingDiagnostic).catch(()=>{});
+      }
       let job = {
         id: randomUUID(),
         source: input.src,
@@ -1138,7 +1156,7 @@ const server = http.createServer(async (req, res) => {
           return {
             id: randomUUID(),
             src: '/uploads/' + item.file,
-            name: `素材 ${String(index + 1).padStart(2, '0')}`,
+            name: suggestedNames.get(index) || `素材 ${String(index + 1).padStart(2, '0')}`,
             width: item.width,
             height: item.height,
             bounds: item.bounds,

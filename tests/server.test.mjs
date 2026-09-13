@@ -37,6 +37,11 @@ const mock = http.createServer(async (req, res) => {
   if(/Reply with OK only/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'OK'}}]}));return;}
   if(/Return only this JSON object/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'{"ok":true}'}}]}));return;}
   if(/Describe this image/i.test(prompt)){res.end(JSON.stringify({choices:[{message:{content:'pixel'}}]}));return;}
+  if(received.messages?.some(message=>typeof message.content==='string'&&message.content.includes('你是手帐素材命名员'))){
+    const count=Number(prompt.match(/共 (\d+) 件/)?.[1]||0);
+    const semanticNames=['绿色圆形贴纸','蓝色方形贴纸','红色三角贴纸'];
+    res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({items:Array.from({length:count},(_,index)=>({index,name:semanticNames[index]||`裁片 ${index+1}`}))})}}]}));return;
+  }
   res.end(
     JSON.stringify({
       choices: [
@@ -234,6 +239,7 @@ test('material workbench splits a sheet, imports transparent pieces and persists
  const result=await call('/api/materials/segment',{src:upload.data.src,name:'测试素材纸',mode:'auto',tolerance:28},'POST');
  if(!capabilities.segment){assert.equal(result.status,501);assert.match(result.data.error,/当前系统暂不支持/);return;}
  assert.equal(result.status,200);assert.equal(result.data.items.length,3);
+ assert.deepEqual(result.data.items.map(item=>item.name),['绿色圆形贴纸','蓝色方形贴纸','红色三角贴纸']);
  for(const item of result.data.items){const r=await fetch(base+item.src);assert.equal(r.status,200);const image=Buffer.from(await r.arrayBuffer());assert.equal(image[25],6);assert.ok(item.width>50&&item.height>50);assert.deepEqual(item.sourceBounds,item.bounds)}
  const first=result.data.items[0];
  const crop=await call('/api/materials/segment',{src:upload.data.src,name:'单个框选',mode:'crop',tolerance:28,rect:first.bounds},'POST');
