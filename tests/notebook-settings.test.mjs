@@ -15,6 +15,8 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
  assert.match(page,/function notebookWithSettingsDraft/);
  assert.match(page,/上传并保存到我的内页/);
+ assert.match(page,/className="notebook-settings-section notebook-paper-background-section"/);
+ assert.doesNotMatch(page,/paperAdvancedOpen|setPaperAdvancedOpen/);
  assert.match(page,/if\(editingBookId\)change\(all=>all\.map\(item=>item\.id===editingBookId\?\{\.\.\.item,paperTemplates:putPaperTemplate/);
  assert.match(page,/已经使用它的页面不受影响/);
  const scopeChange=page.slice(page.indexOf('function changeCoverScope'),page.indexOf('function notebookWithSettingsDraft'));

@@ -3225,6 +3225,11 @@ fieldset.book-tools{border-top:0;}
 .advanced-content{display:flex;flex-direction:column;gap:12px;padding:2px 16px 18px;border-top:1px solid #eceae1;}
 .advanced-content>.full{margin-top:14px;}
 .advanced-content>.field:first-child{margin-top:14px;}
+.paper-background-heading{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:10px;margin-bottom:14px;color:#465042;}
+.paper-background-heading>span:last-child{display:flex;flex-direction:column;gap:3px;}
+.paper-background-heading strong{font-size:13px;}
+.paper-background-heading small{font-size:10px;line-height:1.5;color:#919588;}
+.paper-background-content{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;}
 .advanced-value{font-size:11px;color:#858b7e;}
 .paper-template-library{display:flex;flex-direction:column;gap:8px;padding-top:2px;}
 .paper-template-library-heading{display:flex;flex-direction:column;gap:3px;color:#596552;}

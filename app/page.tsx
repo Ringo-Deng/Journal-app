@@ -365,7 +365,6 @@ export default function Home() {
   const [coverDate,setCoverDate]=useState('');
   const [coverHeader, setCoverHeader] = useState<HeaderConfig>(defaultHeader);
   const [coverBg, setCoverBg] = useState<PaperBg | null>(null);
-  const [paperAdvancedOpen, setPaperAdvancedOpen] = useState(false);
   const [coverTemplates, setCoverTemplates] = useState<Book['paperTemplates']>([]);
   const coverBgInput = useRef<HTMLInputElement>(null);
   const coverHeaderText = useRef<HTMLTextAreaElement>(null);
@@ -1083,7 +1082,6 @@ export default function Home() {
     setCoverHeader({...headerOf(b, current)});
     const currentBackground = paperBgOf(b, current) || null;
     setCoverBg(currentBackground);
-    setPaperAdvancedOpen(!!currentBackground);
     setCoverTemplates(b?.paperTemplates || []);
     setCoverTab('cover');
     setCoverScope(initialScope);
@@ -3509,13 +3507,12 @@ export default function Home() {
                       </div>
                     </section>
 
-                    <details className="notebook-settings-advanced" open={paperAdvancedOpen} onToggle={(event) => setPaperAdvancedOpen(event.currentTarget.open)}>
-                      <summary>
+                    <section className="notebook-settings-section notebook-paper-background-section">
+                      <div className="paper-background-heading">
                         <span className="advanced-icon"><ImagePlus /></span>
                         <span><strong>自定义内页背景</strong><small>上传图片、调整位置或使用已保存模板</small></span>
-                        <ChevronRight className="advanced-chevron" />
-                      </summary>
-                      <div className="advanced-content">
+                      </div>
+                      <div className="paper-background-content">
                         <input hidden type="file" ref={coverBgInput} accept="image/jpeg,image/png" onChange={(event) => void uploadCoverBackground(event.target.files?.[0])} />
                         <button className="outline full" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传并保存到我的内页'}</button>
                         {coverBg && (
@@ -3534,7 +3531,7 @@ export default function Home() {
                         )}
                         {!!coverTemplates?.length && <div className="paper-template-library"><div className="paper-template-library-heading"><strong>我的内页</strong><small>已上传的内页会一直保存在当前笔记本；选择后再保存设置即可应用。</small></div><div className="settings-template-list">{coverTemplates.map((template) => <div className={`settings-template-card ${coverBg?.src===template.src?'chosen':''}`} key={template.id}><button className="settings-template-choice" aria-pressed={coverBg?.src===template.src} onClick={() => {setCoverBg({ src: template.src, x: template.x, y: template.y, scale: template.scale });setCoverTemplateName(template.name);}}><img src={template.src} alt="" /><span>{template.name}</span></button><button className="quiet settings-template-remove" aria-label={`从我的内页删除 ${template.name}`} title="只从我的内页移除，不影响已使用页面" onClick={() => removeCoverBgTemplate(template.id)}><Trash2 /></button></div>)}</div></div>}
                       </div>
-                    </details>
+                    </section>
                   </>
                 )}
 
