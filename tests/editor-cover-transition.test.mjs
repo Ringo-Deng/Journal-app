@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const page = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const layout = await readFile(new URL('../app/layout.tsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../app/editor-rounded-transition.css', import.meta.url), 'utf8');
+const globals = await readFile(new URL('../app/globals.css', import.meta.url), 'utf8');
 
 test('editor canvas stays mounted beneath the cover during both transition directions', () => {
   assert.match(page, /\(!opened \|\| opening \|\| closing\)/);
@@ -23,5 +24,7 @@ test('editor covers and paper share rounded exposed corners without rounding the
   assert.match(css, /\.notebook-page-layer\.left-paper[^}]*border-radius: var\(--editor-paper-radius\) 0 0 var\(--editor-paper-radius\)/s);
   assert.match(css, /\.notebook-page-layer\.right-paper[^}]*border-radius: 0 var\(--editor-paper-radius\) var\(--editor-paper-radius\) 0/s);
   assert.match(css, /\.turn-snapshot\s*\{[^}]*border-radius: var\(--editor-paper-radius\)/s);
-  assert.match(css, /\.page-corner::after\s*\{[^}]*border-radius: 0 0 var\(--editor-paper-radius\) 0/s);
+  assert.match(css, /\.page-corner::before,\s*\.is-editing \.book-scene \.page-corner::after\s*\{[^}]*border-radius: 0 0 var\(--editor-paper-radius\) 0/s);
+  assert.match(css, /\.page-corner::before\s*\{[^}]*clip-path: polygon\(0 100%, 100% 0, 100% 100%\)/s);
+  assert.match(globals, /\.page-corner:not\(:disabled\):hover\s*\{\s*--fold-size: 28px;/);
 });

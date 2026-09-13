@@ -917,7 +917,7 @@ button {
     color-mix(in srgb, var(--corner-paper, var(--paper)) 88%, #827967)
   );
 }
-.page-corner:not(:disabled):hover { --fold-size: 26px; }
+.page-corner:not(:disabled):hover { --fold-size: 28px; }
 .page-corner:disabled { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .page-corner::before, .page-corner::after { transition: none; }

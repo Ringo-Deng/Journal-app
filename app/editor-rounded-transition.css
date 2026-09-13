@@ -62,10 +62,15 @@
   border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
 }
 
-/* The right-hand curl is mirrored for the previous-page control, so rounding
-   its exposed bottom corner keeps both small page curls on the paper outline. */
+/* The right-hand curl is mirrored for the previous-page control. Round both
+   the paper and its shadow so neither leaves a square trace at the page edge. */
+.is-editing .book-scene .page-corner::before,
 .is-editing .book-scene .page-corner::after {
   border-radius: 0 0 var(--editor-paper-radius) 0;
+}
+
+.is-editing .book-scene .page-corner::before {
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
 }
 
 /* Page pieces carry their own z-index. Contain the destination snapshot so a
