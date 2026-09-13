@@ -4,7 +4,9 @@ function selectTab(tab) {
     const selected = item === tab;
     item.setAttribute("aria-selected", String(selected));
     item.tabIndex = selected ? 0 : -1;
-    document.getElementById(item.getAttribute("aria-controls")).hidden = !selected;
+    const panel = document.getElementById(item.getAttribute("aria-controls"));
+    panel.hidden = !selected;
+    panel.classList.toggle("is-entering", selected);
   }
 }
 for (const tab of tabs) {
@@ -80,3 +82,73 @@ async function showRunningApp() {
   }
 }
 showRunningApp();
+
+const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+const revealItems = Array.from(document.querySelectorAll("[data-reveal]"));
+const desk = document.querySelector(".hero-desk");
+const progress = document.querySelector(".reading-progress span");
+let revealObserver;
+let progressFrame = 0;
+let pointerFrame = 0;
+let tiltX = 0;
+let tiltY = 0;
+
+function resetTilt() {
+  cancelAnimationFrame(pointerFrame);
+  pointerFrame = 0;
+  desk.style.setProperty("--tilt-x", "0deg");
+  desk.style.setProperty("--tilt-y", "0deg");
+}
+function configureMotion() {
+  revealObserver?.disconnect();
+  resetTilt();
+  const enabled = !motionPreference.matches && "IntersectionObserver" in window;
+  document.documentElement.classList.toggle("motion-ready", enabled);
+  if (!enabled) {
+    revealItems.forEach((item) => item.classList.add("is-visible"));
+    return;
+  }
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add("is-visible");
+        revealObserver.unobserve(entry.target);
+      }
+    },
+    { threshold: 0.06 },
+  );
+  for (const item of revealItems) revealObserver.observe(item);
+}
+configureMotion();
+motionPreference.addEventListener("change", configureMotion);
+finePointer.addEventListener("change", resetTilt);
+
+desk.addEventListener("pointermove", (event) => {
+  if (motionPreference.matches || !finePointer.matches || event.pointerType !== "mouse") return;
+  const rect = desk.getBoundingClientRect();
+  tiltX = (0.5 - (event.clientY - rect.top) / rect.height) * 4;
+  tiltY = ((event.clientX - rect.left) / rect.width - 0.5) * 4;
+  if (pointerFrame) return;
+  pointerFrame = requestAnimationFrame(() => {
+    pointerFrame = 0;
+    desk.style.setProperty("--tilt-x", `${tiltX.toFixed(2)}deg`);
+    desk.style.setProperty("--tilt-y", `${tiltY.toFixed(2)}deg`);
+  });
+});
+desk.addEventListener("pointerleave", resetTilt);
+
+function updateProgress() {
+  progressFrame = 0;
+  const length = document.documentElement.scrollHeight - window.innerHeight;
+  const fraction = length > 0 ? Math.min(1, Math.max(0, window.scrollY / length)) : 0;
+  progress.style.transform = `scaleX(${fraction})`;
+}
+function scheduleProgress() {
+  if (!progressFrame) progressFrame = requestAnimationFrame(updateProgress);
+}
+window.addEventListener("scroll", scheduleProgress, { passive: true });
+window.addEventListener("resize", scheduleProgress, { passive: true });
+window.addEventListener("pageshow", scheduleProgress);
+updateProgress();
