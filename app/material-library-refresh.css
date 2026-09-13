@@ -432,6 +432,23 @@
   box-shadow: none;
 }
 
+.library-card.dragging {
+  opacity: 0.48;
+}
+
+.library-drag-count {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #506447;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  box-shadow: 0 2px 7px rgba(45, 62, 39, 0.2);
+}
+
 .library-card-main {
   display: block;
   width: 100%;

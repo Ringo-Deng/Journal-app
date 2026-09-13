@@ -46,14 +46,20 @@ test('multiple selected materials can add or remove shared labels without overwr
   assert.match(source,/没有选择的标签保持原样/);
 });
 
-test('material cards keep classification in the tag editor and support drag-to-category',()=>{
+test('material cards keep classification in the tag editor and support selected-batch drag-to-category',()=>{
   assert.doesNotMatch(source,/className="library-card-group"/);
   assert.doesNotMatch(source,/aria-label={`设置\$\{a\.name\}的分类`}/);
   assert.match(source,/aria-label="素材主分类"/);
   assert.match(source,/draggable=\{!!catalog&&!busy\}/);
   assert.match(source,/text\/material-id/);
+  assert.match(source,/materialDragIds\(a\.id,selected,libraryAssets\)/);
+  assert.match(source,/draggingIds\.includes\(a\.id\)/);
+  assert.match(source,/正在拖动 \$\{draggingIds\.length\} 件素材/);
   assert.match(source,/onDrop=/);
-  assert.match(source,/setAssetGroup\(id,g\)/);
+  assert.match(source,/setAssetGroups\(ids,g\)/);
+  assert.match(source,/action:'apply',manual:true,patches/);
+  assert.match(source,/library-drag-count/);
+  assert.match(css,/\.library-drag-count \{/);
 });
 
 test('single-line material titles do not reserve a second line',()=>{
