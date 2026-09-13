@@ -1,0 +1,233 @@
+.studio-results .sticker-grid article {
+  position: relative;
+}
+
+.material-eraser-trigger {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 25px;
+  padding: 4px 6px;
+  border: 1px solid rgba(105, 122, 92, 0.55);
+  border-radius: 5px;
+  background: rgba(255, 254, 249, 0.94);
+  color: #56674c;
+  box-shadow: 0 1px 4px rgba(52, 64, 45, 0.13);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.material-eraser-trigger:hover:not(:disabled) {
+  border-color: #718a5e;
+  background: #edf3e5;
+  color: #405437;
+}
+
+.material-eraser-trigger:disabled {
+  display: none;
+}
+
+.material-eraser-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+.material-eraser-dialog {
+  width: min(960px, calc(100vw - 32px)) !important;
+  max-width: 960px !important;
+  height: min(720px, calc(100dvh - 32px));
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  gap: 8px !important;
+  overflow: hidden;
+}
+
+.material-eraser-dialog [data-slot="dialog-description"] {
+  max-width: 740px;
+  line-height: 1.5;
+}
+
+.material-eraser {
+  display: grid;
+  grid-template-rows: auto minmax(240px, 1fr) auto;
+  gap: 9px;
+  min-height: 0;
+  outline: none;
+}
+
+.material-eraser-toolbar,
+.material-eraser-bottom,
+.material-eraser-toolbar > label,
+.material-eraser-zoom {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.material-eraser-toolbar {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 1px 0 6px;
+  scrollbar-width: thin;
+}
+
+.material-eraser-toolbar > label {
+  flex: none;
+  color: #66745e;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.material-eraser-toolbar input[type="range"] {
+  width: 120px;
+  accent-color: #687f57;
+}
+
+.material-eraser-toolbar button,
+.material-eraser-bottom button {
+  min-height: 32px;
+  flex: none;
+  gap: 4px;
+  padding: 6px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.material-eraser-toolbar button svg,
+.material-eraser-bottom button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.material-eraser-zoom {
+  flex: none;
+  margin-left: auto;
+  color: #788270;
+  font-size: 11px;
+}
+
+.material-eraser-zoom b {
+  min-width: 34px;
+  color: #586650;
+  text-align: center;
+  font-weight: 500;
+}
+
+.material-eraser-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 240px;
+  overflow: auto;
+  border: 1px solid #cfd5c8;
+  border-radius: 7px;
+  background-color: #fff;
+  background-image: conic-gradient(#e2e4de 25%, transparent 0 50%, #e2e4de 0 75%, transparent 0);
+  background-size: 18px 18px;
+  contain: layout paint;
+  scrollbar-gutter: stable both-edges;
+}
+
+.material-eraser-canvas-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.material-eraser-stage canvas {
+  display: block;
+  max-width: none;
+  max-height: none;
+  touch-action: none;
+  cursor: none;
+  user-select: none;
+  outline: 1px solid rgba(85, 101, 76, 0.22);
+  box-shadow: 0 7px 24px rgba(55, 64, 48, 0.12);
+}
+
+.material-eraser-stage canvas:focus-visible {
+  outline: 2px solid #718960;
+  outline-offset: 2px;
+}
+
+.material-eraser-cursor {
+  position: absolute;
+  z-index: 2;
+  min-width: 4px;
+  min-height: 4px;
+  border: 1px solid rgba(44, 57, 37, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.material-eraser-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(238, 239, 233, 0.86);
+  color: #68735f;
+  font-size: 12px;
+}
+
+.material-eraser-loading svg {
+  width: 16px;
+  height: 16px;
+}
+
+.material-eraser-bottom {
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid #d8dccf;
+}
+
+.material-eraser-size {
+  flex: none;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #edf0e6;
+  color: #66745e;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.material-eraser-status {
+  min-width: 120px;
+  flex: 1;
+  max-height: 36px;
+  overflow: auto;
+  color: #66745e;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 680px) {
+  .material-eraser-dialog {
+    padding: 10px !important;
+  }
+
+  .material-eraser {
+    grid-template-rows: auto minmax(220px, 1fr) auto;
+  }
+
+  .material-eraser-zoom {
+    margin-left: 0;
+  }
+
+  .material-eraser-bottom {
+    flex-wrap: wrap;
+  }
+
+  .material-eraser-status {
+    min-width: 100%;
+    order: -1;
+  }
+}

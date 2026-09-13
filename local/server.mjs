@@ -25,6 +25,7 @@ import {nameSegmentedMaterialItems} from './material-batch-naming.mjs';
 import {inspectImageTools} from './native-tools.mjs';
 import {runCutoutTool,runPaletteTool,runSegmentTool} from './image-tool-runner.mjs';
 import {decodeMaterialUpload,normalizeMaterialUpload} from './material-upload.mjs';
+import {erasedMaterialSourceBounds,materialEraserSvg,normalizeMaterialEraserStrokes} from './material-eraser.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import {
@@ -956,6 +957,45 @@ const server = http.createServer(async (req, res) => {
       };
       await materialWrite(async () => { materialJobs = [job, ...materialJobs.filter((j) => j.source !== input.src)]; await atomic('material-jobs.json', materialJobs); });
       return json(res, job);
+    }
+    if (path === '/api/materials/erase' && req.method === 'POST') {
+      const input=await body(req),strokes=normalizeMaterialEraserStrokes(input.strokes);
+      if(!strokes)throw error('请在素材上画出需要擦除的部分。');
+      const snapshotJob=materialJobs.find(job=>job.id===input.jobId),snapshotItem=snapshotJob?.items.find(item=>item.id===input.itemId);
+      if(!snapshotJob||!snapshotItem)throw error('找不到需要擦除的分离结果，请重新打开素材工作台。',404);
+      if(snapshotItem.imported)throw error('这个素材已经入库，请从素材库再次编辑。',409);
+      if(String(input.sourceSrc||'')!==snapshotItem.src)throw error('素材结果已经变化，请重新打开橡皮。',409);
+      if(!UPLOAD_SOURCE.test(snapshotItem.src))throw error('素材图片地址无效。');
+      const source=resolve(data,snapshotItem.src.slice(1));
+      try{await stat(source)}catch{throw error('找不到素材图片，请重新识别。',404)}
+      let metadata;
+      try{metadata=await sharp(source,{limitInputPixels:40_000_000}).metadata()}catch{throw error('无法读取素材图片，请重新识别。')}
+      const rotated=metadata.orientation>=5&&metadata.orientation<=8,sourceWidth=rotated?metadata.height:metadata.width,sourceHeight=rotated?metadata.width:metadata.height;
+      if(!sourceWidth||!sourceHeight||sourceWidth>20000||sourceHeight>20000||sourceWidth*sourceHeight>40_000_000)throw error('素材图片尺寸过大，无法安全擦除。');
+      let erased;
+      try{
+        erased=await sharp(source,{limitInputPixels:40_000_000}).rotate().ensureAlpha().composite([{input:materialEraserSvg(strokes,sourceWidth,sourceHeight),blend:'dest-out'}]).png({compressionLevel:9,adaptiveFiltering:true}).toBuffer();
+      }catch{throw error('擦除没有完成，原素材没有修改。')}
+      const stats=await sharp(erased,{limitInputPixels:40_000_000}).stats();
+      if(!stats.channels[3]||stats.channels[3].max<=0)throw error('不能把整个素材擦空；请撤销一部分后再保存。');
+      const trimmed=await sharp(erased,{limitInputPixels:40_000_000}).trim({background:{r:0,g:0,b:0,alpha:0},threshold:0}).png({compressionLevel:9,adaptiveFiltering:true}).toBuffer({resolveWithObject:true});
+      const left=Math.abs(Number(trimmed.info.trimOffsetLeft||0)),top=Math.abs(Number(trimmed.info.trimOffsetTop||0)),sourceBounds=erasedMaterialSourceBounds(snapshotItem,{sourceWidth,sourceHeight,left,top,width:trimmed.info.width,height:trimmed.info.height});
+      const name=createHash('sha256').update(trimmed.data).digest('hex')+'.png',target=resolve(data,'uploads',name);
+      const result=await materialWrite(async()=>{
+        const job=materialJobs.find(entry=>entry.id===input.jobId),item=job?.items.find(entry=>entry.id===input.itemId);
+        if(!job||!item)throw error('这条分离结果已经被删除，请重新打开素材工作台。',409);
+        if(item.imported)throw error('这个素材已经入库，请从素材库再次编辑。',409);
+        if(item.src!==snapshotItem.src)throw error('素材结果已经变化，请重新打开橡皮。',409);
+        let created=false,temp='';
+        try{
+          let existing=null;try{existing=await readFile(target)}catch(cause){if(cause.code!=='ENOENT')throw cause}
+          if(existing&&!existing.equals(trimmed.data))throw error('擦除结果保存冲突，请重新打开橡皮。',409);
+          if(!existing){temp=`${target}.${randomUUID()}.tmp`;await writeFile(temp,trimmed.data,{mode:0o600});await rename(temp,target);created=true}
+          const nextItem={...item,src:'/uploads/'+name,width:trimmed.info.width,height:trimmed.info.height,erased:true,...(sourceBounds?{sourceBounds}:{})},nextJob={...job,items:job.items.map(entry=>entry.id===nextItem.id?nextItem:entry)},nextJobs=materialJobs.map(entry=>entry.id===nextJob.id?nextJob:entry);
+          await atomic('material-jobs.json',nextJobs);materialJobs=nextJobs;return nextJob;
+        }catch(cause){if(temp)await unlink(temp).catch(()=>{});if(created)await unlink(target).catch(()=>{});throw cause}
+      });
+      return json(res,result);
     }
     if (path === '/api/materials/add-item' && req.method === 'POST') {
       const input = await body(req);
