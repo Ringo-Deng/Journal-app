@@ -28,6 +28,20 @@ test('auto segment chooses an obviously better panel result and cleans rejected 
   assert.equal(pngs.length, 4);
 });
 
+test('auto segment gives semantic recovery one chance for dozens of tiny fragments', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'segment-router-fragments-'));
+  const executable = join(dir, 'segment');
+  await writeFile(executable, `#!/usr/bin/env node
+const fs=require('fs'),path=require('path'),crypto=require('crypto');const[, ,input,out,mode]=process.argv;const f=()=>{const n=crypto.randomUUID()+'.png';fs.writeFileSync(path.join(out,n),'x');return n};const items=mode==='auto'?Array.from({length:56},(_,i)=>({file:f(),width:24,height:24,bounds:[.1+(i%14)*.055,.62+Math.floor(i/14)*.035,.024,.024]})):mode==='ai'?[{file:f(),width:860,height:210,bounds:[.07,.58,.86,.21]}]:[];console.log(JSON.stringify({width:1000,height:1000,engine:mode,items}));`);
+  await chmod(executable, 0o755);
+  const output = await run(executable, ['input.png', dir, 'auto', '28'], {timeout: 5000});
+  const parsed = JSON.parse(output.stdout);
+  assert.equal(parsed.items.length, 1);
+  assert.match(parsed.engine, /ai · 自动选优/);
+  const pngs = (await readdir(dir)).filter(name=>name.endsWith('.png'));
+  assert.equal(pngs.length, 1);
+});
+
 test('unrelated promisified execFile keeps the standard options-only overload', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'segment-router-unrelated-'));
   const executable = join(dir, 'noop');

@@ -2,6 +2,16 @@ import Foundation
 import AppKit
 import Vision
 import VideoToolbox
+
+struct FragmentInfo {
+ let index:Int,minX:Int,minY:Int,maxX:Int,maxY:Int,count:Int
+ let red:Double,green:Double,blue:Double,fill:Double
+ var width:Int{maxX-minX}
+ var height:Int{maxY-minY}
+ var centerX:Double{Double(minX+maxX)/2}
+ var centerY:Double{Double(minY+maxY)/2}
+}
+struct PatternBand {let indices:[Int];let horizontal:Bool;let minX:Int;let minY:Int;let maxX:Int;let maxY:Int}
 // Output paths and pixel rectangles are relative to the oriented input image.
 let args=CommandLine.arguments
 if args.count<5 {exit(1)}
@@ -336,11 +346,90 @@ do{
   }
   components=restored
  }
+ let minimum=max(8,n/12000)
+ // A white patterned tape can lose its paper-coloured base and leave dozens of
+ // disconnected dots. Treat a count above the ordinary material budget as a
+ // reason to inspect the fragments, never as a reason to delete them blindly.
+ // Only similarly sized, similarly coloured pieces arranged in a long narrow
+ // band are consolidated; compact grids of real small stickers stay separate.
+ var fragmentInfos=[FragmentInfo]()
+ if components.count>20 {
+  for (index,component) in components.enumerated() where component.count>=minimum {
+   let minX=component.map{$0%w}.min()!,minY=component.map{$0/w}.min()!
+   let maxX=component.map{$0%w}.max()!+1,maxY=component.map{$0/w}.max()!+1
+   let cw=maxX-minX,ch=maxY-minY,boxArea=cw*ch
+   let fill=Double(component.count)/Double(boxArea)
+   if cw<6 || ch<6 || Double(boxArea)>Double(n)*0.02 || cw>max(36,w/4) || ch>max(36,h/4) || fill<0.30{continue}
+   var red=0.0,green=0.0,blue=0.0,samples=0
+   let step=max(1,component.count/300)
+   for offset in stride(from:0,to:component.count,by:step){let p=component[offset]*4;red+=Double(cut[p]);green+=Double(cut[p+1]);blue+=Double(cut[p+2]);samples+=1}
+   fragmentInfos.append(FragmentInfo(index:index,minX:minX,minY:minY,maxX:maxX,maxY:maxY,count:component.count,red:red/Double(samples),green:green/Double(samples),blue:blue/Double(samples),fill:fill))
+  }
+  if fragmentInfos.count>240{fragmentInfos=Array(fragmentInfos.sorted{$0.count>$1.count}.prefix(240))}
+ }
+ func patternBands(_ horizontal:Bool)->[PatternBand] {
+  if fragmentInfos.count<6{return []}
+  var parents=Array(0..<fragmentInfos.count)
+  func root(_ value:Int)->Int{var current=value;while parents[current] != current{parents[current]=parents[parents[current]];current=parents[current]};return current}
+  func join(_ a:Int,_ b:Int){let ra=root(a),rb=root(b);if ra != rb{parents[rb]=ra}}
+  for a in 0..<fragmentInfos.count{for b in (a+1)..<fragmentInfos.count{
+   let one=fragmentInfos[a],two=fragmentInfos[b]
+   let widthRatio=Double(max(one.width,two.width))/Double(max(1,min(one.width,two.width)))
+   let heightRatio=Double(max(one.height,two.height))/Double(max(1,min(one.height,two.height)))
+   if (widthRatio>2.4 || heightRatio>2.4) && min(one.fill,two.fill)>0.65{continue}
+   let colour=sqrt(pow(one.red-two.red,2)+pow(one.green-two.green,2)+pow(one.blue-two.blue,2))
+   if colour>70{continue}
+   let cross=horizontal ? abs(one.centerY-two.centerY):abs(one.centerX-two.centerX)
+   let crossSize=horizontal ? max(one.height,two.height):max(one.width,two.width)
+   let firstStart=horizontal ? one.minX:one.minY,firstEnd=horizontal ? one.maxX:one.maxY
+   let secondStart=horizontal ? two.minX:two.minY,secondEnd=horizontal ? two.maxX:two.maxY
+   let gap=max(0,max(firstStart,secondStart)-min(firstEnd,secondEnd))
+   let alongSize=horizontal ? max(one.width,two.width):max(one.height,two.height)
+   if cross<=Double(crossSize)*2.05 && gap<=max(12,alongSize*3){join(a,b)}
+  }}
+  var groups=[Int:[FragmentInfo]]()
+  for index in fragmentInfos.indices{groups[root(index),default:[]].append(fragmentInfos[index])}
+  // Pairwise links can otherwise walk from one tape row into the next. Split a
+  // connected set at real whitespace across its short axis before evaluating
+  // the final elongated shape.
+  func splitAcrossWhitespace(_ group:[FragmentInfo])->[[FragmentInfo]] {
+   if group.count<2{return [group]}
+   let sorted=group.sorted{horizontal ? $0.minY<$1.minY:$0.minX<$1.minX}
+   let start=horizontal ? sorted.first!.minY:sorted.first!.minX
+   let stop=horizontal ? sorted.map{$0.maxY}.max()!:sorted.map{$0.maxX}.max()!
+   let sourceCross=horizontal ? h:w
+   if Double(stop-start)<=Double(sourceCross)*0.10{return [group]}
+   var runningEnd=horizontal ? sorted[0].maxY:sorted[0].maxX,bestGap=0,splitAt=0
+   for index in 1..<sorted.count {
+    let nextStart=horizontal ? sorted[index].minY:sorted[index].minX
+    let nextEnd=horizontal ? sorted[index].maxY:sorted[index].maxX
+    let gap=nextStart-runningEnd
+    if gap>bestGap{bestGap=gap;splitAt=index}
+    runningEnd=max(runningEnd,nextEnd)
+   }
+   let crossSizes=sorted.map{horizontal ? $0.height:$0.width}.sorted(),median=crossSizes[crossSizes.count/2]
+   if splitAt==0 || bestGap<max(6,median/2){return [group]}
+   return splitAcrossWhitespace(Array(sorted[..<splitAt]))+splitAcrossWhitespace(Array(sorted[splitAt...]))
+  }
+  return groups.values.flatMap{splitAcrossWhitespace($0)}.compactMap{group in
+   if group.count<6{return nil}
+   let minX=group.map{$0.minX}.min()!,minY=group.map{$0.minY}.min()!,maxX=group.map{$0.maxX}.max()!,maxY=group.map{$0.maxY}.max()!
+   let bw=maxX-minX,bh=maxY-minY,long=horizontal ? bw:bh,cross=horizontal ? bh:bw
+   let sourceLong=horizontal ? w:h,sourceCross=horizontal ? h:w
+   if Double(long)/Double(max(1,cross))<2.75 || Double(long)<Double(sourceLong)*0.14 || Double(cross)>Double(sourceCross)*0.18{return nil}
+   let fill=Double(group.reduce(0){$0+$1.count})/Double(max(1,bw*bh))
+   if fill<0.035 || fill>0.62{return nil}
+   return PatternBand(indices:group.map{$0.index},horizontal:horizontal,minX:minX,minY:minY,maxX:maxX,maxY:maxY)
+  }
+ }
+ var patternGroups=[PatternBand](),claimed=Set<Int>()
+ for band in (patternBands(true)+patternBands(false)).sorted(by:{$0.indices.count>$1.indices.count}) {
+  if band.indices.allSatisfy({!claimed.contains($0)}){patternGroups.append(band);claimed.formUnion(band.indices)}
+ }
  // A crowded sheet must not use a higher minimum than an ordinary one.
  // Keep meaningful small stickers while filtering isolated compression specks.
- let minimum=max(8,n/12000)
  var results=[[String:Any]]()
- for component in components where component.count>=minimum{
+ for (componentIndex,component) in components.enumerated() where component.count>=minimum && !claimed.contains(componentIndex){
   if results.count>=100{break}
   let minX=component.map{$0%w}.min()!,minY=component.map{$0/w}.min()!
   let maxX=component.map{$0%w}.max()!+1,maxY=component.map{$0/w}.max()!+1
@@ -356,7 +445,37 @@ do{
   try bitmap.representation(using:.png,properties:[:])!.write(to:out.appendingPathComponent(name))
   results.append(["file":name,"width":cw,"height":ch,"foregroundPixels":component.count,"bounds":[Double(minX)/Double(w),Double(minY)/Double(h),Double(cw)/Double(w),Double(ch)/Double(h)]])
  }
+ for band in patternGroups where results.count<100 {
+  let members=fragmentInfos.filter{band.indices.contains($0.index)}
+  let averageWidth=members.reduce(0){$0+$1.width}/max(1,members.count),averageHeight=members.reduce(0){$0+$1.height}/max(1,members.count)
+  let padX=max(2,Int(Double(averageWidth)*(band.horizontal ? 0.6:0.8)))
+  let padY=max(2,Int(Double(averageHeight)*(band.horizontal ? 0.8:0.6)))
+  var minX=max(0,band.minX-padX),minY=max(0,band.minY-padY),maxX=min(w,band.maxX+padX),maxY=min(h,band.maxY+padY)
+  // Keep padding from borrowing a neighbouring detected band (for example a
+  // watermark directly below a tape) by stopping at the midpoint of the gap.
+  for other in patternGroups where other.indices != band.indices {
+   if band.horizontal {
+    let overlap=max(0,min(band.maxX,other.maxX)-max(band.minX,other.minX))
+    if Double(overlap)>=Double(min(band.maxX-band.minX,other.maxX-other.minX))*0.20 {
+     if other.maxY<=band.minY{minY=max(minY,(other.maxY+band.minY)/2)}
+     if other.minY>=band.maxY{maxY=min(maxY,(band.maxY+other.minY)/2)}
+    }
+   } else {
+    let overlap=max(0,min(band.maxY,other.maxY)-max(band.minY,other.minY))
+    if Double(overlap)>=Double(min(band.maxY-band.minY,other.maxY-other.minY))*0.20 {
+     if other.maxX<=band.minX{minX=max(minX,(other.maxX+band.minX)/2)}
+     if other.minX>=band.maxX{maxX=min(maxX,(band.maxX+other.minX)/2)}
+    }
+   }
+  }
+  let cw=maxX-minX,ch=maxY-minY;var tile=[UInt8](repeating:0,count:cw*ch*4),foreground=0
+  for y in minY..<maxY{for x in minX..<maxX{let from=(y*w+x)*4,to=((y-minY)*cw+x-minX)*4;for c in 0..<4{tile[to+c]=pixels[from+c]};if tile[to+3]>45{foreground+=1}}}
+  let name=UUID().uuidString.lowercased()+".png"
+  let bitmap=NSBitmapImageRep(cgImage:makeImage(tile,cw,ch));try bitmap.representation(using:.png,properties:[:])!.write(to:out.appendingPathComponent(name))
+  results.append(["file":name,"width":cw,"height":ch,"foregroundPixels":foreground,"bounds":[Double(minX)/Double(w),Double(minY)/Double(h),Double(cw)/Double(w),Double(ch)/Double(h)]])
+ }
  if bridgeSplits>0{engine+=" · 粘连分离"}
- let output:[String:Any]=["items":results,"engine":engine,"width":w,"height":h,"bridgeSplits":bridgeSplits]
+ if !patternGroups.isEmpty{engine+=" · 纹样合并"}
+ let output:[String:Any]=["items":results,"engine":engine,"width":w,"height":h,"bridgeSplits":bridgeSplits,"patternGroups":patternGroups.count]
  let json=try JSONSerialization.data(withJSONObject:output);print(String(data:json,encoding:.utf8)!)
 }catch{fputs("无法完成主体分离，请更换识别模式或手动框选后重试。\n",stderr);exit(5)}

@@ -39,7 +39,7 @@ function decodePng(bytes){
 }
 function sheet(width,height,color=[255,255,255,255]){
  const pixels=Buffer.alloc(width*height*4);for(let i=0;i<width*height;i++)pixels.set(color,i*4);
- return{width,height,pixels,rect(x,y,w,h,c){for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)pixels.set(c,(yy*width+xx)*4)}};
+ return{width,height,pixels,rect(x,y,w,h,c){for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)pixels.set(c,(yy*width+xx)*4)},circle(cx,cy,r,c){for(let y=Math.floor(cy-r);y<=Math.ceil(cy+r);y++)for(let x=Math.floor(cx-r);x<=Math.ceil(cx+r);x++)if((x-cx)**2+(y-cy)**2<=r*r)pixels.set(c,(y*width+x)*4)}};
 }
 async function segment(image,mode,verify,rect){
  const dir=await mkdtemp(join(tmpdir(),'journal-native-'));
@@ -80,6 +80,23 @@ test('auto follows gaps between six patterned strips instead of full-width colou
   for(let x=32;x<365;x+=40)image.rect(x,30+i*98,15,30,[i%2?30:190,70,20,255]);
  }
  await segment(image,'auto',(_,items)=>{assert.equal(items.length,6);for(const item of items){assert.equal(item.width,360);assert.equal(item.height,76);assert.equal(alphaCount(item),360*76)}});
+});
+
+test('auto restores repeated same-colour dots as one patterned tape instead of pixel materials',native,async()=>{
+ const image=sheet(800,720);
+ for(let i=0;i<6;i++)image.rect(35+(i%2)*390,30+Math.floor(i/2)*105,330,62,[80+i*14,145+i*7,180-i*8,255]);
+ for(let i=0;i<28;i++)image.circle(330+(i%14)*27,475+Math.floor(i/14)*28,8,[48+(i%3)*3,91+(i%2)*4,126,255]);
+ await segment(image,'auto',(result,items)=>{
+  assert.match(result.engine,/纹样合并/);assert.equal(result.patternGroups,1);assert.equal(items.length,7);
+  const tape=items.find(item=>item.width>340&&item.height<90);assert.ok(tape);
+  assert.equal(tape.pixels[(Math.floor(tape.height/2)*tape.width+Math.floor(tape.width/2))*4+3],255);
+ });
+});
+
+test('same-colour small stickers in a compact grid are not merged only because of colour or count',native,async()=>{
+ const image=sheet(620,620);
+ for(let i=0;i<25;i++)image.circle(90+(i%5)*105,90+Math.floor(i/5)*105,18,[50,96,132,255]);
+ await segment(image,'auto',(result,items)=>{assert.equal(result.patternGroups,0);assert.equal(items.length,25)});
 });
 
 test('paper mode preserves pale cards and their enclosed light interiors',native,async()=>{

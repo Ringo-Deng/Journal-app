@@ -48,6 +48,11 @@ test('many intact stickers do not trigger fragmentation retries', () => {
   assert.deepEqual(materialFallbackModes(sheet), []);
 });
 
+test('dozens of tiny print fragments try semantic recovery instead of another paper pass', () => {
+  const dots = result(Array.from({length:56}, (_, i) => item(25, 25, [(i%14)*.055, .65+Math.floor(i/14)*.03, .025, .025])));
+  assert.deepEqual(materialFallbackModes(dots), ['ai','dense']);
+});
+
 test('malformed candidate dimensions and out-of-sheet bounds cannot win', () => {
   const primary = {primary:true, result:result([item(200,200,[.1,.1,.2,.2])])};
   for (const broken of [item(Infinity,200,[0,0,.2,.2]),item(200,200,[.9,0,.2,.2]),item(200,200,[0,0,-.2,.2])]) {
