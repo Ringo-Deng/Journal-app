@@ -1001,19 +1001,25 @@ export default function Home() {
     if(turnRef.current!==t)return;
     setFlipping('');setTurnProgress(0);setTurnSettling(false);turnRef.current=null;
   }
-  function finishTurn(t:NonNullable<typeof turnRef.current>){
-    const images=Array.from(canvas.current?.querySelectorAll<HTMLImageElement>('.page-turn-layer .turn-reveal img')||[]);
-    const ready=images.map(img=>new Promise<void>(resolve=>{
+  /* 目标页所有可见副本先完成解码，再让纸页开始移动，避免素材在动画中途才跳出。 */
+  function waitForTurnTargetImages(){
+    const images=Array.from(canvas.current?.querySelectorAll<HTMLImageElement>('.page-turn-layer .turn-reveal img, .page-turn-layer .turn-face.back img')||[]);
+    return Promise.all(images.map(img=>new Promise<void>(resolve=>{
+      let settled=false;
       const cleanup=()=>{img.removeEventListener('load',done);img.removeEventListener('error',done);};
-      const done=()=>{cleanup();void img.decode().catch(()=>{}).then(()=>resolve());};
+      const done=()=>{
+        if(settled)return;
+        settled=true;cleanup();
+        if(!img.naturalWidth){resolve();return;}
+        void img.decode().catch(()=>{}).then(()=>resolve());
+      };
       img.addEventListener('load',done,{once:true});
       img.addEventListener('error',done,{once:true});
       if(img.complete)done();
-    }));
-    void Promise.race([
-      Promise.all(ready),
-      new Promise<void>(resolve=>setTimeout(resolve,1200)),
-    ]).then(()=>requestAnimationFrame(()=>{
+    }))).then(()=>undefined);
+  }
+  function finishTurn(t:NonNullable<typeof turnRef.current>){
+    void waitForTurnTargetImages().then(()=>requestAnimationFrame(()=>{
       if(turnRef.current!==t)return;
       setPage(t.target);
       clearTurn(t);
@@ -1039,7 +1045,14 @@ export default function Home() {
   const flip = (direction: number) => {
     if (startTurn(direction))
       requestAnimationFrame(() =>
-        requestAnimationFrame(() => settleTurn(true)),
+        requestAnimationFrame(() => {
+          const t=turnRef.current;
+          if(!t||t.direction!==direction)return;
+          void waitForTurnTargetImages().then(()=>{
+            if(turnRef.current!==t||t.settling)return;
+            settleTurn(true);
+          });
+        }),
       );
   };
   const openWrite = () => {
