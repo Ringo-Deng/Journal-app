@@ -28,3 +28,10 @@ test('the editor toolbar fits the window without a horizontal scrollbar',async()
   assert.doesNotMatch(css,/\.creation-tools>button\.quiet>span\{display:none;/);
   assert.doesNotMatch(css,/\.creation-tools\{[^}]*overflow-x:auto;/);
 });
+
+test('fit-to-window uses the height released by moving page controls into the header',async()=>{
+  const css=await read('app/globals.css');
+  assert.match(css,/100cqh - 40px\)\*var\(--spread-ratio,1\.43\)/);
+  assert.match(css,/@media\(max-width:720px\)\{[^\n]*100cqh - 36px\)\*var\(--spread-ratio,1\.43\)/);
+  assert.doesNotMatch(css,/100cqh - (?:88|92)px/);
+});
