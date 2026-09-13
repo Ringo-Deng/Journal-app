@@ -24,6 +24,15 @@ test('library header replaces import with insert and stays compact at medium wid
   assert.doesNotMatch(mediumHeading,/insert insert insert/);
 });
 
+test('tag filters stay visible and are not rendered as a collapsible section',()=>{
+  assert.match(source,/className="library-filter-section"/);
+  assert.match(source,/className="library-filter-heading"/);
+  assert.match(source,/className="library-tagfilter" aria-label="标签筛选"/);
+  assert.doesNotMatch(source,/<details\b/);
+  assert.doesNotMatch(source,/<summary\b/);
+  assert.doesNotMatch(source,/ChevronDown/);
+});
+
 test('material cards keep classification in the tag editor and support drag-to-category',()=>{
   assert.doesNotMatch(source,/className="library-card-group"/);
   assert.doesNotMatch(source,/aria-label={`设置\$\{a\.name\}的分类`}/);
