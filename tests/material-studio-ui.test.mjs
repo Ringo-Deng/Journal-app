@@ -17,8 +17,21 @@ test('processed material keeps fallback-recognition and delete actions', () => {
   assert.match(server, /\/api\/materials\/delete/);
 });
 
+test('imported materials are deducted only from the non-destructive source preview', () => {
+  assert.match(ui, /function DeductedMaterialPreview/);
+  assert.match(ui, /if\(!item\.imported\)return null/);
+  assert.match(ui, /item\.sourceBounds\|\|\(!item\.manual\|\|item\.pointSelected\?item\.bounds:undefined\)/);
+  assert.match(ui, /globalCompositeOperation='source-in'/);
+  assert.match(ui, /<DeductedMaterialPreview items=\{job\.items\} dimensions=\{dimensions\}\/>/);
+  assert.match(ui, /sourceBounds:rect/);
+  assert.match(server, /sourceBounds: located\.bounds/);
+  assert.match(server, /const sourceBounds=mapMaterialSourceBounds\(item\.bounds,rect\)/);
+});
+
 test('whole-image recognition keeps the original preview ready', () => {
-  assert.match(ui, /function choose\(j:Job,preservePreview=false\)/);
+  assert.match(ui, /function choose\(j:Job,preservePreview=j\.source===previewSource\.current\)/);
+  assert.match(ui, /previewSource\.current=j\.source/);
+  assert.match(ui, /previewSource\.current='';setActive/);
   assert.match(ui, /if\(!preservePreview\)\{setZoom\(100\);setImageReady\(false\);setDimensions\(\{w:1,h:1\}\)\}/);
   assert.match(ui, /else choose\(next,next\.source===job\?\.source\)/);
   assert.match(ui, /onClick=\{\(\)=>choose\(j\)\}/);
@@ -47,7 +60,10 @@ test('recognition settings stay visible and one action uses the selected mode', 
   assert.match(ui, /<div className="studio-advanced" role="group" aria-label="识别设置">/);
   assert.doesNotMatch(ui, /<details className="studio-advanced"/);
   assert.doesNotMatch(ui, />更多设置</);
-  assert.match(ui, /onClick=\{\(\)=>void rerun\(\)\}><ScanSearch\/>识别素材/);
+  assert.doesNotMatch(ui, />识别素材</);
+  assert.doesNotMatch(ui, /ScanSearch/);
+  assert.equal((ui.match(/>换一种策略</g)||[]).length, 1);
+  assert.match(ui, /onClick=\{recognizeWithNextMode\}>换一种策略/);
   assert.doesNotMatch(ui, />自动识别<|>按设置识别</);
   assert.doesNotMatch(ui, /onClick=\{\(\)=>void rerun\(undefined,undefined,true\)\}>换一种策略/);
   assert.match(ui, /recognitionModes\.map\(option=><option/);

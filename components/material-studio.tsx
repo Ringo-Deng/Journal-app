@@ -1,14 +1,14 @@
 'use client';
 /* oxlint-disable next/no-img-element -- Local editable image previews use original files. */
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
-import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,ScanSearch,Crop} from 'lucide-react';
+import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,Crop} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Checkbox} from '@/components/ui/checkbox';
 import type {Asset} from '@/lib/journal';
 import PhotoLibrary,{type PhotoLibraryItem} from '@/components/photo-library';
 
-type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;bounds?:number[];cutSaveId?:string};
+type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;pointSelected?:boolean;bounds?:number[];sourceBounds?:number[];cutSaveId?:string};
 type SourceMeta={type:'pinterest';pinId:string;originalUrl:string;imageUrl:string;sha256:string};
 type Job={id:string;source:string;name:string;createdAt:string;engine:string;mode?:string;strategy?:string;attempt?:number;tolerance?:number;manualOnly?:boolean;replaceAssetId?:string;replacementDone?:boolean;sourceMeta?:SourceMeta;items:Item[]};
 const recognitionModes=[{id:'auto',label:'自动分离'},{id:'panels',label:'底色 / 纹样分区'},{id:'paper',label:'带色纸底分离'},{id:'dense',label:'密集贴纸细分'},{id:'ai',label:'本机 AI 主体识别'}] as const;
@@ -19,17 +19,43 @@ async function request<T>(path:string,data?:unknown):Promise<T>{
  if(!r.ok)throw Error(result.error||'素材处理失败');
  return result;
 }
+type SourceMask={src:string;bounds:[number,number,number,number]};
+function sourceMask(item:Item):SourceMask|null{
+ if(!item.imported)return null;
+ const value=item.sourceBounds||(!item.manual||item.pointSelected?item.bounds:undefined);
+ if(!Array.isArray(value)||value.length!==4||!value.every(Number.isFinite))return null;
+ const [x,y,width,height]=value;
+ if(x<0||y<0||width<=0||height<=0||x+width>1.001||y+height>1.001)return null;
+ return{src:item.src,bounds:[x,y,width,height]};
+}
+function loadPreviewMask(src:string){return new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('无法读取已入库素材预览'));image.src=src})}
+function DeductedMaterialPreview({items,dimensions}:{items:Item[];dimensions:{w:number;h:number}}){
+ const canvas=useRef<HTMLCanvasElement>(null),masks=useMemo(()=>items.map(sourceMask).filter((item):item is SourceMask=>!!item),[items]);
+ useEffect(()=>{
+  const element=canvas.current;if(!element)return;
+  const scale=Math.min(1,2048/Math.max(1,dimensions.w,dimensions.h));element.width=Math.max(1,Math.round(dimensions.w*scale));element.height=Math.max(1,Math.round(dimensions.h*scale));
+  const context=element.getContext('2d');if(!context)return;context.clearRect(0,0,element.width,element.height);if(!masks.length)return;
+  let cancelled=false;
+  void Promise.allSettled(masks.map(mask=>loadPreviewMask(mask.src))).then(results=>{
+   if(cancelled)return;context.clearRect(0,0,element.width,element.height);
+   results.forEach((result,index)=>{if(result.status!=='fulfilled')return;const [x,y,width,height]=masks[index].bounds;context.drawImage(result.value,x*element.width,y*element.height,width*element.width,height*element.height)});
+   context.globalCompositeOperation='source-in';const viewport=element.closest('.studio-image-viewport');const background=viewport?getComputedStyle(viewport).backgroundColor:'';context.fillStyle=background&&background!=='rgba(0, 0, 0, 0)'?background:'#e4e6df';context.fillRect(0,0,element.width,element.height);context.globalCompositeOperation='source-over';
+  });
+  return()=>{cancelled=true};
+ },[dimensions.h,dimensions.w,masks]);
+ return masks.length?<canvas ref={canvas} className="studio-deducted-preview" aria-hidden="true"/>:null;
+}
 export default function MaterialStudio({open,onClose,onImport,onImported,onInsertPhotos,photoProtectedSources,notice,targetSource}:{open:boolean;onClose:()=>void;onImport:()=>void;onImported:(a:Asset[])=>void;onInsertPhotos:(sources:string[])=>boolean;photoProtectedSources:string[];notice?:string;targetSource?:string}){
  const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[picking,setPicking]=useState(false),[pickPoint,setPickPoint]=useState<number[]|null>(null),[progress,setProgress]=useState(''),[replacementItemId,setReplacementItemId]=useState('');
  const [section,setSection]=useState<'process'|'photos'>('process');
- const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
+ const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),previewSource=useRef(''),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
  const job=jobs.find(j=>j.id===active);
 
- function choose(j:Job,preservePreview=false){
-  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setSection('process');setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
+ function choose(j:Job,preservePreview=j.source===previewSource.current){
+  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setSection('process');setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}previewSource.current=j.source;setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
  }
  function clearJobView(){
-  setActive('');setSelected([]);setReplacementItemId('');setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setZoom(100);setImageReady(false);setDimensions({w:1,h:1});
+  previewSource.current='';setActive('');setSelected([]);setReplacementItemId('');setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setZoom(100);setImageReady(false);setDimensions({w:1,h:1});
  }
  useEffect(()=>{
   if(!open)return;
@@ -91,7 +117,7 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
    const sx=Math.max(0,Math.floor(rect[0]*image.naturalWidth)),sy=Math.max(0,Math.floor(rect[1]*image.naturalHeight)),sw=Math.max(1,Math.min(image.naturalWidth-sx,Math.round(rect[2]*image.naturalWidth))),sh=Math.max(1,Math.min(image.naturalHeight-sy,Math.round(rect[3]*image.naturalHeight)));
    const canvas=document.createElement('canvas');canvas.width=sw;canvas.height=sh;const context=canvas.getContext('2d');if(!context)throw Error('浏览器无法裁切图片。');context.drawImage(image,sx,sy,sw,sh,0,0,sw,sh);
    const response=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:canvas.toDataURL('image/png')})});const uploaded=await response.json() as {src:string;error?:string};if(!response.ok)throw Error(uploaded.error||'裁切图片保存失败');
-   const known=new Set(job.items.map(item=>item.id));const next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh});const fresh=next.items.filter(item=>!known.has(item.id)).map(item=>item.id);setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));selectResults(fresh);setCrop(null);setCropping(false);setMessage('已保留框选区域，并只选中这次的新结果；可继续处理或直接加入素材库。');
+   const known=new Set(job.items.map(item=>item.id));const next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh,sourceBounds:rect});const fresh=next.items.filter(item=>!known.has(item.id)).map(item=>item.id);setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));selectResults(fresh);setCrop(null);setCropping(false);setMessage('已保留框选区域，并只选中这次的新结果；可继续处理或直接加入素材库。');
   }catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
  }
  async function rerun(rect?:number[],overrideMode?:string){
@@ -113,7 +139,7 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
  }
  async function deleteCurrentJob(){
   if(!job||busy||!window.confirm(`删除「${job.name}」的处理记录？已加入素材库的素材不会删除。`))return;setBusy(true);setProgress('正在删除处理记录…');
-  try{const result=await request<{ok:boolean;imported:number}>('/delete',{jobId:job.id});const remaining=jobs.filter(j=>j.id!==job.id);setJobs(remaining);if(remaining[0])choose(remaining[0]);else{setActive('');setSelected([]);setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setImageReady(false)}setMessage(result.imported?`已删除处理记录；${result.imported} 个已入库素材继续保留。`:'已删除这条处理记录。')}catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
+  try{const result=await request<{ok:boolean;imported:number}>('/delete',{jobId:job.id});const remaining=jobs.filter(j=>j.id!==job.id);setJobs(remaining);if(remaining[0])choose(remaining[0]);else clearJobView();setMessage(result.imported?`已删除处理记录；${result.imported} 个已入库素材继续保留。`:'已删除这条处理记录。')}catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
  }
  async function importItems(){
   if(!job||!selected.length)return;setBusy(true);
@@ -149,7 +175,6 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
    <div className="studio-section-tabs" role="tablist" aria-label="素材工作台分类"><button role="tab" aria-selected={section==='process'} className={section==='process'?'active':''} disabled={busy} onClick={()=>setSection('process')}>素材处理</button><button role="tab" aria-selected={section==='photos'} className={section==='photos'?'active':''} disabled={busy} onClick={()=>setSection('photos')}>照片</button></div>
    {section==='process'&&<>
    <button className="outline" disabled={busy} onClick={onImport}><ImagePlus/>导入新素材</button>
-   <button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={()=>void rerun()}><ScanSearch/>识别素材</button>
    <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setPicking(false);setPickPoint(null);setCrop(null)}}><Crop/>{cropping?'退出框选':'框选补漏'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}
    <div className="studio-advanced" role="group" aria-label="识别设置"><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title="图片由已连接的 AI 定位，透明边缘在本机生成" onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}>{recognitionModes.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={recognizeWithNextMode}>换一种策略</button></div>
@@ -161,7 +186,7 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
     <section className="studio-original"><div className="studio-source-tools"><h3>原图</h3><button className="quiet" aria-label="缩小原图" onClick={()=>setZoom(v=>Math.max(50,v-25))}>−</button><span>{zoom}%</span><button className="quiet" aria-label="放大原图" onClick={()=>setZoom(v=>Math.min(500,v+25))}>＋</button><button className="quiet" onClick={()=>setZoom(100)}>适合窗口</button><small>{picking?'点击想要的素材 · 原图交给已连接的 AI 定位':cropping?'拖动框选 · 可滚动查看':'拖动平移 · 可滚动查看'}</small></div>
      <div className={`studio-image-viewport ${cropping?'cropping':''} ${picking?'picking':''}`} ref={imageViewport} onPointerDown={beginPreviewPointer} onPointerMove={movePreviewPointer} onPointerUp={finishPreviewPointer} onPointerCancel={finishPreviewPointer}>
       <div ref={imageArea} className={`studio-source ${cropping?'cropping':''} ${picking?'picking':''} ${imageReady?'ready':'loading'}`} style={imageReady?{width:Math.max(1,dimensions.w*fit*zoom/100),height:Math.max(1,dimensions.h*fit*zoom/100)}:undefined} role="application" aria-label={picking?'点击原图中想要的素材':'原图框选区域，可从图片外侧拖动框选素材'}>
-       <img src={job.source} alt="素材原图" draggable={false} onLoad={e=>{const next={w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight};setDimensions(old=>old.w===next.w&&old.h===next.h?old:next);setImageReady(true)}}/>{!imageReady&&<span className="studio-image-loading"><Loader2 className="spinning"/>正在打开素材…</span>}{pickPoint&&<span className="pick-point" style={{left:pickPoint[0]*100+'%',top:pickPoint[1]*100+'%'}}/>}{crop&&<div className="crop-box" style={{left:crop[0]*100+'%',top:crop[1]*100+'%',width:crop[2]*100+'%',height:crop[3]*100+'%'}}/>}
+       <img src={job.source} alt="素材原图" draggable={false} onLoad={e=>{const next={w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight};setDimensions(old=>old.w===next.w&&old.h===next.h?old:next);setImageReady(true)}}/><DeductedMaterialPreview items={job.items} dimensions={dimensions}/>{!imageReady&&<span className="studio-image-loading"><Loader2 className="spinning"/>正在打开素材…</span>}{pickPoint&&<span className="pick-point" style={{left:pickPoint[0]*100+'%',top:pickPoint[1]*100+'%'}}/>}{crop&&<div className="crop-box" style={{left:crop[0]*100+'%',top:crop[1]*100+'%',width:crop[2]*100+'%',height:crop[3]*100+'%'}}/>}
       </div>
      </div>
     </section>

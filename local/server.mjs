@@ -20,6 +20,7 @@ import { createPhotoLibrary, journalPhotoSources, photoMaskSourceMap } from './p
 import { createJournalHistory } from './journal-history.mjs';
 import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from './full-backup.mjs';
 import {commitMaterialImportFiles} from '../lib/material-import-commit.mjs';
+import {mapMaterialSourceBounds,normalizeMaterialSourceBounds} from '../lib/material-source-bounds.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import { execFile } from 'node:child_process';
@@ -964,10 +965,12 @@ const server = http.createServer(async (req, res) => {
       if (!UPLOAD_SOURCE.test(input.src || '')) throw error('裁切图片无效。');
       const width = Number(input.width), height = Number(input.height);
       if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1 || width > 20000 || height > 20000) throw error('裁切尺寸无效。');
+      const sourceBounds=normalizeMaterialSourceBounds(input.sourceBounds);
+      if(input.sourceBounds!==undefined&&!sourceBounds)throw error('裁片在原图中的位置无效。');
       try { await stat(resolve(data, input.src.slice(1))); } catch { throw error('找不到裁切图片。', 404); }
       const job = materialJobs.find((j) => j.id === input.jobId);
       if (!job) throw error('未找到这条素材处理记录。', 404);
-      const item = { id: randomUUID(), src: input.src, name: String(input.name || `素材 ${String(job.items.length + 1).padStart(2, '0')}`).slice(0,80), width: Math.round(width), height: Math.round(height), manual: true, imported: false };
+      const item = { id: randomUUID(), src: input.src, name: String(input.name || `素材 ${String(job.items.length + 1).padStart(2, '0')}`).slice(0,80), width: Math.round(width), height: Math.round(height), manual: true, imported: false, ...(sourceBounds?{sourceBounds}:{}) };
       await materialWrite(async () => { job.items.push(item); await atomic('material-jobs.json', materialJobs); });
       return json(res, job);
     }
@@ -1055,7 +1058,7 @@ const server = http.createServer(async (req, res) => {
       if (!outputItem?.file) throw error('没有抠出完整素材，请再点一次或使用框选补漏。', 422);
       const item = {
         id: randomUUID(), src: '/uploads/' + outputItem.file, name: located.name,
-        width: outputItem.width, height: outputItem.height, bounds: located.bounds,
+        width: outputItem.width, height: outputItem.height, bounds: located.bounds, sourceBounds: located.bounds,
         manual: true, pointSelected: true, imported: false,
       };
       let job;
@@ -1130,16 +1133,20 @@ const server = http.createServer(async (req, res) => {
         engine: result.engine,
         sourceMeta: pinterestSourceMeta(pinterestBySrc(input.src)),
         rect: rect || null,
-        items: result.items.map((item, index) => ({
-          id: randomUUID(),
-          src: '/uploads/' + item.file,
-          name: `素材 ${String(index + 1).padStart(2, '0')}`,
-          width: item.width,
-          height: item.height,
-          bounds: item.bounds,
-          manual:!!rect,
-          imported: false,
-        })),
+        items: result.items.map((item, index) => {
+          const sourceBounds=mapMaterialSourceBounds(item.bounds,rect);
+          return {
+            id: randomUUID(),
+            src: '/uploads/' + item.file,
+            name: `素材 ${String(index + 1).padStart(2, '0')}`,
+            width: item.width,
+            height: item.height,
+            bounds: item.bounds,
+            ...(sourceBounds?{sourceBounds}:{}),
+            manual:!!rect,
+            imported: false,
+          };
+        }),
       };
       await materialWrite(async () => {
         // Recognition can take seconds. Preserve edits made while it was running

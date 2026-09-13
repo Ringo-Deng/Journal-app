@@ -234,14 +234,14 @@ test('material workbench splits a sheet, imports transparent pieces and persists
  const result=await call('/api/materials/segment',{src:upload.data.src,name:'测试素材纸',mode:'auto',tolerance:28},'POST');
  if(!capabilities.segment){assert.equal(result.status,501);assert.match(result.data.error,/当前系统暂不支持/);return;}
  assert.equal(result.status,200);assert.equal(result.data.items.length,3);
- for(const item of result.data.items){const r=await fetch(base+item.src);assert.equal(r.status,200);const image=Buffer.from(await r.arrayBuffer());assert.equal(image[25],6);assert.ok(item.width>50&&item.height>50)}
+ for(const item of result.data.items){const r=await fetch(base+item.src);assert.equal(r.status,200);const image=Buffer.from(await r.arrayBuffer());assert.equal(image[25],6);assert.ok(item.width>50&&item.height>50);assert.deepEqual(item.sourceBounds,item.bounds)}
  const first=result.data.items[0];
  const crop=await call('/api/materials/segment',{src:upload.data.src,name:'单个框选',mode:'crop',tolerance:28,rect:first.bounds},'POST');
  assert.equal(crop.status,200);
  const originalIds=new Set(result.data.items.map(item=>item.id));
  const croppedItems=crop.data.items.filter(item=>!originalIds.has(item.id));
  assert.equal(crop.data.id,result.data.id);
- assert.equal(croppedItems.length,1);assert.equal(croppedItems[0].manual,true);
+ assert.equal(croppedItems.length,1);assert.equal(croppedItems[0].manual,true);assert.deepEqual(croppedItems[0].sourceBounds,first.bounds);
  assert.deepEqual(crop.data.items.filter(item=>originalIds.has(item.id)),result.data.items);
  const payload={jobId:result.data.id,itemIds:result.data.items.map(i=>i.id),category:'测试贴纸',tags:'复古，测试',names:{[first.id]:'独立绿色素材'}};
  const imported=await call('/api/materials/import',payload,'POST');assert.equal(imported.status,200);assert.equal(imported.data.added,3);assert.equal(imported.data.assets.length,initial+3);assert.equal(imported.data.assets.find(a=>a.id===first.id).name,'独立绿色素材');
