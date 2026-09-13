@@ -1,7 +1,7 @@
 import { regularCoverPreviewForColor } from '@/lib/notebook-cover-previews';
 import { stationeryCoverUrl } from '@/lib/stationery-cover';
 
-export default function StationeryCover({ title, color }: { title: string; color: string }) {
+export default function StationeryCover({ color }: { color: string }) {
   const preview = regularCoverPreviewForColor(color);
 
   return (
@@ -9,7 +9,7 @@ export default function StationeryCover({ title, color }: { title: string; color
       <img
         data-stationery-cover="front"
         className="stationery-cover-art"
-        src={stationeryCoverUrl(title, color)}
+        src={stationeryCoverUrl(color)}
         alt=""
         draggable={false}
         style={{

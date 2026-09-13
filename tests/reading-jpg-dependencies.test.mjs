@@ -95,7 +95,7 @@ test("paper, format and cover appearance stay fresh without including saved temp
   };
   for (const index of [null, 0, 1]) assert.equal(input(managed, assets, index), input(book, assets, index));
   assert.equal(input({ ...book, title: "新书名" }), input());
-  assert.notEqual(input({ ...book, title: "新书名" }, assets, null), input(book, assets, null));
+  assert.equal(input({ ...book, title: "新书名" }, assets, null), input(book, assets, null));
 });
 
 test("per-side paper backgrounds, dates, headers and all piece rendering properties invalidate their page", () => {

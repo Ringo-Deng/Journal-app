@@ -65,13 +65,8 @@ export async function renderReadingJpg(book: Book, assets: Asset[], index: numbe
             {art ? (
               <img src={art} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : cover.material.id === "linen" ? (
-              <StationeryCover title={book.title} color={cover.colorway.color} />
-            ) : (
-              <span className="cover-title-stamp">
-                {book.title || "拾光集"}
-                <i>SHIGUANG JOURNAL</i>
-              </span>
-            )}
+              <StationeryCover color={cover.colorway.color} />
+            ) : null}
           </div>
         ) : sheet ? (
           <SpreadPreview

@@ -115,6 +115,9 @@ import {
   themes,
   coverMaterials,
   coverInfo,
+  coverChoiceForSettings,
+  customCoverId,
+  isCustomCover,
   formats,
   bookFormat,
   monthName,
@@ -349,6 +352,7 @@ export default function Home() {
   const [editingBookId,setEditingBookId]=useState<string|null>(null),
     [coverTitle, setCoverTitle] = useState('拾光集'),
     [coverType, setCoverType] = useState('linen-oat'),
+    [coverChoiceChanged, setCoverChoiceChanged] = useState(false),
     [coverFormat, setCoverFormat] = useState<Book['format']>('standard'),
     [coverAsset, setCoverAsset] = useState(''),
     [coverPaperStyle, setCoverPaperStyle] = useState<PaperStyle>('blank'),
@@ -1053,7 +1057,8 @@ export default function Home() {
     const initialScope = canStartOnSpread ? 'spread' : 'book';
     const current = canStartOnSpread ? spread : undefined;
     setCoverTitle(b?.title || '拾光集');
-    setCoverType(coverInfo(b?.cover).colorway.id);
+    setCoverType(coverChoiceForSettings(b?.cover));
+    setCoverChoiceChanged(false);
     setCoverFormat(b?.format || 'standard');
     setCoverAsset(b?.coverAsset || '');
     const paper = paperSettings(b, current);
@@ -1760,7 +1765,7 @@ export default function Home() {
       : undefined;
     const currentDate=dateTarget?.date||dateTarget?.days[0]?.date||today();
     const dateChanged=!!canScope&&!!coverDate&&coverDate!==currentDate;
-    let next:Book={...existing,title:coverTitle.trim()||'未命名笔记本',cover:coverType,coverAsset,format:coverFormat,paperTemplates:coverTemplates};
+    let next:Book={...existing,title:coverTitle.trim()||'未命名笔记本',cover:coverChoiceChanged?coverType:existing.cover,coverAsset,format:coverFormat,paperTemplates:coverTemplates};
     if(canScope&&(coverScope==='left'||coverScope==='right')){
       const patch:Parameters<typeof patchPage>[3]={};
       if(paperChanged){patch.paperStyle=coverPaperStyle;patch.paperColor=coverPaperColor;patch.paperRulingSize=coverPaperRulingSize;}
@@ -2143,6 +2148,7 @@ export default function Home() {
                   setEditingBookId(null);
                   setCoverTitle('拾光集');
                   setCoverType('linen-oat');
+                  setCoverChoiceChanged(false);
                   setCoverFormat('standard');
                   setCoverAsset('');
                   setCoverPaperStyle('blank');
@@ -2171,7 +2177,7 @@ export default function Home() {
                       aria-label={`打开笔记本 ${b.title}`}
                       onClick={() => chooseBook(b)}
                     >
-                      {!b.coverAsset && (info.material.id === "linen" ? <StationeryCover title={b.title} color={info.colorway.color}/> : <span className="cover-title-stamp">{b.title}<i>SHIGUANG JOURNAL</i></span>)}
+                      {!b.coverAsset && info.material.id === "linen" ? <StationeryCover color={info.colorway.color}/> : null}
                       {b.coverAsset ? (
                         <img src={resolveMaterial(b.coverAsset)} alt="" />
                       ) : null}
@@ -2244,7 +2250,7 @@ export default function Home() {
                             className={`book-cover rigid-cover ${opening ? 'cover-opening' : ''} ${closing ? 'cover-closing' : ''}`}
                             onClick={openBook}>
                             <span className={`rigid-face rigid-front texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}>
-                              {!book.coverAsset && (cover.material.id === "linen" ? <StationeryCover title={book.title} color={cover.colorway.color}/> : <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>)}
+                              {!book.coverAsset && cover.material.id === "linen" ? <StationeryCover color={cover.colorway.color}/> : null}
                               {book.coverAsset && <img className="cover-art" src={resolveMaterial(book.coverAsset)} alt="封面装饰"/>}
                             </span>
                             <span className={`rigid-face rigid-back texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}><span className="cover-inside-edge"/><span className="cover-binding"/></span>
@@ -3258,14 +3264,7 @@ export default function Home() {
                     className={`settings-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`}
                     style={{ '--cover-base': coverInfo(coverType).colorway.color } as CSSProperties}
                   >
-                    {coverAsset ? (
-                      <img className="cover-art" src={resolveMaterial(coverAsset)} alt="封面装饰" />
-                    ) : (
-                      <span className="cover-title-stamp">
-                        {coverTitle || '未命名笔记本'}
-                        <i>SHIGUANG JOURNAL</i>
-                      </span>
-                    )}
+                    {coverAsset ? <img className="cover-art" src={resolveMaterial(coverAsset)} alt="封面装饰" /> : null}
                   </div>
                 ) : notebookSettingsPreview ? (
                   <div
@@ -3387,19 +3386,30 @@ export default function Home() {
                         <span>材质</span>
                         <div className="material-tabs">
                           {coverMaterials.map((material) => (
-                            <button key={material.id} className={coverInfo(coverType).material.id === material.id ? 'active' : ''} onClick={() => setCoverType(material.colorways[0].id)}>
+                            <button key={material.id} className={coverInfo(coverType).material.id === material.id ? 'active' : ''} onClick={() => { setCoverType(material.colorways[0].id); setCoverChoiceChanged(true); }}>
                               {material.name}
                             </button>
                           ))}
+                          <button className={isCustomCover(coverType) ? 'active' : ''} onClick={() => { setCoverType(customCoverId(coverInfo(coverType).colorway.color)); setCoverChoiceChanged(true); }}>
+                            自定义颜色
+                          </button>
                         </div>
-                        <div className="colorway-grid">
-                          {coverInfo(coverType).material.colorways.map((colorway) => (
-                            <button key={colorway.id} className={`colorway ${coverType === colorway.id ? 'chosen' : ''}`} onClick={() => setCoverType(colorway.id)}>
-                              <span className={`colorway-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`} style={{ '--cover-base': colorway.color } as CSSProperties} />
-                              <span>{colorway.name}</span>
-                            </button>
-                          ))}
-                        </div>
+                        {isCustomCover(coverType) ? (
+                          <label className="custom-cover-color">
+                            <span className={`colorway-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`} style={{ '--cover-base': coverInfo(coverType).colorway.color } as CSSProperties} />
+                            <span><strong>选择封面颜色</strong><small>{coverInfo(coverType).colorway.color.toUpperCase()}</small></span>
+                            <input type="color" aria-label="自定义封面颜色" value={coverInfo(coverType).colorway.color} onChange={(event) => { setCoverType(customCoverId(event.target.value)); setCoverChoiceChanged(true); }} />
+                          </label>
+                        ) : (
+                          <div className="colorway-grid">
+                            {coverInfo(coverType).material.colorways.map((colorway) => (
+                              <button key={colorway.id} className={`colorway ${coverType === colorway.id ? 'chosen' : ''}`} onClick={() => { setCoverType(colorway.id); setCoverChoiceChanged(true); }}>
+                                <span className={`colorway-cover texture-${coverInfo(coverType).material.id} format-${coverFormat}`} style={{ '--cover-base': colorway.color } as CSSProperties} />
+                                <span>{colorway.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </section>
                   </>

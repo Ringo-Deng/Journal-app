@@ -164,6 +164,15 @@ export type CoverMaterial = {
 };
 export const coverMaterials: CoverMaterial[] = [
   {
+    id: 'linen',
+    name: '格纹布艺',
+    colorways: [
+      { id: 'linen-oat', name: '奶黄格纹', color: '#f4ce75' },
+      { id: 'linen-forest', name: '柔粉格纹', color: '#e8b9ba' },
+      { id: 'linen-blue', name: '雾蓝格纹', color: '#91a9b5' },
+    ],
+  },
+  {
     id: 'kraft',
     name: '牛皮纸',
     colorways: [
@@ -172,6 +181,9 @@ export const coverMaterials: CoverMaterial[] = [
       { id: 'kraft-coffee', name: '深咖', color: '#86663f' },
     ],
   },
+];
+/* 旧材质只用于读取已有笔记本，不再出现在新建/设置入口。 */
+const legacyCoverMaterials: CoverMaterial[] = [
   {
     id: 'leather',
     name: '皮革',
@@ -182,15 +194,6 @@ export const coverMaterials: CoverMaterial[] = [
       { id: 'leather-wine', name: '酒红', color: '#6b3a38' },
       { id: 'leather-olive', name: '橄榄绿', color: '#5d5d40' },
       { id: 'leather-blue', name: '靛蓝', color: '#3b4d68' },
-    ],
-  },
-  {
-    id: 'linen',
-    name: '格纹布艺',
-    colorways: [
-      { id: 'linen-oat', name: '奶黄格纹', color: '#f4ce75' },
-      { id: 'linen-forest', name: '柔粉格纹', color: '#e8b9ba' },
-      { id: 'linen-blue', name: '雾蓝格纹', color: '#91a9b5' },
     ],
   },
   {
@@ -213,6 +216,7 @@ export const coverMaterials: CoverMaterial[] = [
     ],
   },
 ];
+const resolvableCoverMaterials = [...coverMaterials, ...legacyCoverMaterials];
 const legacyCoverMap: Record<string, string> = {
   walnut: 'leather-brown',
   forest: 'linen-forest',
@@ -224,13 +228,33 @@ const legacyCoverMap: Record<string, string> = {
   'olive-leather': 'leather-olive',
   'blue-leather': 'leather-blue',
 };
+const customCoverPattern = /^custom-([0-9a-f]{6})$/i;
+export function customCoverId(color: string) {
+  const normalized = color.trim().toLowerCase();
+  return `custom-${(/^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '#8c9a83').slice(1)}`;
+}
+export function isCustomCover(cover?: string) {
+  return customCoverPattern.test(cover || '');
+}
 export function coverInfo(cover?: string): { material: CoverMaterial; colorway: CoverColorway } {
   const id = legacyCoverMap[cover || ''] || cover || 'leather-brown';
-  for (const material of coverMaterials) {
+  const custom = id.match(customCoverPattern);
+  if (custom) {
+    const colorway = { id: customCoverId(`#${custom[1]}`), name: '自定义', color: `#${custom[1].toLowerCase()}` };
+    return { material: { id: 'hardcover', name: '自定义颜色', colorways: [colorway] }, colorway };
+  }
+  for (const material of resolvableCoverMaterials) {
     const colorway = material.colorways.find((c) => c.id === id);
     if (colorway) return { material, colorway };
   }
-  return { material: coverMaterials[1], colorway: coverMaterials[1].colorways[0] };
+  return { material: legacyCoverMaterials[0], colorway: legacyCoverMaterials[0].colorways[0] };
+}
+export function coverChoiceForSettings(cover?: string) {
+  if (isCustomCover(cover)) return coverInfo(cover).colorway.id;
+  const info = coverInfo(cover);
+  return coverMaterials.some((material) => material.id === info.material.id)
+    ? info.colorway.id
+    : customCoverId(info.colorway.color);
 }
 
 export const formats = [

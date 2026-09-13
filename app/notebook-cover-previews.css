@@ -153,3 +153,50 @@
 .colorway-cover.texture-linen[style*="#91a9b5"]::before {
   background-image: url('/notebook-covers/regular-blue-notes.svg');
 }
+
+/* Kraft and custom-colour covers are plain bound boards: keep a quiet spine,
+   but omit the stationery clasp and the cream label strip at the foot. */
+.library-cover:not(.texture-linen)::before,
+.settings-cover:not(.texture-linen)::before {
+  display: block !important;
+  background: linear-gradient(90deg, rgb(38 28 18 / 46%) 0 11%, transparent 11%) !important;
+}
+.library-cover:not(.texture-linen)::after,
+.settings-cover:not(.texture-linen)::after {
+  display: none !important;
+}
+
+.custom-cover-color {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #d8dccf;
+  border-radius: 10px;
+  background: #fbfaf4;
+  cursor: pointer;
+}
+.custom-cover-color > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #46513f;
+}
+.custom-cover-color strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.custom-cover-color small {
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #858d7a;
+}
+.custom-cover-color input[type="color"] {
+  width: 42px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid #cfd5c6;
+  border-radius: 7px;
+  background: #fffef9;
+  cursor: pointer;
+}

@@ -156,12 +156,6 @@ function CoverShell({
         <div className={`reading-flip-cover-face reading-flip-cover-outside texture-${material}`}>
           {side === 'front' ? (
             <>
-              {!coverAsset && (
-                <span className="cover-title-stamp">
-                  {book.title || '拾光集'}
-                  <i>SHIGUANG JOURNAL</i>
-                </span>
-              )}
               {coverAsset && <img className="cover-art" src={coverAsset} alt="封面装饰" />}
             </>
           ) : (

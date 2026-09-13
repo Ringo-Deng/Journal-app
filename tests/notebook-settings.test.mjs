@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats} from '../lib/journal.ts';
+import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover} from '../lib/journal.ts';
 import {copyNotebooks,notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
 
 test('notebook settings use a safe page scope, real-page preview and responsive control hierarchy',async()=>{
@@ -23,6 +23,36 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/用于页眉中的日期与星期变量，只修改当前所选页面/);
  assert.match(styles,/@media\(max-width:900px\)[^{]*\{[\s\S]*\.notebook-settings-layout\{grid-template-columns:1fr/);
  assert.match(styles,/\.notebook-settings-footer\{display:flex/);
+});
+
+test('cover choices keep three plaid, three kraft and one custom colour without notebook titles or plain-cover furniture',async()=>{
+ const [page,previews,history,pageflip,jpg]=await Promise.all([
+  readFile(new URL('../app/page.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../app/notebook-cover-previews.css',import.meta.url),'utf8'),
+  readFile(new URL('../components/journal-history.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../components/reading-pageflip.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../components/book3d/render-reading-jpg.tsx',import.meta.url),'utf8'),
+ ]);
+ assert.deepEqual(coverMaterials.map(material=>[material.id,material.colorways.length]),[['linen',3],['kraft',3]]);
+ assert.match(page,/aria-label="自定义封面颜色"/);
+ assert.match(page,/cover:coverChoiceChanged\?coverType:existing\.cover/);
+ assert.doesNotMatch(page,/<span className="cover-title-stamp">/);
+ assert.doesNotMatch(history,/<span className="cover-title-stamp">/);
+ assert.doesNotMatch(pageflip,/<span className="cover-title-stamp">/);
+ assert.doesNotMatch(jpg,/<span className="cover-title-stamp">/);
+ assert.match(previews,/\.library-cover:not\(\.texture-linen\)::after,[\s\S]*?\.settings-cover:not\(\.texture-linen\)::after\s*\{\s*display:\s*none !important;/);
+ assert.match(previews,/\.library-cover:not\(\.texture-linen\)::before,[\s\S]*?background:\s*linear-gradient\(90deg,[^;]+transparent 11%\) !important;/);
+});
+
+test('custom cover colours round trip while legacy materials remain readable but leave the settings menu',()=>{
+ const custom=customCoverId('#Aa77CC');
+ assert.equal(custom,'custom-aa77cc');
+ assert.equal(isCustomCover(custom),true);
+ assert.deepEqual(coverInfo(custom).colorway,{id:custom,name:'自定义',color:'#aa77cc'});
+ assert.equal(coverInfo(custom).material.name,'自定义颜色');
+ assert.equal(coverInfo('leather-wine').material.id,'leather');
+ assert.equal(coverChoiceForSettings('leather-wine'),'custom-6b3a38');
+ assert.equal(coverChoiceForSettings('linen-blue'),'linen-blue');
 });
 
 test('whole-book settings reach existing and new pages without moving content or changing the flyleaf',()=>{

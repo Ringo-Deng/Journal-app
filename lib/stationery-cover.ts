@@ -1,10 +1,3 @@
-/** Clean stationery face used by the physical notebook renderers. */
-const safeText = (value: string) =>
-  value.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!,
-  );
-
 const STATIONERY_PALETTES = {
   '#f4ce75': {
     base: '#f4ce75',
@@ -50,11 +43,10 @@ function paletteFor(color: string) {
  * clasp and depth around this face, so those physical parts must not be baked into
  * the SVG again. The visible label is deliberately the unbranded word NOTES.
  */
-export function stationeryCoverSvg(title: string, color: string) {
+export function stationeryCoverSvg(color: string) {
   const p = paletteFor(color);
-  const accessibleTitle = safeText(title || '拾光集');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
-  <title>${accessibleTitle}</title>
+  <title>格纹布艺笔记本封面</title>
   <defs>
     <clipPath id="cover"><rect width="600" height="900" rx="24"/></clipPath>
     <pattern id="plaid" width="96" height="96" patternUnits="userSpaceOnUse">
@@ -75,6 +67,6 @@ export function stationeryCoverSvg(title: string, color: string) {
   </svg>`;
 }
 
-export function stationeryCoverUrl(title: string, color: string) {
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(stationeryCoverSvg(title, color));
+export function stationeryCoverUrl(color: string) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(stationeryCoverSvg(color));
 }

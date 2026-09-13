@@ -88,7 +88,7 @@ export default function JournalHistory({ open, onClose, onRestore }: Props) {
             const info = coverInfo(book.cover);
             return <article className="history-book" key={book.id}>
               <div className={`library-cover history-cover texture-${info.material.id} format-${bookFormat(book).id}`} style={{ '--cover-base': info.colorway.color } as CSSProperties} aria-hidden="true">
-                {book.coverAsset ? <img src={book.coverAsset} alt="" /> : info.material.id === 'linen' ? <StationeryCover title={book.title} color={info.colorway.color} /> : <span className="cover-title-stamp">{book.title}<i>SHIGUANG JOURNAL</i></span>}
+                {book.coverAsset ? <img src={book.coverAsset} alt="" /> : info.material.id === 'linen' ? <StationeryCover color={info.colorway.color} /> : null}
               </div>
               <div><strong>{book.title}</strong><p>{book.spreads.length} 个跨页 · {book.spreads.reduce((count, spread) => count + spread.days.length, 0)} 篇记录</p></div>
             </article>;

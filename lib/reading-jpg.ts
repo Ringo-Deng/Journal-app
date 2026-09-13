@@ -2,7 +2,7 @@ import type { Book, Asset } from "./journal";
 
 // Increment only when the paper renderer changes. One saved JPG per current sheet/cover.
 const RENDER_VERSION = 9;
-const COVER_RENDER_VERSION = 9;
+const COVER_RENDER_VERSION = 10;
 export function readingJpgInput(book: Book, assets: Asset[], index: number | null) {
   if (index === null) {
     // Match renderReadingJpg's original-image lookup for custom covers. Catalog
@@ -12,7 +12,7 @@ export function readingJpgInput(book: Book, assets: Asset[], index: number | nul
       : "";
     return JSON.stringify({
       version: COVER_RENDER_VERSION,
-      appearance: { title: book.title, cover: book.cover, format: book.format, coverAsset },
+      appearance: { cover: book.cover, format: book.format, coverAsset },
       index,
     });
   }
