@@ -1802,6 +1802,21 @@ export default function Home() {
     setCoverMaterialPickerOpen(false);
     toast('已从素材库加入“我的内页”；调整后保存设置即可应用。');
   }
+  function coverBgPointerDown(event:React.PointerEvent<HTMLDivElement>){
+    if(coverTab!=='paper'||!coverBg)return;
+    bgDrag.current={x:event.clientX,y:event.clientY,bx:coverBg.x,by:coverBg.y};
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function coverBgPointerMove(event:React.PointerEvent<HTMLDivElement>){
+    const drag=bgDrag.current;
+    if(!drag)return;
+    const rect=event.currentTarget.getBoundingClientRect();
+    setCoverBg(value=>value?{
+      ...value,
+      x:Math.max(-200,Math.min(100,drag.bx+(event.clientX-drag.x)/rect.width*100)),
+      y:Math.max(-200,Math.min(100,drag.by+(event.clientY-drag.y)/rect.height*100)),
+    }:value);
+  }
   function saveCoverBgTemplate(){
     if(!coverBg)return;
     const existing=coverTemplates?.find(item=>item.src===coverBg.src);
@@ -3359,8 +3374,13 @@ export default function Home() {
                   </div>
                 ) : notebookSettingsPreview ? (
                   <div
-                    className="notebook-preview-spread"
+                    className={`notebook-preview-spread${coverTab==='paper'&&coverBg?' background-adjustable':''}`}
                     style={{ '--spread-ratio': bookFormat(notebookSettingsPreview.book).ratio } as CSSProperties}
+                    onPointerDown={coverTab==='paper'&&coverBg?coverBgPointerDown:undefined}
+                    onPointerMove={coverTab==='paper'&&coverBg?coverBgPointerMove:undefined}
+                    onPointerUp={()=>{bgDrag.current=null;}}
+                    onPointerCancel={()=>{bgDrag.current=null;}}
+                    title={coverTab==='paper'&&coverBg?'拖动调整内页背景位置':undefined}
                   >
                     <SpreadPreview
                       book={notebookSettingsPreview.book}
@@ -3371,13 +3391,18 @@ export default function Home() {
                   </div>
                 ) : (
                   <div
-                    className={`settings-paper paper-${coverPaperStyle} ruling-${coverPaperRulingSize}`}
+                    className={`settings-paper paper-${coverPaperStyle} ruling-${coverPaperRulingSize}${coverTab==='paper'&&coverBg?' background-adjustable':''}`}
                     style={{
                       backgroundColor: coverPaperColor,
                       color: swatchDark(coverPaperColor) ? '#f5f5ed' : '#343b34',
                       '--ruling': swatchDark(coverPaperColor) ? '#ffffff30' : '#47556928',
                       aspectRatio: String((formats.find((item) => item.id === coverFormat)?.ratio || 1.43) / 2),
                     } as CSSProperties}
+                    onPointerDown={coverTab==='paper'&&coverBg?coverBgPointerDown:undefined}
+                    onPointerMove={coverTab==='paper'&&coverBg?coverBgPointerMove:undefined}
+                    onPointerUp={()=>{bgDrag.current=null;}}
+                    onPointerCancel={()=>{bgDrag.current=null;}}
+                    title={coverTab==='paper'&&coverBg?'拖动调整内页背景位置':undefined}
                   >
                     {coverBg && <div className="paper-bg-layer"><img alt="" src={coverBg.src} style={{ left: `${coverBg.x}%`, top: `${coverBg.y}%`, width: `${coverBg.scale}%` }} /></div>}
                     <div className="paper-ruling" />
@@ -3569,13 +3594,7 @@ export default function Home() {
                         {coverMaterialPickerOpen&&<PaperMaterialPicker assets={assets} onChoose={chooseCoverBackgroundFromMaterial} onClose={()=>setCoverMaterialPickerOpen(false)}/>}
                         {coverBg && (
                           <>
-                            <div className="bg-preview" style={{ '--spread-ratio': coverFormat === 'tn-regular' ? 1.05 : 1.43 } as CSSProperties}
-                              onPointerDown={(event) => { bgDrag.current = { x: event.clientX, y: event.clientY, bx: coverBg.x, by: coverBg.y }; event.currentTarget.setPointerCapture(event.pointerId); }}
-                              onPointerMove={(event) => { const drag = bgDrag.current; if (!drag) return; const rect = event.currentTarget.getBoundingClientRect(); setCoverBg((value) => value ? { ...value, x: Math.max(-200, Math.min(100, drag.bx + (event.clientX - drag.x) / rect.width * 100)), y: Math.max(-200, Math.min(100, drag.by + (event.clientY - drag.y) / rect.height * 100)) } : value); }}
-                              onPointerUp={() => { bgDrag.current = null; }} onPointerCancel={() => { bgDrag.current = null; }}>
-                              <img src={coverBg.src} alt="拖动调整内页背景位置" draggable={false} style={{ left: `${coverBg.x}%`, top: `${coverBg.y}%`, width: `${coverBg.scale}%` }} />
-                            </div>
-                            <span className="advanced-value">拖动调整位置 · 缩放 {Math.round(coverBg.scale)}%</span>
+                            <span className="advanced-value">在左侧预览拖动位置 · 缩放 {Math.round(coverBg.scale)}%</span>
                             <Slider aria-label="内页背景缩放" value={[coverBg.scale]} min={20} max={300} onValueChange={(value) => setCoverBg((current) => current ? { ...current, scale: Array.isArray(value) ? value[0] : value } : current)} />
                             <label className="field"><span>模板名称</span><input value={coverTemplateName} maxLength={20} onChange={(event) => setCoverTemplateName(event.target.value)} /></label>
                             <div className="row"><button className="outline" onClick={saveCoverBgTemplate}>更新到我的内页</button><button className="quiet" onClick={() => setCoverBg(null)}>当前范围不用</button></div>

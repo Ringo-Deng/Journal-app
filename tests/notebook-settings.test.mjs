@@ -13,7 +13,7 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/const initialScope = canStartOnSpread \? 'spread' : 'book'/);
  assert.match(page,/className="notebook-scope-warning"/);
  assert.match(page,/页面内容和素材位置不会改变/);
- assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
+ assert.match(page,/notebook-preview-spread[\s\S]*<SpreadPreview/);
  assert.match(page,/function notebookWithSettingsDraft/);
  assert.match(page,/从素材库选择/);
  assert.match(page,/PaperMaterialPicker assets=\{assets\}/);
@@ -23,6 +23,11 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(picker,/\[\.\.\.available\]\.reverse\(\)/);
  assert.match(styles,/\.paper-material-picker-grid\{display:grid/);
  assert.match(page,/className="notebook-settings-section notebook-paper-background-section"/);
+ const notebookBackground=page.slice(page.indexOf('notebook-paper-background-section'),page.indexOf("{coverTab === 'header'"));
+ assert.doesNotMatch(notebookBackground,/className="bg-preview"/);
+ assert.match(notebookBackground,/在左侧预览拖动位置/);
+ assert.match(page,/function coverBgPointerMove/);
+ assert.match(styles,/\.notebook-preview-spread\.background-adjustable/);
  assert.doesNotMatch(page,/paperAdvancedOpen|setPaperAdvancedOpen/);
  assert.match(page,/if\(editingBookId\)change\(all=>all\.map\(item=>item\.id===editingBookId\?\{\.\.\.item,paperTemplates:putPaperTemplate/);
  assert.match(page,/已经使用它的页面不受影响/);
