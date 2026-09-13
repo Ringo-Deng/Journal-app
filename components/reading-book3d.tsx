@@ -54,12 +54,14 @@ export default forwardRef<
     const plan = readingBookPlan(book.spreads.length, !!book.flyleaf);
     const material = coverInfo(book.cover);
     const stationery = !book.coverAsset && material.material.id === "linen";
+    const custom = !book.coverAsset && material.material.id === "custom";
     setContent({
       id: crypto.randomUUID(),
       title: book.title || "拾光集",
       color: material.colorway.color,
       spineColor: stationery ? stationerySpineColor(material.colorway.color) : undefined,
-      plainSpine: stationery,
+      plainSpine: stationery || custom,
+      plainCover: custom,
       // Use the smooth physical-material path for the stationery editions so the
       // generic cloth normal/roughness maps cannot make the checks look dirty.
       material: stationery

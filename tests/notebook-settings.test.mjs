@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover} from '../lib/journal.ts';
+import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover,DEFAULT_CUSTOM_COVER_COLOR} from '../lib/journal.ts';
 import {copyNotebooks,notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
 
 test('notebook settings use a safe page scope, real-page preview and responsive control hierarchy',async()=>{
@@ -26,15 +26,20 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
 });
 
 test('cover choices keep three plaid, three kraft and one custom colour without notebook titles or plain-cover furniture',async()=>{
- const [page,previews,history,pageflip,jpg]=await Promise.all([
+ const [page,previews,materials,readingFixes,reading3d,cover3d,history,pageflip,jpg]=await Promise.all([
   readFile(new URL('../app/page.tsx',import.meta.url),'utf8'),
   readFile(new URL('../app/notebook-cover-previews.css',import.meta.url),'utf8'),
+  readFile(new URL('../app/cover-materials.css',import.meta.url),'utf8'),
+  readFile(new URL('../app/reading-cover-fixes.css',import.meta.url),'utf8'),
+  readFile(new URL('../components/reading-book3d.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../components/book3d/cover-materials.ts',import.meta.url),'utf8'),
   readFile(new URL('../components/journal-history.tsx',import.meta.url),'utf8'),
   readFile(new URL('../components/reading-pageflip.tsx',import.meta.url),'utf8'),
   readFile(new URL('../components/book3d/render-reading-jpg.tsx',import.meta.url),'utf8'),
  ]);
  assert.deepEqual(coverMaterials.map(material=>[material.id,material.colorways.length]),[['linen',3],['kraft',3]]);
  assert.match(page,/aria-label="自定义封面颜色"/);
+ assert.match(page,/customCoverId\(DEFAULT_CUSTOM_COVER_COLOR\)/);
  assert.match(page,/cover:coverChoiceChanged\?coverType:existing\.cover/);
  assert.doesNotMatch(page,/<span className="cover-title-stamp">/);
  assert.doesNotMatch(history,/<span className="cover-title-stamp">/);
@@ -42,14 +47,20 @@ test('cover choices keep three plaid, three kraft and one custom colour without 
  assert.doesNotMatch(jpg,/<span className="cover-title-stamp">/);
  assert.match(previews,/\.library-cover:not\(\.texture-linen\)::after,[\s\S]*?\.settings-cover:not\(\.texture-linen\)::after\s*\{\s*display:\s*none !important;/);
  assert.match(previews,/\.library-cover:not\(\.texture-linen\)::before,[\s\S]*?background:\s*linear-gradient\(90deg,[^;]+transparent 11%\) !important;/);
+ assert.match(materials,/\.texture-custom\s*\{[\s\S]*?background-image:\s*none !important;/);
+ assert.match(readingFixes,/\.reading-flip-cover-face\.texture-custom\s*\{[\s\S]*?background-image:\s*none !important;/);
+ assert.match(reading3d,/plainCover:\s*custom/);
+ assert.match(cover3d,/if \(plain\) \{[\s\S]*?fillStyle = settings\.color;[\s\S]*?fillRect/);
 });
 
 test('custom cover colours round trip while legacy materials remain readable but leave the settings menu',()=>{
  const custom=customCoverId('#Aa77CC');
  assert.equal(custom,'custom-aa77cc');
+ assert.equal(customCoverId('not-a-colour'),`custom-${DEFAULT_CUSTOM_COVER_COLOR.slice(1)}`);
  assert.equal(isCustomCover(custom),true);
  assert.deepEqual(coverInfo(custom).colorway,{id:custom,name:'自定义',color:'#aa77cc'});
  assert.equal(coverInfo(custom).material.name,'自定义颜色');
+ assert.equal(coverInfo(custom).material.id,'custom');
  assert.equal(coverInfo('leather-wine').material.id,'leather');
  assert.equal(coverChoiceForSettings('leather-wine'),'custom-6b3a38');
  assert.equal(coverChoiceForSettings('linen-blue'),'linen-blue');

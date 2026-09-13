@@ -117,6 +117,7 @@ import {
   coverInfo,
   coverChoiceForSettings,
   customCoverId,
+  DEFAULT_CUSTOM_COVER_COLOR,
   isCustomCover,
   formats,
   bookFormat,
@@ -2261,6 +2262,7 @@ export default function Home() {
                           {<div className="rigid-underlay"><SpreadPreview book={book} spread={ensureFlyleaf(book).flyleaf!} assets={assets} flyleaf/></div>}
                           <button aria-label="打开手帐" disabled={opening || closing}
                             className={`book-cover rigid-cover ${opening ? 'cover-opening' : ''} ${closing ? 'cover-closing' : ''}`}
+                            style={{'--cover-base':cover.colorway.color} as CSSProperties}
                             onClick={openBook}>
                             <span className={`rigid-face rigid-front texture-${cover.material.id}`} style={{'--cover-base':cover.colorway.color} as CSSProperties}>
                               {!book.coverAsset && cover.material.id === "linen" ? <StationeryCover color={cover.colorway.color}/> : null}
@@ -3403,7 +3405,7 @@ export default function Home() {
                               {material.name}
                             </button>
                           ))}
-                          <button className={isCustomCover(coverType) ? 'active' : ''} onClick={() => { setCoverType(customCoverId(coverInfo(coverType).colorway.color)); setCoverChoiceChanged(true); }}>
+                          <button className={isCustomCover(coverType) ? 'active' : ''} onClick={() => { setCoverType(isCustomCover(coverType) ? coverType : customCoverId(DEFAULT_CUSTOM_COVER_COLOR)); setCoverChoiceChanged(true); }}>
                             自定义颜色
                           </button>
                         </div>

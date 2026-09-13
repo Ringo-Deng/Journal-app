@@ -467,7 +467,7 @@ function BookModel({
     ...(content ? { color: content.color, edge: content.spineColor ?? content.color } : {}),
   };
   const coverTextures = useMemo(() => {
-    const textures = createCoverTextures(material, content?.color);
+    const textures = createCoverTextures(material, content?.color, content?.plainCover);
     if (content) {
       textures.front.dispose();
       textures.front = new CanvasTexture(content.cover());
@@ -630,6 +630,7 @@ function BookModel({
           bump={coverTextures.bump}
           color={content?.spineColor ?? surface.color}
           plain={content?.plainSpine}
+          flat={content?.plainCover}
           title={content?.title}
           edition={content ? "" : "VOL. 01"}
         />
@@ -658,11 +659,11 @@ function BookModel({
           <RoundedCoverFace flipped />
           <meshPhysicalMaterial
             map={coverTextures.back}
-            bumpMap={coverTextures.bump}
+            bumpMap={content?.plainCover ? null : coverTextures.bump}
             normalMap={clothMaps?.normal ?? null}
             normalScale={[0.28, 0.28]}
             roughnessMap={clothMaps?.roughness ?? null}
-            bumpScale={surface.bump}
+            bumpScale={content?.plainCover ? 0 : surface.bump}
             roughness={surface.roughness}
             clearcoat={surface.clearcoat}
             clearcoatRoughness={0.7}
@@ -718,11 +719,11 @@ function BookModel({
           <RoundedCoverFace />
           <meshPhysicalMaterial
             map={coverTextures.front}
-            bumpMap={coverTextures.bump}
+            bumpMap={content?.plainCover ? null : coverTextures.bump}
             normalMap={clothMaps?.normal ?? null}
             normalScale={[0.28, 0.28]}
             roughnessMap={clothMaps?.roughness ?? null}
-            bumpScale={surface.bump}
+            bumpScale={content?.plainCover ? 0 : surface.bump}
             roughness={surface.roughness}
             clearcoat={surface.clearcoat}
             clearcoatRoughness={0.7}

@@ -100,6 +100,10 @@
   background-repeat: repeat !important;
   background-blend-mode: soft-light !important;
 }
+.reading-pageflip-book .stf__block:has(.texture-custom)::before {
+  background-image: none !important;
+  background-blend-mode: normal !important;
+}
 
 /* StPageFlip writes backface-visibility:hidden directly on hard pages. Keep the
    final hard cover solid while its own two physical faces decide what is seen. */
@@ -250,6 +254,21 @@
   background-size: 460px 460px !important;
   background-repeat: repeat !important;
   background-blend-mode: soft-light !important;
+}
+
+/* CUSTOM — one uninterrupted Morandi colour, with only the physical book
+   shadow left to describe the cover. */
+.reading-pageflip-book .reading-flip-cover-face.texture-custom {
+  background-color: var(--reading-cover-surface) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+  box-shadow: inset 5px 0 9px -11px rgb(24 25 22 / 24%) !important;
+}
+.reading-pageflip-book .reading-flip-cover-inside.texture-custom,
+.reading-pageflip-book .reading-flip-lining.texture-custom {
+  background-color: var(--reading-cover-inside) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
 }
 
 /* Keep shadows quiet and physical. The page-flip engine supplies the moving

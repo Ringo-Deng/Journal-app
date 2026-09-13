@@ -57,10 +57,10 @@ function grain(x: number, y: number, kind: CoverMaterial) {
   return 0.5 + (softNoise(x / 2, y / 2) - 0.5) * 0.2 + (fine - 0.5) * 0.05;
 }
 
-export function createCoverTextures(kind: CoverMaterial, color?: string) {
+export function createCoverTextures(kind: CoverMaterial, color?: string, plain = false) {
   const settings = { ...COVER_MATERIALS[kind], ...(color ? { color } : {}) };
   // All built-in stationery colours share one clean physical-cover treatment.
-  const stationeryPalette = stationeryPaletteForColor(settings.color);
+  const stationeryPalette = plain ? undefined : stationeryPaletteForColor(settings.color);
   const blueStationery = stationeryPalette?.base === "#91a9b5";
   const canvas = document.createElement("canvas");
   canvas.width = 768;
@@ -71,7 +71,12 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
   bumpCanvas.height = canvas.height;
   const bumpCtx = bumpCanvas.getContext("2d")!;
 
-  if (blueStationery) {
+  if (plain) {
+    ctx.fillStyle = settings.color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    bumpCtx.fillStyle = "#808080";
+    bumpCtx.fillRect(0, 0, bumpCanvas.width, bumpCanvas.height);
+  } else if (blueStationery) {
     // Map only the flat face of regular-blue-notes.svg (124,64)-(540,741).
     // Keep its five cream columns and label, with no fine weave or secondary grid.
     ctx.save();
@@ -163,7 +168,7 @@ export function createCoverTextures(kind: CoverMaterial, color?: string) {
     ctx.lineTo(398, 277);
     ctx.stroke();
     ctx.restore();
-  } else if (!stationeryPalette) {
+  } else if (!stationeryPalette && !plain) {
     backCtx.textAlign = "center";
     backCtx.fillStyle = settings.ink;
     backCtx.font = "14px Georgia";

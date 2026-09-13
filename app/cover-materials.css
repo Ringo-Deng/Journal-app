@@ -5,9 +5,17 @@
 .texture-leather,
 .texture-linen,
 .texture-canvas,
-.texture-hardcover {
+.texture-hardcover,
+.texture-custom {
   background-color: var(--cover-base) !important;
   background-repeat: no-repeat !important;
+}
+
+/* User-picked Morandi colours are intentionally flat: the book geometry and
+   ambient shadow provide depth without adding fibres, grain or decoration. */
+.texture-custom {
+  background-image: none !important;
+  background-blend-mode: normal !important;
 }
 
 /* Exterior materials: macro photo texture + a finer authored surface map. */
@@ -157,6 +165,14 @@
   background-blend-mode: multiply, soft-light, soft-light !important;
 }
 
+.cover-inside.texture-custom,
+.deck-cover-back.texture-custom,
+.rigid-back.texture-custom {
+  background-color: color-mix(in srgb, var(--cover-base) 88%, #f2eee5) !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+}
+
 /* Physical cover shell.
    Front/back faces sit on opposite Z planes; side/top/bottom are real faces,
    so the edge stays visible around 90 degrees instead of becoming a flat line. */
@@ -257,6 +273,11 @@
 .deck-rigid-cover:has(.texture-hardcover) {
   --cover-edge-dark: #5d5142;
   --cover-edge-light: #b6aa94;
+}
+.rigid-cover:has(.texture-custom),
+.deck-rigid-cover:has(.texture-custom) {
+  --cover-edge-dark: color-mix(in srgb, var(--cover-base) 66%, #26231f);
+  --cover-edge-light: color-mix(in srgb, var(--cover-base) 82%, #f2eee5);
 }
 
 /* Subtle hinge / wrapped edge instead of the old decorative inset rectangle. */

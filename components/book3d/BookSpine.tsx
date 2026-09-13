@@ -20,6 +20,7 @@ export default function BookSpine({
   bump,
   color,
   plain = false,
+  flat = false,
   title = "拾光手帐",
   edition = "VOL. 01",
 }: {
@@ -29,6 +30,7 @@ export default function BookSpine({
   bump: Texture;
   color?: string;
   plain?: boolean;
+  flat?: boolean;
   title?: string;
   edition?: string;
 }) {
@@ -40,7 +42,7 @@ export default function BookSpine({
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = surface.color;
     ctx.fillRect(0, 0, 256, 1536);
-    if (plain) {
+    if (!flat && plain) {
       // Barely visible fresh-cloth weave: no noise, wear, border lines or branding.
       ctx.strokeStyle = "#f3e3cf";
       ctx.globalAlpha = 0.035;
@@ -60,7 +62,7 @@ export default function BookSpine({
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-    } else {
+    } else if (!flat) {
       for (let y = 0; y < 1536; y += 3)
         for (let x = 0; x < 256; x += 3) {
           const tone = ((x * 17 + y * 31) % 23) / 23;
@@ -87,7 +89,7 @@ export default function BookSpine({
     result.colorSpace = SRGBColorSpace;
     result.anisotropy = 8;
     return result;
-  }, [surface.color, material, title, edition, plain]);
+  }, [surface.color, material, title, edition, plain, flat]);
   const geometry = useMemo(() => {
     const result = new BufferGeometry();
     const positions = new Float32Array(4 * 33 * 3),
@@ -150,8 +152,8 @@ export default function BookSpine({
       <meshPhysicalMaterial
         side={DoubleSide}
         map={texture}
-        bumpMap={bump}
-        bumpScale={surface.bump}
+        bumpMap={flat ? null : bump}
+        bumpScale={flat ? 0 : surface.bump}
         roughness={surface.roughness}
         sheen={surface.sheen}
         sheenColor={surface.color}

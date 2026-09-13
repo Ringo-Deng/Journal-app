@@ -229,9 +229,10 @@ const legacyCoverMap: Record<string, string> = {
   'blue-leather': 'leather-blue',
 };
 const customCoverPattern = /^custom-([0-9a-f]{6})$/i;
+export const DEFAULT_CUSTOM_COVER_COLOR = '#8c9a83';
 export function customCoverId(color: string) {
   const normalized = color.trim().toLowerCase();
-  return `custom-${(/^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '#8c9a83').slice(1)}`;
+  return `custom-${(/^#[0-9a-f]{6}$/i.test(normalized) ? normalized : DEFAULT_CUSTOM_COVER_COLOR).slice(1)}`;
 }
 export function isCustomCover(cover?: string) {
   return customCoverPattern.test(cover || '');
@@ -241,7 +242,7 @@ export function coverInfo(cover?: string): { material: CoverMaterial; colorway: 
   const custom = id.match(customCoverPattern);
   if (custom) {
     const colorway = { id: customCoverId(`#${custom[1]}`), name: '自定义', color: `#${custom[1].toLowerCase()}` };
-    return { material: { id: 'hardcover', name: '自定义颜色', colorways: [colorway] }, colorway };
+    return { material: { id: 'custom', name: '自定义颜色', colorways: [colorway] }, colorway };
   }
   for (const material of resolvableCoverMaterials) {
     const colorway = material.colorways.find((c) => c.id === id);
