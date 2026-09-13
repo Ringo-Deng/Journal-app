@@ -57,7 +57,7 @@ test('draft cutting stays client-side, uploads incrementally, then applies to th
   assert.match(cutter, /showCloseButton=\{!saving && !guard\.busy\}/);
 });
 
-test('free cutting lives in the selected-material toolbar instead of Material Studio', () => {
+test('page-material cutting stays in its toolbar while Material Studio offers source-image lasso extraction', () => {
   assert.match(controls, /className="quiet compact-material-cut"/);
   assert.match(controls, /<span>自由裁切<\/span>/);
   assert.match(controls, /p\.kind === 'asset' && p\.material !== 'tape'/);
@@ -70,7 +70,8 @@ test('free cutting lives in the selected-material toolbar instead of Material St
   assert.match(page, /applyPageMaterialCut\(booksRef\.current,target,outputs,uid\)/);
   assert.doesNotMatch(studio, /MaterialCutEditor|openCustomCut|saveCustomCutPiece/);
   assert.doesNotMatch(studio, /<Scissors\/>自由裁切/);
-  assert.match(studio, /如需自由裁切，请点“导入新素材”选择“整图入库”，放入手帐后从选中工具栏打开/);
+  assert.match(studio, /吸附套索/);
+  assert.match(studio, /原图会始终保留/);
 });
 
 test('imports point to the real toolbar workflow when automatic separation is unavailable', () => {

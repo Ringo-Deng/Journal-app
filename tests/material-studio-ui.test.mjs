@@ -67,7 +67,7 @@ test('recognition settings stay visible and one action uses the selected mode', 
   assert.doesNotMatch(ui, />自动识别<|>按设置识别</);
   assert.doesNotMatch(ui, /onClick=\{\(\)=>void rerun\(undefined,undefined,true\)\}>换一种策略/);
   assert.match(ui, /availableRecognitionModes\.map\(option=><option/);
-  assert.match(ui, /'框选补漏'/);
+  assert.match(ui, /框选补漏/);
   assert.match(server, /\/api\/materials\/point/);
   assert.match(segment, /mode == "point"/);
   assert.match(segment, /VNGenerateForegroundInstanceMaskRequest/);
@@ -78,4 +78,15 @@ test('Windows hides Mac-only recognition choices without changing the native mod
   assert.match(ui, /imageBackend==='portable'\?windowsRecognitionModes:recognitionModes/);
   assert.match(ui, /fetch\('\/api\/capabilities'\)/);
   assert.match(ui, /透明边缘由 Windows 本地生成/);
+});
+
+test('studio exposes a magnetic freehand lasso without replacing the rectangle fallback', () => {
+  assert.match(ui, /'吸附套索'/);
+  assert.match(ui, /'框选补漏'/);
+  assert.match(ui, /snapLassoToEdges\(points,context\.getImageData/);
+  assert.match(ui, /松手自动吸附/);
+  assert.match(ui, /context\.closePath\(\);context\.clip\(\);context\.drawImage/);
+  assert.match(ui, /sourceBounds:\[number,number,number,number\]/);
+  assert.match(ui, /原图和已有结果没有修改/);
+  assert.match(styles, /\.lasso-outline\.snapped polygon/);
 });

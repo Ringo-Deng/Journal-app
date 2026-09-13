@@ -2,10 +2,11 @@
 /* oxlint-disable next/no-img-element -- Local editable image previews use original files. */
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {PointerEvent as ReactPointerEvent} from 'react';
-import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,Crop,Eraser} from 'lucide-react';
+import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,Crop,Eraser,LassoSelect} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Checkbox} from '@/components/ui/checkbox';
 import type {Asset} from '@/lib/journal';
+import {lassoBounds,normalizeLassoPoints,snapLassoToEdges,type LassoPoint} from '@/lib/material-lasso';
 import MaterialEraser,{type MaterialEraserStroke,type MaterialEraserTarget} from './material-eraser';
 
 type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;pointSelected?:boolean;erased?:boolean;bounds?:number[];sourceBounds?:number[];cutSaveId?:string};
@@ -47,17 +48,17 @@ function DeductedMaterialPreview({items,dimensions}:{items:Item[];dimensions:{w:
  return masks.length?<canvas ref={canvas} className="studio-deducted-preview" aria-hidden="true"/>:null;
 }
 export default function MaterialStudio({open,onClose,onImport,onImported,notice,targetSource}:{open:boolean;onClose:()=>void;onImport:()=>void;onImported:(a:Asset[])=>void;notice?:string;targetSource?:string}){
- const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[picking,setPicking]=useState(false),[pickPoint,setPickPoint]=useState<number[]|null>(null),[progress,setProgress]=useState(''),[replacementItemId,setReplacementItemId]=useState('');
+ const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[picking,setPicking]=useState(false),[pickPoint,setPickPoint]=useState<number[]|null>(null),[lassoing,setLassoing]=useState(false),[lasso,setLasso]=useState<LassoPoint[]>([]),[lassoSnapped,setLassoSnapped]=useState(false),[progress,setProgress]=useState(''),[replacementItemId,setReplacementItemId]=useState('');
  const [imageBackend,setImageBackend]=useState<'native'|'portable'|'none'|'unknown'>('unknown'),[eraserItemId,setEraserItemId]=useState('');
- const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),previewSource=useRef(''),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
+ const imageArea=useRef<HTMLDivElement>(null),sourceImage=useRef<HTMLImageElement>(null),imageViewport=useRef<HTMLDivElement>(null),previewSource=useRef(''),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null),lassoDraft=useRef<LassoPoint[]|null>(null);
  const job=jobs.find(j=>j.id===active);
  const availableRecognitionModes=imageBackend==='portable'?windowsRecognitionModes:recognitionModes;
 
  function choose(j:Job,preservePreview=j.source===previewSource.current){
-  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setEraserItemId('');if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}previewSource.current=j.source;setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
+  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setLassoing(false);setLasso([]);setLassoSnapped(false);lassoDraft.current=null;setEraserItemId('');if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}previewSource.current=j.source;setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
  }
  function clearJobView(){
-  previewSource.current='';setActive('');setSelected([]);setReplacementItemId('');setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setEraserItemId('');setZoom(100);setImageReady(false);setDimensions({w:1,h:1});
+  previewSource.current='';setActive('');setSelected([]);setReplacementItemId('');setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setLassoing(false);setLasso([]);setLassoSnapped(false);lassoDraft.current=null;setEraserItemId('');setZoom(100);setImageReady(false);setDimensions({w:1,h:1});
  }
  useEffect(()=>{
   if(!open)return;
@@ -124,6 +125,30 @@ export default function MaterialStudio({open,onClose,onImport,onImported,notice,
    const known=new Set(job.items.map(item=>item.id));const next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh,sourceBounds:rect});const fresh=next.items.filter(item=>!known.has(item.id)).map(item=>item.id);setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));selectResults(fresh);setCrop(null);setCropping(false);setMessage('已保留框选区域，并只选中这次的新结果；可继续处理或直接加入素材库。');
   }catch(e){setMessage((e as Error).message)}finally{setBusy(false);setProgress('')}
  }
+ function snapDrawnLasso(points:LassoPoint[]){
+  const image=sourceImage.current;if(!image||!image.naturalWidth||!image.naturalHeight)return{points,moved:0};
+  const scale=Math.min(1,1400/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement('canvas');
+  canvas.width=Math.max(3,Math.round(image.naturalWidth*scale));canvas.height=Math.max(3,Math.round(image.naturalHeight*scale));
+  const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)return{points,moved:0};
+  context.drawImage(image,0,0,canvas.width,canvas.height);
+  const radius=Math.max(8,Math.min(28,Math.round(Math.min(canvas.width,canvas.height)*.025)));
+  return snapLassoToEdges(points,context.getImageData(0,0,canvas.width,canvas.height),radius);
+ }
+ async function browserLasso(points:LassoPoint[]){
+  const image=sourceImage.current,bounds=lassoBounds(points);if(!job||!image||!bounds)return;
+  setBusy(true);setProgress('正在裁出吸附套索区域…');
+  try{
+   if(!image.complete)await image.decode();
+   const padding=2,[left,top,width,height]=bounds,sx=Math.max(0,Math.floor(left*image.naturalWidth)-padding),sy=Math.max(0,Math.floor(top*image.naturalHeight)-padding),right=Math.min(image.naturalWidth,Math.ceil((left+width)*image.naturalWidth)+padding),bottom=Math.min(image.naturalHeight,Math.ceil((top+height)*image.naturalHeight)+padding),sw=right-sx,sh=bottom-sy;
+   if(sw<1||sh<1)throw Error('套索范围太小，请重新画一圈。');
+   const canvas=document.createElement('canvas');canvas.width=sw;canvas.height=sh;const context=canvas.getContext('2d');if(!context)throw Error('浏览器无法生成套索裁片。');
+   context.beginPath();points.forEach((point,index)=>{const x=point[0]*image.naturalWidth-sx,y=point[1]*image.naturalHeight-sy;if(index)context.lineTo(x,y);else context.moveTo(x,y)});context.closePath();context.clip();context.drawImage(image,-sx,-sy);
+   const pixels=context.getImageData(0,0,sw,sh).data;let visible=false;for(let index=3;index<pixels.length;index+=4)if(pixels[index]>2){visible=true;break}if(!visible)throw Error('套索内没有可见内容，请重新画一圈。');
+   const response=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:canvas.toDataURL('image/png')})});const uploaded=await response.json() as {src:string;error?:string};if(!response.ok)throw Error(uploaded.error||'套索裁片保存失败');
+   const known=new Set(job.items.map(item=>item.id)),sourceBounds:[number,number,number,number]=[sx/image.naturalWidth,sy/image.naturalHeight,sw/image.naturalWidth,sh/image.naturalHeight],next=await request<Job>('/add-item',{jobId:job.id,src:uploaded.src,width:sw,height:sh,sourceBounds});
+   const fresh=next.items.filter(item=>!known.has(item.id)).map(item=>item.id);setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));selectResults(fresh);setLasso([]);setLassoSnapped(false);setMessage('已按吸附边界裁出透明素材，并只选中这次的新结果；原图和已有结果没有修改。');
+  }catch(e){setMessage(`${(e as Error).message} 原图和已有结果没有修改。`)}finally{setBusy(false);setProgress('')}
+ }
  async function rerun(rect?:number[],overrideMode?:string){
   if(!job)return;if(job.manualOnly&&overrideMode==='crop')return void browserCrop(rect);if(job.manualOnly&&overrideMode==='single'){setMessage('当前系统暂不支持自动去底；可使用“保留原底裁出”。');return}
   const nextModeLabel=!rect?availableRecognitionModes.find(item=>item.id===overrideMode)?.label:undefined;
@@ -154,10 +179,11 @@ export default function MaterialStudio({open,onClose,onImport,onImported,notice,
   const next=await request<Job>('/erase',{jobId:job.id,itemId:target.id,sourceSrc:target.src,strokes});
   setJobs(old=>old.map(item=>item.id===next.id?next:item));setNames(old=>({...old,...Object.fromEntries(next.items.map(item=>[item.id,item.name]))}));setMessage(`已擦除「${names[target.id]||target.name}」的多余部分并收紧透明边缘；原图和其他结果没有修改。`);
  }
- function position(e:ReactPointerEvent<HTMLDivElement>){const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
+ function position(e:ReactPointerEvent<HTMLDivElement>):LassoPoint{const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
  function beginPreviewPointer(e:ReactPointerEvent<HTMLDivElement>){
   if(busy||e.button!==0)return;
   e.currentTarget.setPointerCapture(e.pointerId);
+  if(lassoing){if(!imageReady)return;e.preventDefault();const point=position(e);lassoDraft.current=[point];setLasso([point]);setLassoSnapped(false);return}
   if(cropping){if(!imageReady)return;e.preventDefault();start.current=position(e);setCrop(null);return}
   if(picking){
    if(!imageReady)return;const bounds=imageArea.current!.getBoundingClientRect();
@@ -167,32 +193,43 @@ export default function MaterialStudio({open,onClose,onImport,onImported,notice,
   pan.current={x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};
  }
  function movePreviewPointer(e:ReactPointerEvent<HTMLDivElement>){
+  if(lassoDraft.current){
+   const point=position(e),last=lassoDraft.current.at(-1)!,bounds=imageArea.current!.getBoundingClientRect();
+   if(Math.hypot((point[0]-last[0])*bounds.width,(point[1]-last[1])*bounds.height)<3)return;
+   let next=[...lassoDraft.current,point];if(next.length>520)next=normalizeLassoPoints(next,400);lassoDraft.current=next;setLasso(next);return;
+  }
   if(start.current){const p=position(e);setCrop([Math.min(start.current[0],p[0]),Math.min(start.current[1],p[1]),Math.abs(p[0]-start.current[0]),Math.abs(p[1]-start.current[1])]);return}
   const d=pan.current;if(d){e.currentTarget.scrollLeft=d.left-e.clientX+d.x;e.currentTarget.scrollTop=d.top-e.clientY+d.y}
  }
- function finishPreviewPointer(){start.current=null;pan.current=null}
+ function finishPreviewPointer(){
+  const drawn=lassoDraft.current;start.current=null;pan.current=null;lassoDraft.current=null;if(!drawn)return;
+  const points=normalizeLassoPoints(drawn);if(!lassoBounds(points)){setLasso([]);setLassoSnapped(false);setMessage('套索范围太小，请沿素材边缘完整画一圈。');return}
+  try{const result=snapDrawnLasso(points);setLasso(result.points);setLassoSnapped(result.moved>0);setMessage(result.moved?`已将套索上的 ${result.moved} 个位置吸附到明显边缘；确认无误后裁出。`:'没有找到足够清晰的邻近边缘，已保留手绘范围；可贴近素材边缘重画。')}catch{setLasso(points);setLassoSnapped(false);setMessage('当前图片无法自动读取边缘，已保留手绘范围；可重画或直接裁出。')}
+ }
 
- const replacing=!!job?.replaceAssetId&&!job.replacementDone,eraserItem=job?.items.find(item=>item.id===eraserItemId&&!item.imported)||null;
+ const replacing=!!job?.replaceAssetId&&!job.replacementDone,eraserItem=job?.items.find(item=>item.id===eraserItemId&&!item.imported)||null,validLasso=lassoBounds(lasso),lassoHint=!validLasso?'沿素材边缘画一圈 · 松手自动吸附':lassoSnapped?'绿色线已吸附 · 确认后点“吸附裁出”':'边缘不清处已保留手绘线 · 可重画';
  return <><Dialog open={open} onOpenChange={v=>{if(!v)closeStudio()}}><DialogContent className="material-studio" showCloseButton={!busy}>
-  <DialogDescription className="studio-accessible-description">素材处理支持自动识别、点选、框选补漏和擦除多余部分。</DialogDescription>
+  <DialogDescription className="studio-accessible-description">素材处理支持自动识别、点选、框选补漏、吸附套索和擦除多余部分。</DialogDescription>
   <div className="studio-topline">
    <DialogTitle>素材工作台</DialogTitle>
    <button className="outline" disabled={busy} onClick={onImport}><ImagePlus/>导入新素材</button>
-   <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setPicking(false);setPickPoint(null);setCrop(null)}}><Crop/>{cropping?'退出框选':'框选补漏'}</button>
+   <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setPicking(false);setPickPoint(null);setLassoing(false);setLasso([]);setLassoSnapped(false);setCrop(null)}}><Crop/>{cropping?'退出框选':'框选补漏'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}
-   <div className="studio-advanced" role="group" aria-label="识别设置"><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title={imageBackend==='portable'?'图片由已连接的 AI 定位，透明边缘由 Windows 本地生成':'图片由已连接的 AI 定位，透明边缘在本机生成'} onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}>{availableRecognitionModes.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={recognizeWithNextMode}>换一种策略</button></div>
+   <button className={`outline ${lassoing?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setLassoing(!lassoing);setCropping(false);setCrop(null);setPicking(false);setPickPoint(null);setLasso([]);setLassoSnapped(false)}}><LassoSelect/>{lassoing?'退出套索':'吸附套索'}</button>
+   {lassoing&&<><button className="primary" disabled={busy||!validLasso} onClick={()=>void browserLasso(lasso)}>吸附裁出</button><button className="quiet" disabled={busy||!lasso.length} onClick={()=>{setLasso([]);setLassoSnapped(false)}}>重画</button></>}
+   <div className="studio-advanced" role="group" aria-label="识别设置"><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title={imageBackend==='portable'?'图片由已连接的 AI 定位，透明边缘由 Windows 本地生成':'图片由已连接的 AI 定位，透明边缘在本机生成'} onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setLassoing(false);setLasso([]);setLassoSnapped(false);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}>{availableRecognitionModes.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={recognizeWithNextMode}>换一种策略</button></div>
   </div>
   <div className="studio-body">
    <aside className="studio-history"><h3>导入记录</h3>{jobs.map(j=><button key={j.id} disabled={busy} className={active===j.id?'active':''} onClick={()=>choose(j)}><img src={j.source} alt="导入原图缩略图"/><span>{j.name}<small>{j.items.length} 个结果 · {j.engine}{j.attempt&&j.attempt>1?` · 已识别 ${j.attempt} 次`:''}</small></span></button>)}{!jobs.length&&<p>导入的原图和切分结果<br/>会保存在这里。</p>}</aside>
    <main className="studio-main">{job?<div className="studio-columns">
-    <section className="studio-original"><div className="studio-source-tools"><h3>原图</h3><button className="quiet" aria-label="缩小原图" onClick={()=>setZoom(v=>Math.max(50,v-25))}>−</button><span>{zoom}%</span><button className="quiet" aria-label="放大原图" onClick={()=>setZoom(v=>Math.min(500,v+25))}>＋</button><button className="quiet" onClick={()=>setZoom(100)}>适合窗口</button><small>{picking?'点击想要的素材 · 原图交给已连接的 AI 定位':cropping?'拖动框选 · 可滚动查看':'拖动平移 · 可滚动查看'}</small></div>
-     <div className={`studio-image-viewport ${cropping?'cropping':''} ${picking?'picking':''}`} ref={imageViewport} onPointerDown={beginPreviewPointer} onPointerMove={movePreviewPointer} onPointerUp={finishPreviewPointer} onPointerCancel={finishPreviewPointer}>
-      <div ref={imageArea} className={`studio-source ${cropping?'cropping':''} ${picking?'picking':''} ${imageReady?'ready':'loading'}`} style={imageReady?{width:Math.max(1,dimensions.w*fit*zoom/100),height:Math.max(1,dimensions.h*fit*zoom/100)}:undefined} role="application" aria-label={picking?'点击原图中想要的素材':'原图框选区域，可从图片外侧拖动框选素材'}>
-       <img src={job.source} alt="素材原图" draggable={false} onLoad={e=>{const next={w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight};setDimensions(old=>old.w===next.w&&old.h===next.h?old:next);setImageReady(true)}}/><DeductedMaterialPreview items={job.items} dimensions={dimensions}/>{!imageReady&&<span className="studio-image-loading"><Loader2 className="spinning"/>正在打开素材…</span>}{pickPoint&&<span className="pick-point" style={{left:pickPoint[0]*100+'%',top:pickPoint[1]*100+'%'}}/>}{crop&&<div className="crop-box" style={{left:crop[0]*100+'%',top:crop[1]*100+'%',width:crop[2]*100+'%',height:crop[3]*100+'%'}}/>}
+    <section className="studio-original"><div className="studio-source-tools"><h3>原图</h3><button className="quiet" aria-label="缩小原图" onClick={()=>setZoom(v=>Math.max(50,v-25))}>−</button><span>{zoom}%</span><button className="quiet" aria-label="放大原图" onClick={()=>setZoom(v=>Math.min(500,v+25))}>＋</button><button className="quiet" onClick={()=>setZoom(100)}>适合窗口</button><small>{picking?'点击想要的素材 · 原图交给已连接的 AI 定位':cropping?'拖动框选 · 可滚动查看':lassoing?lassoHint:'拖动平移 · 可滚动查看'}</small></div>
+     <div className={`studio-image-viewport ${cropping?'cropping':''} ${picking?'picking':''} ${lassoing?'lassoing':''}`} ref={imageViewport} onPointerDown={beginPreviewPointer} onPointerMove={movePreviewPointer} onPointerUp={finishPreviewPointer} onPointerCancel={finishPreviewPointer}>
+      <div ref={imageArea} className={`studio-source ${cropping?'cropping':''} ${picking?'picking':''} ${lassoing?'lassoing':''} ${imageReady?'ready':'loading'}`} style={imageReady?{width:Math.max(1,dimensions.w*fit*zoom/100),height:Math.max(1,dimensions.h*fit*zoom/100)}:undefined} role="application" aria-label={picking?'点击原图中想要的素材':lassoing?'沿素材边缘画出闭合套索，松手自动吸附':'原图框选区域，可从图片外侧拖动框选素材'}>
+       <img ref={sourceImage} src={job.source} alt="素材原图" draggable={false} onLoad={e=>{const next={w:e.currentTarget.naturalWidth,h:e.currentTarget.naturalHeight};setDimensions(old=>old.w===next.w&&old.h===next.h?old:next);setImageReady(true)}}/><DeductedMaterialPreview items={job.items} dimensions={dimensions}/>{!imageReady&&<span className="studio-image-loading"><Loader2 className="spinning"/>正在打开素材…</span>}{pickPoint&&<span className="pick-point" style={{left:pickPoint[0]*100+'%',top:pickPoint[1]*100+'%'}}/>}{crop&&<div className="crop-box" style={{left:crop[0]*100+'%',top:crop[1]*100+'%',width:crop[2]*100+'%',height:crop[3]*100+'%'}}/>}{lasso.length>1&&<svg className={`lasso-outline ${lassoSnapped?'snapped':''}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon vectorEffect="non-scaling-stroke" points={lasso.map(point=>`${point[0]*100},${point[1]*100}`).join(' ')}/></svg>}
       </div>
      </div>
     </section>
-    <section className="studio-results"><div className="row"><h3>分离结果 <small>{job.items.length} 个</small></h3><button className="quiet" disabled={busy} onClick={selectAllResults}><CheckCheck/>全选</button><button className="quiet" disabled={busy} onClick={clearResultSelection}>清空选择</button></div><div className="sticker-grid">{job.items.map(item=><article className={selected.includes(item.id)?'chosen':''} key={item.id}><label className="transparent-preview material-select-preview" htmlFor={`material-select-${item.id}`} data-disabled={busy||item.imported?'':undefined} title={item.imported?'已入库':busy?'正在处理…':item.id===replacementItemId?'此裁片将更新原素材':selected.includes(item.id)?'点击取消选择':'点击选择素材'}><img src={item.src} alt={names[item.id]||item.name} draggable={false}/><Checkbox id={`material-select-${item.id}`} aria-label={`选择${item.name}`} disabled={busy||item.imported} checked={item.imported||selected.includes(item.id)} onCheckedChange={v=>toggleResult(item.id,!!v)}/>{item.imported&&<span className="imported-label"><Check/>已入库</span>}{replacing&&item.id===replacementItemId&&<span className="replacement-label"><Check/>更新原素材</span>}</label><button type="button" className="material-eraser-trigger" disabled={busy||item.imported} title={item.imported?'已入库素材请从素材库再次编辑':'擦掉这个结果里的多余部分'} onClick={event=>{event.preventDefault();event.stopPropagation();setEraserItemId(item.id)}}><Eraser/>{item.erased?'继续擦除':'擦除'}</button><input aria-label="素材名称" value={names[item.id]??item.name} disabled={item.imported||busy} maxLength={80} onChange={e=>setNames(old=>({...old,[item.id]:e.target.value}))}/><small>{item.width} × {item.height} · PNG</small></article>)}</div>{!job.items.length&&<p className="studio-empty-result">没有检测到可分离素材。可以继续点选或框选补漏；如需自由裁切，请点“导入新素材”选择“整图入库”，放入手帐后从选中工具栏打开。</p>}</section>
+    <section className="studio-results"><div className="row"><h3>分离结果 <small>{job.items.length} 个</small></h3><button className="quiet" disabled={busy} onClick={selectAllResults}><CheckCheck/>全选</button><button className="quiet" disabled={busy} onClick={clearResultSelection}>清空选择</button></div><div className="sticker-grid">{job.items.map(item=><article className={selected.includes(item.id)?'chosen':''} key={item.id}><label className="transparent-preview material-select-preview" htmlFor={`material-select-${item.id}`} data-disabled={busy||item.imported?'':undefined} title={item.imported?'已入库':busy?'正在处理…':item.id===replacementItemId?'此裁片将更新原素材':selected.includes(item.id)?'点击取消选择':'点击选择素材'}><img src={item.src} alt={names[item.id]||item.name} draggable={false}/><Checkbox id={`material-select-${item.id}`} aria-label={`选择${item.name}`} disabled={busy||item.imported} checked={item.imported||selected.includes(item.id)} onCheckedChange={v=>toggleResult(item.id,!!v)}/>{item.imported&&<span className="imported-label"><Check/>已入库</span>}{replacing&&item.id===replacementItemId&&<span className="replacement-label"><Check/>更新原素材</span>}</label><button type="button" className="material-eraser-trigger" disabled={busy||item.imported} title={item.imported?'已入库素材请从素材库再次编辑':'擦掉这个结果里的多余部分'} onClick={event=>{event.preventDefault();event.stopPropagation();setEraserItemId(item.id)}}><Eraser/>{item.erased?'继续擦除':'擦除'}</button><input aria-label="素材名称" value={names[item.id]??item.name} disabled={item.imported||busy} maxLength={80} onChange={e=>setNames(old=>({...old,[item.id]:e.target.value}))}/><small>{item.width} × {item.height} · PNG</small></article>)}</div>{!job.items.length&&<p className="studio-empty-result">没有检测到可分离素材。可以继续点选、框选补漏或用吸附套索沿边缘裁出；原图会始终保留。</p>}</section>
    </div>:<div className="studio-empty"><ImagePlus/><h2>还没有可处理的素材。</h2><p>导入本机图片或 Pinterest 素材后，就可以在这里继续拆分、框选和入库。</p><button className="primary" disabled={busy} onClick={onImport}>导入新素材</button></div>}</main>
   </div>
   <footer className="studio-footer"><button className="outline danger studio-delete" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button><span className="studio-accessible-status" role="status">{busy?(progress||'正在保存…'):message}</span><button className="primary" disabled={busy||!selected.length} onClick={()=>void importItems()}>{busy?<Loader2 className="spinning"/>:<Plus/>}{replacing?(selected.length===1?'保存并更新原素材':`更新原素材并新增 ${selected.length-1} 个`):`将选中的 ${selected.length} 个素材入库`}</button></footer>
