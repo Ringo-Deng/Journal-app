@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover,DEFAULT_CUSTOM_COVER_COLOR} from '../lib/journal.ts';
+import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover,DEFAULT_CUSTOM_COVER_COLOR,paperTemplateFrom,putPaperTemplate} from '../lib/journal.ts';
 import {copyNotebooks,notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
 
 test('notebook settings use a safe page scope, real-page preview and responsive control hierarchy',async()=>{
@@ -14,6 +14,11 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/页面内容和素材位置不会改变/);
  assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
  assert.match(page,/function notebookWithSettingsDraft/);
+ assert.match(page,/上传并保存到我的内页/);
+ assert.match(page,/if\(editingBookId\)change\(all=>all\.map\(item=>item\.id===editingBookId\?\{\.\.\.item,paperTemplates:putPaperTemplate/);
+ assert.match(page,/已经使用它的页面不受影响/);
+ const scopeChange=page.slice(page.indexOf('function changeCoverScope'),page.indexOf('function notebookWithSettingsDraft'));
+ assert.doesNotMatch(scopeChange,/setPaperAdvancedOpen/);
  assert.match(page,/if\(paperChanged\)next=applyPaper/);
  assert.match(page,/线格大小/);
  assert.match(page,/paperRulingSizes/);
@@ -23,6 +28,20 @@ test('notebook settings use a safe page scope, real-page preview and responsive 
  assert.match(page,/用于页眉中的日期与星期变量，只修改当前所选页面/);
  assert.match(styles,/@media\(max-width:900px\)[^{]*\{[\s\S]*\.notebook-settings-layout\{grid-template-columns:1fr/);
  assert.match(styles,/\.notebook-settings-footer\{display:flex/);
+});
+
+test('uploaded paper templates stay reusable, update in place and sort newest first',()=>{
+ const first=paperTemplateFrom({src:'/uploads/first.png',x:0,y:0,scale:100},' 旅行内页 ', 'first');
+ assert.equal(first.name,'旅行内页');
+ let templates=putPaperTemplate(undefined,first);
+ const second=paperTemplateFrom({src:'/uploads/second.png',x:2,y:3,scale:120},'', 'second');
+ templates=putPaperTemplate(templates,second);
+ assert.deepEqual(templates.map(template=>template.id),['second','first']);
+ const adjusted=paperTemplateFrom({src:'/uploads/first.png',x:-8,y:6,scale:145},'更新后的内页','duplicate-id');
+ templates=putPaperTemplate(templates,adjusted);
+ assert.equal(templates.length,2);
+ assert.deepEqual(templates[0],{src:'/uploads/first.png',x:-8,y:6,scale:145,id:'first',name:'更新后的内页'});
+ assert.equal(templates[1].id,'second');
 });
 
 test('cover choices keep three plaid, three kraft and one custom colour without notebook titles or plain-cover furniture',async()=>{

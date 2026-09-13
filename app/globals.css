@@ -3092,6 +3092,7 @@ fieldset.book-tools{border-top:0;}
 .bg-template>span{flex:1;font-size:12px;color:#4c5544;overflow-wrap:anywhere;}
 .bg-template .row{gap:2px;}
 .bg-template .quiet{font-size:11px;padding:3px 6px;}
+.paper-template-library-title{font-size:12px;color:#596552;}
 
 /* 材质与配色选择。 */
 .material-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
@@ -3225,9 +3226,18 @@ fieldset.book-tools{border-top:0;}
 .advanced-content>.full{margin-top:14px;}
 .advanced-content>.field:first-child{margin-top:14px;}
 .advanced-value{font-size:11px;color:#858b7e;}
-.settings-template-list{display:flex;flex-wrap:wrap;gap:8px;}
-.settings-template-list button{display:flex;align-items:center;gap:8px;font-size:12px;}
-.settings-template-list img{width:30px;height:38px;object-fit:cover;}
+.paper-template-library{display:flex;flex-direction:column;gap:8px;padding-top:2px;}
+.paper-template-library-heading{display:flex;flex-direction:column;gap:3px;color:#596552;}
+.paper-template-library-heading strong{font-size:12px;}
+.paper-template-library-heading small{font-size:10px;line-height:1.5;color:#8a8f82;}
+.settings-template-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;}
+.settings-template-card{display:flex;align-items:center;min-width:0;border:1px solid #d8dccf;border-radius:8px;background:#fffef9;overflow:hidden;}
+.settings-template-card.chosen{border-color:#6f855f;background:#f0f4e9;box-shadow:0 0 0 2px #758b6120;}
+.settings-template-choice{display:flex;align-items:center;gap:8px;min-width:0;flex:1;padding:6px;border:0;background:transparent;color:#55604f;font-size:12px;text-align:left;}
+.settings-template-choice img{width:30px;height:38px;flex:none;object-fit:cover;border-radius:3px;border:1px solid #d8dccf;}
+.settings-template-choice span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.settings-template-remove{display:grid!important;place-items:center;padding:6px!important;margin-right:3px;}
+.settings-template-remove svg{width:13px;height:13px;}
 .notebook-settings-footer{display:flex;gap:10px;align-items:center;border-top:1px solid #e1ded4;padding:15px 32px 18px;flex:none;background:#fffef9;box-shadow:0 -7px 18px #4c503b08;}
 .notebook-settings-footer>span{display:flex;flex-direction:column;gap:2px;font-size:11px;color:#7b8174;margin-right:auto;}
 .notebook-settings-footer>span strong{font-size:10px;letter-spacing:.06em;color:#9a866b;}

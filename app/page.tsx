@@ -19,7 +19,7 @@ import JournalHistory from '@/components/journal-history';
 import NotebookPageOverview from '@/components/notebook-page-overview';
 import {removeNotebookSpread,pageAfterSpreadRemoval} from '@/lib/notebook-pages';
 import NotebookPaper from '@/components/notebook-paper';
-import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace } from '@/lib/journal';
+import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace, paperTemplateFrom, putPaperTemplate } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
@@ -1445,7 +1445,17 @@ export default function Home() {
         r.readAsDataURL(file);
       });
       const result = await api<{ src: string }>('/upload', send('POST', { data }));
-      setBgForm({ src: result.src, x: 0, y: 0, scale: 100 });
+      const background = { src: result.src, x: 0, y: 0, scale: 100 };
+      const name = file.name.replace(/\.[^.]+$/, '').trim().slice(0, 20) || '我的内页';
+      const template = paperTemplateFrom(background, name);
+      setBgForm(background);
+      setBgName(template.name);
+      if (book) {
+        change((all) => all.map((item) => item.id === book.id
+          ? { ...item, paperTemplates: putPaperTemplate(item.paperTemplates, template) }
+          : item));
+      }
+      toast('已保存到“我的内页”；需要时再选择使用。');
     } catch (e) {
       toast((e as Error).message);
     } finally {
@@ -1473,19 +1483,16 @@ export default function Home() {
   }
   function saveBgTemplate() {
     if (!book || !bgForm) return;
-    const template = {
-      ...bgForm,
-      id: uid(),
-      name: bgName.trim() || '我的内页',
-    };
+    const existing = book.paperTemplates?.find((item) => item.src === bgForm.src);
+    const template = paperTemplateFrom(bgForm, bgName, existing?.id);
     change((all) =>
       all.map((b) =>
         b.id === book.id
-          ? { ...b, paperTemplates: [...(b.paperTemplates || []), template] }
+          ? { ...b, paperTemplates: putPaperTemplate(b.paperTemplates, template) }
           : b,
       ),
     );
-    toast(`模板「${template.name}」已保存，可重复使用。`);
+    toast(`“${template.name}”已更新，可随时重新使用。`);
   }
   function removeBgTemplate(id: string) {
     if (!book) return;
@@ -1745,15 +1752,34 @@ export default function Home() {
       if(file.size>10*1024*1024)throw Error('单张图片请控制在 10 MB 以内。');
       const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>typeof r.result==='string'?resolve(r.result):reject(Error('图片读取失败。'));r.onerror=()=>reject(Error('图片读取失败。'));r.readAsDataURL(file);});
       const result=await api<{src:string}>('/upload',send('POST',{data}));
-      setCoverBg({src:result.src,x:0,y:0,scale:100});
+      const background={src:result.src,x:0,y:0,scale:100};
+      const name=file.name.replace(/\.[^.]+$/,'').trim().slice(0,20)||'我的内页';
+      const template=paperTemplateFrom(background,name);
+      setCoverBg(background);setCoverTemplateName(template.name);
+      setCoverTemplates(current=>putPaperTemplate(current,template));
+      if(editingBookId)change(all=>all.map(item=>item.id===editingBookId?{...item,paperTemplates:putPaperTemplate(item.paperTemplates,template)}:item));
+      toast('已保存到“我的内页”；是否应用由你决定。');
     } catch(e) {toast((e as Error).message);} finally {setCoverUploadBusy(false);if(coverBgInput.current)coverBgInput.current.value='';}
+  }
+  function saveCoverBgTemplate(){
+    if(!coverBg)return;
+    const existing=coverTemplates?.find(item=>item.src===coverBg.src);
+    const template=paperTemplateFrom(coverBg,coverTemplateName,existing?.id);
+    setCoverTemplates(current=>putPaperTemplate(current,template));
+    if(editingBookId)change(all=>all.map(item=>item.id===editingBookId?{...item,paperTemplates:putPaperTemplate(item.paperTemplates,template)}:item));
+    toast(`“${template.name}”已更新，可随时重新使用。`);
+  }
+  function removeCoverBgTemplate(id:string){
+    setCoverTemplates(current=>(current||[]).filter(item=>item.id!==id));
+    if(editingBookId)change(all=>all.map(item=>item.id===editingBookId?{...item,paperTemplates:(item.paperTemplates||[]).filter(template=>template.id!==id)}:item));
+    toast('已从“我的内页”移除；已经使用它的页面不受影响。');
   }
   function changeCoverScope(scope: string){
     setCoverScope(scope);
     const b=books.find(b=>b.id===editingBookId);
     const current=scope==='book'?undefined:scope==='spread'?spread:pageSpread(spread,scope==='right'?'right':'left');
     const paper=paperSettings(b,current),header=headerOf(b,current),background=paperBgOf(b,current)||null;
-    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverPaperRulingSize(paper.rulingSize);setCoverBg(background);setPaperAdvancedOpen(!!background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
+    setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverPaperRulingSize(paper.rulingSize);setCoverBg(background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
     setCoverDate(current?.date||current?.days[0]?.date||spread?.date||spread?.days[0]?.date||today());
   }
   function notebookWithSettingsDraft(existing: Book) {
@@ -2851,7 +2877,7 @@ export default function Home() {
                 </label>
                 <div className="row">
                   <button className="outline" onClick={saveBgTemplate}>
-                    存为模板
+                    更新到我的内页
                   </button>
                   <button
                     className="outline"
@@ -2879,7 +2905,8 @@ export default function Home() {
               </button>
             )}
             {(book?.paperTemplates || []).length > 0 && (
-              <div className="bg-templates">
+              <div className="bg-templates" aria-label="我的内页">
+                <strong className="paper-template-library-title">我的内页</strong>
                 {book!.paperTemplates!.map((t) => (
                   <div className="bg-template" key={t.id}>
                     <img src={t.src} alt={t.name} />
@@ -3490,7 +3517,7 @@ export default function Home() {
                       </summary>
                       <div className="advanced-content">
                         <input hidden type="file" ref={coverBgInput} accept="image/jpeg,image/png" onChange={(event) => void uploadCoverBackground(event.target.files?.[0])} />
-                        <button className="outline full" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传 JPG / PNG 内页'}</button>
+                        <button className="outline full" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传并保存到我的内页'}</button>
                         {coverBg && (
                           <>
                             <div className="bg-preview" style={{ '--spread-ratio': coverFormat === 'tn-regular' ? 1.05 : 1.43 } as CSSProperties}
@@ -3502,10 +3529,10 @@ export default function Home() {
                             <span className="advanced-value">拖动调整位置 · 缩放 {Math.round(coverBg.scale)}%</span>
                             <Slider aria-label="内页背景缩放" value={[coverBg.scale]} min={20} max={300} onValueChange={(value) => setCoverBg((current) => current ? { ...current, scale: Array.isArray(value) ? value[0] : value } : current)} />
                             <label className="field"><span>模板名称</span><input value={coverTemplateName} maxLength={20} onChange={(event) => setCoverTemplateName(event.target.value)} /></label>
-                            <div className="row"><button className="outline" onClick={() => { setCoverTemplates((templates) => [...(templates || []), { ...coverBg, id: uid(), name: coverTemplateName.trim() || '我的内页' }]); toast('模板将在保存笔记本时一并保存。'); }}>存为模板</button><button className="quiet" onClick={() => setCoverBg(null)}>移除背景</button></div>
+                            <div className="row"><button className="outline" onClick={saveCoverBgTemplate}>更新到我的内页</button><button className="quiet" onClick={() => setCoverBg(null)}>当前范围不用</button></div>
                           </>
                         )}
-                        {!!coverTemplates?.length && <div className="settings-template-list">{coverTemplates.map((template) => <button key={template.id} className="outline" onClick={() => setCoverBg({ src: template.src, x: template.x, y: template.y, scale: template.scale })}><img src={template.src} alt="" />{template.name}</button>)}</div>}
+                        {!!coverTemplates?.length && <div className="paper-template-library"><div className="paper-template-library-heading"><strong>我的内页</strong><small>已上传的内页会一直保存在当前笔记本；选择后再保存设置即可应用。</small></div><div className="settings-template-list">{coverTemplates.map((template) => <div className={`settings-template-card ${coverBg?.src===template.src?'chosen':''}`} key={template.id}><button className="settings-template-choice" aria-pressed={coverBg?.src===template.src} onClick={() => {setCoverBg({ src: template.src, x: template.x, y: template.y, scale: template.scale });setCoverTemplateName(template.name);}}><img src={template.src} alt="" /><span>{template.name}</span></button><button className="quiet settings-template-remove" aria-label={`从我的内页删除 ${template.name}`} title="只从我的内页移除，不影响已使用页面" onClick={() => removeCoverBgTemplate(template.id)}><Trash2 /></button></div>)}</div></div>}
                       </div>
                     </details>
                   </>

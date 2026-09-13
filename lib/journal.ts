@@ -144,6 +144,18 @@ export type AIResult = {
   days: { title: string; text: string; assetIds: string[] }[];
 };
 export const uid = () => crypto.randomUUID();
+export function paperTemplateFrom(bg: PaperBg, name: string, id = uid()): PaperTemplate {
+  return {
+    ...bg,
+    id,
+    name: name.trim().slice(0, 20) || '我的内页',
+  };
+}
+export function putPaperTemplate(templates: PaperTemplate[] | undefined, template: PaperTemplate): PaperTemplate[] {
+  const existing = templates?.find((item) => item.id === template.id || item.src === template.src);
+  const saved = existing ? { ...template, id: existing.id } : template;
+  return [saved, ...(templates || []).filter((item) => item.id !== saved.id && item.src !== saved.src)];
+}
 export const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
