@@ -33,6 +33,18 @@ test('tag filters stay visible and are not rendered as a collapsible section',()
   assert.doesNotMatch(source,/ChevronDown/);
 });
 
+test('multiple selected materials can add or remove shared labels without overwriting other labels',()=>{
+  assert.match(source,/chosen\.length>1&&<button className="quiet library-batch-labels"/);
+  assert.match(source,/统一编辑标签（\{chosen\.length\}）/);
+  assert.match(source,/为已选的 \{chosen\.length\} 件素材统一添加或移除标签/);
+  assert.match(source,/mergeMaterialLabels\(labelsOf\(a\),batchAdds,batchRemoves\)/);
+  assert.match(source,/action:'apply',manual:true,patches,revision:catalog\.revision/);
+  assert.match(source,/p\.labels\[dim\]\.length>8/);
+  assert.match(source,/统一添加/);
+  assert.match(source,/统一移除/);
+  assert.match(source,/没有选择的标签保持原样/);
+});
+
 test('material cards keep classification in the tag editor and support drag-to-category',()=>{
   assert.doesNotMatch(source,/className="library-card-group"/);
   assert.doesNotMatch(source,/aria-label={`设置\$\{a\.name\}的分类`}/);

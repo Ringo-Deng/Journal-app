@@ -307,11 +307,101 @@
   margin-left: auto;
 }
 
+.library-batch-labels svg {
+  width: 13px;
+  height: 13px;
+}
+
 .library-status .quiet {
   min-height: 28px;
   padding: 4px 7px;
   border-radius: 7px;
   font-size: 10px;
+}
+
+.journal-dialog.material-batch-editor {
+  width: min(640px, 94vw) !important;
+  max-width: 640px !important;
+  max-height: 90dvh;
+  overflow: auto;
+}
+
+.material-batch-mode {
+  display: inline-flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 3px;
+  border: 1px solid #dde1d7;
+  border-radius: 9px;
+  background: #f6f6f0;
+}
+
+.material-batch-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  color: #687263;
+  font-size: 11px;
+}
+
+.material-batch-mode button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.material-batch-mode button.active {
+  background: #e9efe4;
+  color: #44593c;
+}
+
+.material-batch-mode button.active.remove {
+  background: #f7e8e5;
+  color: #8b4f45;
+}
+
+.material-batch-hint,
+.material-batch-summary {
+  margin: 0;
+  color: var(--library-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.material-batch-dim {
+  margin-block: 8px;
+}
+
+.library-tagchips .chip-select.batch-add {
+  border-color: #829777;
+  background: #e8efe3;
+  color: #405637;
+}
+
+.library-tagchips .chip-select.batch-remove {
+  border-color: #c99b92;
+  background: #f8e9e6;
+  color: #8d4d43;
+}
+
+.library-tagchips .chip-select small {
+  margin-left: 4px;
+  font-size: 9px;
+}
+
+.material-batch-summary {
+  padding-top: 8px;
+  border-top: 1px solid #e3e4dc;
+}
+
+.material-batch-error {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #f8e9e6;
+  color: #934d42;
+  font-size: 11px;
 }
 
 .library-grid {
