@@ -64,6 +64,30 @@
   min-width: 0;
 }
 
+.notebook-overview-card.is-dragging {
+  opacity: 0.45;
+}
+
+.notebook-overview-card.is-drag-target::before {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 40px;
+  width: 4px;
+  border-radius: 999px;
+  background: #70815f;
+  box-shadow: 0 0 0 3px #e8e9e2;
+  content: "";
+}
+
+.notebook-overview-card.is-drag-target.drop-before::before {
+  left: -15px;
+}
+
+.notebook-overview-card.is-drag-target.drop-after::before {
+  right: -15px;
+}
+
 .notebook-overview-open {
   display: block;
   width: 100%;
@@ -124,6 +148,38 @@
 .notebook-overview-delete:hover:not(:disabled) {
   background: #a34b4010;
   color: #a34b40;
+}
+
+.notebook-overview-drag-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: #fffef9e8;
+  color: #697460;
+  box-shadow: 0 1px 6px #29302626;
+  cursor: grab;
+}
+
+.notebook-overview-drag-handle:hover:not(:disabled) {
+  background: #fffef9;
+  color: #4f6045;
+}
+
+.notebook-overview-drag-handle:active:not(:disabled) {
+  cursor: grabbing;
+}
+
+.notebook-overview-drag-handle svg {
+  width: 17px;
+  height: 17px;
 }
 
 .notebook-overview-checkbox {
@@ -192,5 +248,13 @@
 
   .notebook-overview-delete {
     right: -5px;
+  }
+
+  .notebook-overview-card.is-drag-target.drop-before::before {
+    left: -10px;
+  }
+
+  .notebook-overview-card.is-drag-target.drop-after::before {
+    right: -10px;
   }
 }

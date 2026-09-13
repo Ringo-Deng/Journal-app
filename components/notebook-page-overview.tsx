@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
-import { Download, Trash2 } from "lucide-react";
+import { useState, type CSSProperties, type DragEvent } from "react";
+import { Download, GripVertical, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ type NotebookPageOverviewProps = {
   currentPage: number | null;
   onSelect: (page: number | null) => void;
   onDelete: (spreadId: string) => void;
+  onReorder: (spreadId: string, targetIndex: number) => void;
   disabled?: boolean;
   showCover?: boolean;
 };
@@ -33,6 +34,7 @@ function PageOverview({
   currentPage,
   onSelect,
   onDelete,
+  onReorder,
   disabled = false,
   showCover = false,
 }: NotebookPageOverviewProps) {
@@ -40,6 +42,8 @@ function PageOverview({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const offset = book.flyleaf ? 1 : 0;
   const sheets = [
     ...(book.flyleaf ? [{ spread: book.flyleaf, pageIndex: -1, flyleaf: true }] : []),
@@ -50,7 +54,8 @@ function PageOverview({
   const allSelected = sheets.length > 0 && selectedPages.length === sheets.length;
   const deleteIndex = book.spreads.findIndex((spread) => spread.id === deleteId);
   const pendingDelete = deleteIndex >= 0 ? book.spreads[deleteIndex] : null;
-  const blocked = disabled || exportOpen;
+  const blocked = disabled || exportOpen || !!pendingDelete;
+  const draggingIndex = book.spreads.findIndex((spread) => spread.id === draggingId);
 
   function toggleSelection(id: string) {
     setSelectedIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]);
@@ -61,6 +66,41 @@ function PageOverview({
     setSelectedIds([]);
   }
 
+  function beginDrag(event: DragEvent<HTMLButtonElement>, spreadId: string) {
+    if (blocked || selecting) {
+      event.preventDefault();
+      return;
+    }
+    setDraggingId(spreadId);
+    setDragOverId(null);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", spreadId);
+    const card = event.currentTarget.closest(".notebook-overview-card");
+    if (card instanceof HTMLElement) {
+      event.dataTransfer.setDragImage(card, card.offsetWidth / 2, 24);
+    }
+  }
+
+  function dragOver(event: DragEvent<HTMLElement>, spreadId: string) {
+    if (!draggingId || draggingId === spreadId || blocked || selecting) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverId(spreadId);
+  }
+
+  function dropOn(event: DragEvent<HTMLElement>, targetIndex: number) {
+    event.preventDefault();
+    const spreadId = draggingId || event.dataTransfer.getData("text/plain");
+    setDraggingId(null);
+    setDragOverId(null);
+    if (spreadId) onReorder(spreadId, targetIndex);
+  }
+
+  function endDrag() {
+    setDraggingId(null);
+    setDragOverId(null);
+  }
+
   return (
     <div
       className="notebook-page-overview"
@@ -69,7 +109,11 @@ function PageOverview({
     >
       <div className="notebook-overview-toolbar" aria-label="页面管理">
         <p className="notebook-overview-hint" role={selecting ? "status" : undefined}>
-          {selecting ? `已选 ${selectedPages.length} 项` : "点击缩略图打开页面"}
+          {selecting
+            ? `已选 ${selectedPages.length} 项`
+            : book.spreads.length > 1
+              ? "拖动缩略图左上角把手调整顺序；点击打开页面"
+              : "点击缩略图打开页面"}
         </p>
         <div className="notebook-overview-actions">
           {selecting ? (
@@ -128,10 +172,15 @@ function PageOverview({
         {sheets.map((sheet) => {
           const label = sheet.flyleaf ? "扉页" : `第 ${sheet.pageIndex + 1} 个跨页`;
           const selected = selectedIds.includes(sheet.spread.id);
+          const isDragging = draggingId === sheet.spread.id;
+          const isDragTarget = dragOverId === sheet.spread.id && draggingIndex >= 0;
+          const dropAfter = isDragTarget && draggingIndex < sheet.pageIndex;
           return (
             <article
-              className={`notebook-overview-card${selecting && selected ? " is-selected" : ""}`}
+              className={`notebook-overview-card${selecting && selected ? " is-selected" : ""}${isDragging ? " is-dragging" : ""}${isDragTarget ? ` is-drag-target ${dropAfter ? "drop-after" : "drop-before"}` : ""}`}
               key={sheet.spread.id}
+              onDragOver={sheet.flyleaf ? undefined : (event) => dragOver(event, sheet.spread.id)}
+              onDrop={sheet.flyleaf ? undefined : (event) => dropOn(event, sheet.pageIndex)}
             >
               <button
                 type="button"
@@ -152,6 +201,31 @@ function PageOverview({
                 </div>
                 <span className="notebook-overview-caption">{label}</span>
               </button>
+              {!selecting && !sheet.flyleaf && book.spreads.length > 1 && (
+                <button
+                  type="button"
+                  className="notebook-overview-drag-handle"
+                  draggable={!blocked}
+                  aria-label={`拖动${label}调整顺序`}
+                  title="拖动调整顺序"
+                  disabled={blocked}
+                  onClick={(event) => event.stopPropagation()}
+                  onDragStart={(event) => beginDrag(event, sheet.spread.id)}
+                  onDragEnd={endDrag}
+                  onKeyDown={(event) => {
+                    const step = event.key === "ArrowLeft" || event.key === "ArrowUp"
+                      ? -1
+                      : event.key === "ArrowRight" || event.key === "ArrowDown"
+                        ? 1
+                        : 0;
+                    if (!step) return;
+                    event.preventDefault();
+                    onReorder(sheet.spread.id, sheet.pageIndex + step);
+                  }}
+                >
+                  <GripVertical aria-hidden="true" />
+                </button>
+              )}
               {selecting ? (
                 <label className="notebook-overview-checkbox">
                   <input

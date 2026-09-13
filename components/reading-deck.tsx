@@ -22,6 +22,7 @@ export default function ReadingDeck({
   page,
   onSelect,
   onDelete,
+  onReorder,
   actionsDisabled = false,
 }: {
   book: Book;
@@ -29,6 +30,7 @@ export default function ReadingDeck({
   page: number;
   onSelect: (page: number) => void;
   onDelete: (spreadId: string) => void;
+  onReorder: (spreadId: string, targetIndex: number) => void;
   actionsDisabled?: boolean;
 }) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
@@ -147,7 +149,7 @@ export default function ReadingDeck({
       {grid ? (
         <NotebookPageOverview key={book.id} book={book} assets={assets}
           currentPage={opened ? current - offset : null} showCover={false}
-          disabled={actionsDisabled} onDelete={onDelete}
+          disabled={actionsDisabled} onDelete={onDelete} onReorder={onReorder}
           onSelect={index => {
             if (index === null) return;
             onSelect(index + offset);

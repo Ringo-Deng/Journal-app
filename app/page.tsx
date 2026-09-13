@@ -17,7 +17,7 @@ import { JournalApiError, saveJournalSnapshot, shouldShowSaveStatus } from '@/li
 import FullBackup from '@/components/full-backup';
 import JournalHistory from '@/components/journal-history';
 import NotebookPageOverview from '@/components/notebook-page-overview';
-import {removeNotebookSpread,pageAfterSpreadRemoval} from '@/lib/notebook-pages';
+import {removeNotebookSpread,pageAfterSpreadRemoval,reorderNotebookSpread,pageAfterSpreadReorder} from '@/lib/notebook-pages';
 import NotebookPaper from '@/components/notebook-paper';
 import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace, paperTemplateFrom, putPaperTemplate } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
@@ -936,6 +936,28 @@ export default function Home() {
     drag.current = null;scrollRestore.current = null;
     setDesignPreview(null);
     toast('跨页已删除，可在编辑模式撤销，也可从历史备份恢复。');
+  }
+  function reorderOverviewSpread(spreadId: string, targetIndex: number) {
+    if (!book || busy || uploading || opening || closing || flipping) return;
+    const before = booksRef.current.find(item => item.id === book.id);
+    if (!before) return;
+    const after = reorderNotebookSpread(before, spreadId, targetIndex);
+    if (after === before) return;
+    const nextPage = pageAfterSpreadReorder(before, after, page);
+    const beforeOffset = Number(!!before.flyleaf);
+    const afterOffset = Number(!!after.flyleaf);
+    const nextReading = pageAfterSpreadReorder(before, after, readingPage - beforeOffset);
+    change(all => all.map(item => item.id === before.id ? after : item));
+    setPage(nextPage);
+    setReadingPage(Math.max(0, nextReading + afterOffset));
+    const position = editingPosition.current;
+    if (position) {
+      editingPosition.current = {
+        ...position,
+        page: pageAfterSpreadReorder(before, after, position.page),
+      };
+    }
+    toast('跨页顺序已调整，可撤销。');
   }
   const openBook = () => {
     if (opened || opening || closing || !book) return;
@@ -2270,7 +2292,7 @@ export default function Home() {
                   VOLUME {currentMonth.slice(-2)} ·{' '}
                   {monthName(currentMonth).toUpperCase()}
                 </span>
-                {reading && book ? (<ReadingDeck book={book} assets={assets} page={readingPage} onSelect={setReadingPage} onDelete={deleteOverviewSpread} actionsDisabled={busy||uploading}/>) : !book ? (
+                {reading && book ? (<ReadingDeck book={book} assets={assets} page={readingPage} onSelect={setReadingPage} onDelete={deleteOverviewSpread} onReorder={reorderOverviewSpread} actionsDisabled={busy||uploading}/>) : !book ? (
                   <div className="cover-stage">
                     <p className="microcopy">笔记库里还没有笔记本。</p>
                     <button className="primary" onClick={()=>setView('library')}>
@@ -3622,12 +3644,13 @@ export default function Home() {
         <DialogContent className="journal-dialog page-index-dialog">
           <DialogTitle>全部跨页</DialogTitle>
           <DialogDescription>
-            {book?.title || '当前笔记本'} · 点击预览跳转，或选择需要导出的页面。
+            {book?.title || '当前笔记本'} · 拖动调整顺序、点击预览跳转，或选择需要导出的页面。
           </DialogDescription>
           {book && <NotebookPageOverview key={book.id} book={book} assets={assets}
             currentPage={opened?page:null} showCover
             disabled={busy||uploading||opening||closing||!!flipping}
             onDelete={deleteOverviewSpread}
+            onReorder={reorderOverviewSpread}
             onSelect={index=>{finishEditing();if(index===null)setOpened(false);else{setPage(index);setOpened(true);}setModal(null);}}
           />}
         </DialogContent>
