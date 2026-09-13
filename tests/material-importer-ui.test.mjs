@@ -31,6 +31,8 @@ test('local and Pinterest acquisition live in the importer instead of Material S
   assert.match(importer,/fallbacks\.push\(`\$\{item\.name\}：自动识别未完成，原图已保留，可框选补漏；如需自由裁切，请点“导入新素材”并选择“整图入库”，放入手帐后从选中工具栏打开/);
   assert.match(importer,/\('\/pinterest\/resolve'/);
   assert.match(importer,/\('\/pinterest\/import'/);
+  assert.match(importer,/url\.hostname==='pin\.it'/);
+  assert.match(importer,/直接粘贴 Pinterest 网页或 pin\.it 分享链接/);
   const pinterestFlow=importer.slice(importer.indexOf('async function importPinterest'),importer.indexOf('return <Dialog'));
   assert.ok(pinterestFlow.indexOf("request<Job>('/source'")>0);
   assert.ok(pinterestFlow.indexOf("request<Job>('/segment'")>pinterestFlow.indexOf("request<Job>('/source'"));

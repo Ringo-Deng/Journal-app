@@ -13,7 +13,7 @@ import {artPrompt} from './art-direction.mjs';
 import { editorialPrompt, prepareEditorial, checkParagraphDesign, requiredEditorialSources } from './editorial.mjs';
 import { designOptions, parseDesign } from './ai-response.mjs';
 import { validatePlan } from './design-plan.mjs';
-import { parsePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
+import { resolvePinterestInput, resolvePinterestPin, downloadPinterestImage } from './pinterest-import.mjs';
 import { normalizeBaseUrl, configIssue, providerError, migrateLegacyConfig, DEEPSEEK_DEFAULT_MODEL, DEEPSEEK_MODELS } from './ai-config.mjs';
 import { createPhotoMaskStore, photoTrashProtection, references } from './photo-mask.mjs';
 import { createPhotoLibrary, journalPhotoSources, photoMaskSourceMap } from './photo-library.mjs';
@@ -865,7 +865,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, consolidatedJobs(materialJobs));
     if (path === '/api/materials/pinterest/resolve' && req.method === 'POST') {
       const input = await body(req);
-      const parsed = parsePinterestInput(input.input);
+      const parsed = await resolvePinterestInput(input.input);
       const metadata = await resolvePinterestPin(parsed.pinId);
       return json(res, {
         pinId: parsed.pinId,
@@ -876,7 +876,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/materials/pinterest/import' && req.method === 'POST') {
       const input = await body(req);
-      const parsed = parsePinterestInput(input.input);
+      const parsed = await resolvePinterestInput(input.input);
       const resolved = await downloadPinterestImage(parsed.pinId, input.imageUrl || '');
       const sha256 = createHash('sha256').update(resolved.buffer).digest('hex');
       let existing = pinterestImports.find((item) => item.sha256 === sha256);

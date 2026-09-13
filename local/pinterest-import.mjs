@@ -1,6 +1,24 @@
 const PIN_ID_RE = /^\d{6,30}$/;
 const ALLOWED_IMAGE_HOST = /(^|\.)pinimg\.com$/i;
 const IMAGE_SIZE_PATH_RE = /\/(?:originals|\d{1,5}x(?:\d{1,5})?)\//i;
+const PINTEREST_PAGE_DOMAINS = ['pinterest.com', 'pinterest.jp'];
+
+function isPinterestPageHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return PINTEREST_PAGE_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function pinIdFromUrl(url) {
+  if (url.hostname.toLowerCase() === 'assets.pinterest.com' && url.pathname === '/ext/embed.html')
+    return url.searchParams.get('id') || '';
+  const parts = url.pathname.split('/').filter(Boolean);
+  const pinIndex = parts.findIndex((part) => part.toLowerCase() === 'pin');
+  if (pinIndex < 0) return '';
+  const tail = parts.slice(pinIndex + 1).join('/');
+  const direct = /^(\d{6,30})(?:\/|$)/.exec(tail);
+  const slugged = /(?:^|--)(\d{6,30})(?:\/|$)/.exec(tail);
+  return direct?.[1] || slugged?.[1] || '';
+}
 
 export function parsePinterestInput(value) {
   const raw = String(value || '').trim();
@@ -12,23 +30,49 @@ export function parsePinterestInput(value) {
   let url;
   try { url = new URL(candidate.replace(/&amp;/gi, '&')); } catch { throw Object.assign(new Error('没有识别到有效的 Pinterest 素材代码或链接。'), { status: 400 }); }
   const host = url.hostname.toLowerCase();
-  if (!(host === 'pinterest.com' || host.endsWith('.pinterest.com') || host === 'assets.pinterest.com'))
-    throw Object.assign(new Error('目前只支持 Pinterest 的 Pin 链接或嵌入代码。'), { status: 400 });
-
-  let pinId = '';
-  if (host === 'assets.pinterest.com' && url.pathname === '/ext/embed.html') pinId = url.searchParams.get('id') || '';
-  if (!pinId) {
-    const parts = url.pathname.split('/').filter(Boolean);
-    const pinIndex = parts.findIndex((part) => part.toLowerCase() === 'pin');
-    if (pinIndex >= 0) {
-      const tail = parts.slice(pinIndex + 1).join('/');
-      const direct = /^(\d{6,30})(?:\/|$)/.exec(tail);
-      const slugged = /(?:^|--)(\d{6,30})(?:\/|$)/.exec(tail);
-      pinId = direct?.[1] || slugged?.[1] || '';
-    }
+  if (url.protocol !== 'https:') throw Object.assign(new Error('请使用 Pinterest 的 HTTPS 网页链接。'), { status: 400 });
+  if (host === 'pin.it') {
+    if (!url.pathname.split('/').filter(Boolean).length)
+      throw Object.assign(new Error('这个 Pinterest 分享链接不完整，请重新复制。'), { status: 400 });
+    return { pinId: '', originalUrl: url.toString(), shortUrl: url.toString() };
   }
+  if (!isPinterestPageHost(host))
+    throw Object.assign(new Error('目前只支持 Pinterest 的 Pin 网页链接、分享链接、Pin ID 或嵌入代码。'), { status: 400 });
+
+  const pinId = pinIdFromUrl(url);
   if (!PIN_ID_RE.test(pinId)) throw Object.assign(new Error('没有从这段内容中识别到 Pinterest Pin ID。'), { status: 400 });
   return { pinId, originalUrl: `https://www.pinterest.com/pin/${pinId}/` };
+}
+
+export async function resolvePinterestInput(value, timeoutMs = 15000) {
+  const parsed = parsePinterestInput(value);
+  if (parsed.pinId) return parsed;
+
+  let current = new URL(parsed.shortUrl);
+  for (let redirectCount = 0; redirectCount < 5; redirectCount++) {
+    let response;
+    try {
+      response = await fetch(current, {
+        redirect: 'manual',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152 Safari/537.36' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (cause) {
+      throw Object.assign(new Error('Pinterest 分享链接暂时无法打开，请检查网络后重试。'), { status: 502, cause });
+    }
+    const location = response.headers.get('location');
+    if (response.status < 300 || response.status >= 400 || !location)
+      throw Object.assign(new Error('这个 Pinterest 分享链接没有跳转到可识别的 Pin 页面。'), { status: 422 });
+
+    const next = new URL(location, current);
+    const nextHost = next.hostname.toLowerCase();
+    if (next.protocol !== 'https:' || (nextHost !== 'pin.it' && !isPinterestPageHost(nextHost)))
+      throw Object.assign(new Error('这个分享链接跳转到了非 Pinterest 网页，已停止读取。'), { status: 422 });
+    const pinId = pinIdFromUrl(next);
+    if (PIN_ID_RE.test(pinId)) return { pinId, originalUrl: `https://www.pinterest.com/pin/${pinId}/` };
+    current = next;
+  }
+  throw Object.assign(new Error('这个 Pinterest 分享链接跳转次数过多，暂时无法识别。'), { status: 422 });
 }
 
 function decode(value) {

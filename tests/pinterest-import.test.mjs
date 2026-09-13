@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePinterestInput, extractPinterestMetadata, downloadPinterestImage } from '../local/pinterest-import.mjs';
+import { parsePinterestInput, resolvePinterestInput, extractPinterestMetadata, downloadPinterestImage } from '../local/pinterest-import.mjs';
 
 const pinId = '123456789';
 const pinUrl = `https://www.pinterest.com/pin/${pinId}/`;
@@ -29,6 +29,44 @@ test('parses numeric id and regular pin URL', () => {
   assert.equal(parsePinterestInput('1001136192184185383').pinId, '1001136192184185383');
   assert.equal(parsePinterestInput('https://www.pinterest.com/pin/1001136192184185383/').pinId, '1001136192184185383');
   assert.equal(parsePinterestInput('https://ca.pinterest.com/pin/something--641903753143916509/').pinId, '641903753143916509');
+  assert.equal(parsePinterestInput('https://www.pinterest.jp/pin/1099370959077959045/sent/?sfo=1').pinId, '1099370959077959045');
+});
+
+test('resolves a pin.it share link through Pinterest-owned redirects', async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (input, options) => {
+    const url = String(input);
+    requests.push({ url, redirect: options?.redirect });
+    if (url === 'https://pin.it/28E4CHdGh') return new Response('', {
+      status: 308,
+      headers: { location: 'https://api.pinterest.com/url_shortener/28E4CHdGh/redirect/' },
+    });
+    if (url === 'https://api.pinterest.com/url_shortener/28E4CHdGh/redirect/') return new Response('', {
+      status: 302,
+      headers: { location: 'https://www.pinterest.jp/pin/1099370959077959045/sent/?invite_code=private&sfo=1' },
+    });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  const parsed = await resolvePinterestInput('https://pin.it/28E4CHdGh');
+  assert.deepEqual(parsed, {
+    pinId: '1099370959077959045',
+    originalUrl: 'https://www.pinterest.com/pin/1099370959077959045/',
+  });
+  assert.deepEqual(requests, [
+    { url: 'https://pin.it/28E4CHdGh', redirect: 'manual' },
+    { url: 'https://api.pinterest.com/url_shortener/28E4CHdGh/redirect/', redirect: 'manual' },
+  ]);
+});
+
+test('stops a pin.it redirect that leaves Pinterest', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('', {
+    status: 302,
+    headers: { location: 'https://example.com/pin/1099370959077959045/' },
+  }));
+  await assert.rejects(() => resolvePinterestInput('https://pin.it/unsafe'), {
+    status: 422,
+    message: '这个分享链接跳转到了非 Pinterest 网页，已停止读取。',
+  });
 });
 
 test('rejects non Pinterest URLs', () => assert.throws(() => parsePinterestInput('https://example.com/pin/123456789/')));

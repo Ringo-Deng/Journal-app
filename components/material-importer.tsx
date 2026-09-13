@@ -17,17 +17,24 @@ async function request<T>(path:string,data?:unknown,signal?:AbortSignal):Promise
  return result;
 }
 
-function localPinterestPinId(value:string){
+function localPinterestInput(value:string){
  const raw=value.trim();
- if(/^\d{6,30}$/.test(raw))return raw;
+ if(/^\d{6,30}$/.test(raw))return {pinId:raw,short:false};
  const iframe=/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i.exec(raw);
  const candidate=iframe?iframe[1]:raw;
  try{
   const url=new URL(candidate.replace(/&amp;/gi,'&'));
-  if(url.hostname==='assets.pinterest.com')return /^\d{6,30}$/.test(url.searchParams.get('id')||'')?url.searchParams.get('id')||'':'';
-  if(!(url.hostname==='pinterest.com'||url.hostname.endsWith('.pinterest.com')))return '';
-  return /\/pin\/(?:[^/]*--)?(\d{6,30})(?:\/|$)/i.exec(url.pathname)?.[1]||'';
- }catch{return ''}
+  if(url.protocol!=='https:')return null;
+  if(url.hostname==='pin.it'&&url.pathname.split('/').filter(Boolean).length)return {pinId:'',short:true};
+  if(url.hostname==='assets.pinterest.com'){
+   const pinId=url.searchParams.get('id')||'';
+   return /^\d{6,30}$/.test(pinId)?{pinId,short:false}:null;
+  }
+  const pinterestPage=url.hostname==='pinterest.com'||url.hostname.endsWith('.pinterest.com')||url.hostname==='pinterest.jp'||url.hostname.endsWith('.pinterest.jp');
+  if(!pinterestPage)return null;
+  const pinId=/\/pin\/(?:[^/]*--)?(\d{6,30})(?:\/|$)/i.exec(url.pathname)?.[1]||'';
+  return pinId?{pinId,short:false}:null;
+ }catch{return null}
 }
 
 export default function MaterialImporter({open,onClose,onReady,onImported,onOpenLibrary}:{open:boolean;onClose:()=>void;onReady:(message:string,targetSource:string)=>void;onImported:(assets:Asset[])=>void;onOpenLibrary:()=>void}){
@@ -76,16 +83,16 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
 
  async function recognizePinterest(value:string){
   pinterestController.current?.abort();pinterestController.current=null;
-  setPinterestInput(value);setPinterestSelected('');setMessage('');setImportedCount(0);const seq=++pinterestSeq.current;const pinId=localPinterestPinId(value);
+  setPinterestInput(value);setPinterestSelected('');setMessage('');setImportedCount(0);const seq=++pinterestSeq.current;const recognized=localPinterestInput(value);
   if(!value.trim()){setPinterestPreview(null);setPinterestStatus('等待粘贴');setPinterestResolving(false);return}
-  if(!pinId){setPinterestPreview(null);setPinterestStatus('未识别到 Pinterest Pin');setPinterestResolving(false);return}
-  setPinterestPreview(null);setPinterestStatus(`已识别 Pin ${pinId} · 正在读取预览…`);setPinterestResolving(true);
+  if(!recognized){setPinterestPreview(null);setPinterestStatus('未识别到 Pinterest Pin 网页或分享链接');setPinterestResolving(false);return}
+  setPinterestPreview(null);setPinterestStatus(recognized.short?'已识别 Pinterest 分享链接 · 正在打开网页…':`已识别 Pin ${recognized.pinId} · 正在读取预览…`);setPinterestResolving(true);
   const controller=new AbortController();pinterestController.current=controller;
   try{
    const payload=await request<PinterestPreview>('/pinterest/resolve',{input:value},controller.signal);if(seq!==pinterestSeq.current)return;
    const normalized=normalizePinterestResolvePayload(payload);
    if(!normalized?.images.length)throw Error('没有读取到可用图片，请重新粘贴链接。');
-   setPinterestStatus('正在检查图片是否可用及分辨率…');
+   setPinterestStatus(`已识别 Pin ${payload.pinId} · 正在检查图片是否可用及分辨率…`);
    const images=await verifyPinterestPreviews(normalized.images,{signal:controller.signal});if(seq!==pinterestSeq.current)return;
    const preferred=preferredPinterestImage(images);
    setPinterestPreview({...payload,images});setPinterestSelected(preferred?.downloadUrl||'');
@@ -132,8 +139,8 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
    <button className="primary" disabled={busy} onClick={()=>file.current?.click()}>{busy?<Loader2 className="spinning"/>:<ImagePlus/>}{mode==='whole'?'选择图片并入库':'选择图片并拆分'}</button>
   </section>
   <section className="material-import-pinterest" aria-label="Pinterest 素材导入">
-   <label htmlFor="pinterest-material-input">Pinterest 链接、Pin ID 或嵌入代码</label>
-   <textarea id="pinterest-material-input" placeholder={'粘贴 Pinterest 链接、Pin ID 或嵌入代码\n例如：<iframe src="https://assets.pinterest.com/ext/embed.html?id=…"></iframe>'} value={pinterestInput} disabled={busy} onChange={event=>void recognizePinterest(event.target.value)}/>
+   <label htmlFor="pinterest-material-input">Pinterest 网页／分享链接、Pin ID 或嵌入代码</label>
+   <textarea id="pinterest-material-input" placeholder={'直接粘贴 Pinterest 网页或 pin.it 分享链接\n也支持 Pin ID 和嵌入代码'} value={pinterestInput} disabled={busy} onChange={event=>void recognizePinterest(event.target.value)}/>
    <span className={`pinterest-state ${selectedPinterestImage?'ready':''}`} aria-live="polite">{pinterestStatus}</span>
    <div className="pinterest-preview">{pinterestPreview?<>
     {selectedPinterestImage&&<><img className="pinterest-selected-image" src={selectedPinterestImage.previewUrl} alt="当前选中的 Pinterest 图片，完整预览" draggable={false}/>

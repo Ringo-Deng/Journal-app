@@ -12,6 +12,7 @@ import { freeTestPort } from './test-server.mjs';
 
 const pinId = '1001136192184185383';
 const originalUrl = `https://www.pinterest.com/pin/${pinId}/`;
+const shortUrl = 'https://pin.it/directLink';
 const firstUrl = 'https://i.pinimg.com/originals/aa/bb/cc/first.png';
 const secondUrl = 'https://i.pinimg.com/originals/dd/ee/ff/second.png';
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -39,6 +40,12 @@ const images = ${JSON.stringify(fixtureImages)};
 const html = ${JSON.stringify(fixtureHtml)};
 globalThis.fetch = async input => {
   const url = new URL(typeof input === 'string' ? input : input.url || String(input));
+  if (url.href === ${JSON.stringify(shortUrl)}) {
+    return new Response('', { status: 308, headers: { location: 'https://api.pinterest.com/url_shortener/directLink/redirect/' } });
+  }
+  if (url.hostname === 'api.pinterest.com' && url.pathname === '/url_shortener/directLink/redirect/') {
+    return new Response('', { status: 302, headers: { location: ${JSON.stringify(originalUrl)} } });
+  }
   if (url.hostname === 'www.pinterest.com' || url.hostname === 'assets.pinterest.com') {
     return new Response(html, { headers: { 'content-type': 'text/html' } });
   }
@@ -103,6 +110,22 @@ globalThis.fetch = async input => {
   const records = async () => JSON.parse(await readFile(join(dir, 'pinterest-imports.json'), 'utf8'));
   return { dir, base, journal, firstBytes, secondBytes, legacyRecord, request, importImage, records };
 }
+
+test('resolve and import endpoints accept a pin.it webpage link', { timeout: 30_000 }, async t => {
+  const server = await startPinterestServer(t);
+  const preview = await server.request('/api/materials/pinterest/resolve', { input: shortUrl });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.data.pinId, pinId);
+  assert.equal(preview.data.originalUrl, originalUrl);
+  assert.equal(preview.data.images[0].downloadUrl, firstUrl);
+
+  const imported = await server.importImage(firstUrl, shortUrl);
+  assert.equal(imported.status, 200);
+  assert.equal(imported.data.pinId, pinId);
+  assert.equal(imported.data.originalUrl, originalUrl);
+  assert.deepEqual(await readFile(join(server.dir, imported.data.src.slice(1))), server.firstBytes);
+  assert.deepEqual(JSON.parse(await readFile(join(server.dir, 'journal.json'), 'utf8')), server.journal);
+});
 
 test('different selected images from one Pinterest Pin keep their own files and repeated content is reused', { timeout: 30_000 }, async t => {
   const server = await startPinterestServer(t);
