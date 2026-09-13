@@ -10,5 +10,8 @@ const index = resolve(root, 'dist/client/index.html');
 
 if (!version) throw Error('package.json 缺少 version。');
 await access(index, constants.F_OK);
+const intro = resolve(root, 'dist/client/intro/index.html');
+const introHtml = await readFile(intro, 'utf8');
+await writeFile(intro, introHtml.replace('<!--SHIGUANG_VERSION-->', `v${version}`), 'utf8');
 await writeFile(resolve(root, 'dist/client/.shiguang-version'), `${version}\n`, 'utf8');
 console.log(`production bundle stamped: v${version}`);
