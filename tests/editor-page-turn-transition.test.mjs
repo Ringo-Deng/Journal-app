@@ -50,6 +50,17 @@ test('the editor suppresses transient work-area scrollbars only while a page is 
   assert.doesNotMatch(transitionCss, /\.compact-shell\.is-editing \.work-area\s*\{[^}]*overflow:\s*hidden;/);
 });
 
+test('the destination snapshot cannot paint its pieces above the moving sheet', () => {
+  assert.match(
+    transitionCss,
+    /\.is-editing \.book-scene \.page-turn-layer \.turn-reveal\s*\{[^}]*z-index:\s*0;[^}]*isolation:\s*isolate;/,
+  );
+  assert.match(
+    transitionCss,
+    /\.is-editing \.book-scene \.page-turn-layer \.turn-moving\s*\{[^}]*z-index:\s*1;/,
+  );
+});
+
 test('successful editor page turns play the paper flip without affecting reading mode', () => {
   assert.match(page, /usePageTurnSound\(\{[\s\S]*?mixkit-page-turn-single-1104\.wav/);
   assert.match(

@@ -62,6 +62,17 @@
   border-radius: var(--editor-paper-radius) 0 0 var(--editor-paper-radius);
 }
 
+/* Page pieces carry their own z-index. Contain the destination snapshot so a
+   high layer cannot paint above the sheet that is still turning over it. */
+.is-editing .book-scene .page-turn-layer .turn-reveal {
+  z-index: 0;
+  isolation: isolate;
+}
+
+.is-editing .book-scene .page-turn-layer .turn-moving {
+  z-index: 1;
+}
+
 /* The 3D leaf briefly projects beyond the paper box while it curls. Keep the
    work area scrollable at rest, but do not let that transient projection make
    the browser flash scrollbars during a turn. */
