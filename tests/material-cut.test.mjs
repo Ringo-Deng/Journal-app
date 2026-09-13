@@ -4,6 +4,7 @@ import {
   materialCutExportGeometry,
   materialCutMaskBounds,
   materialCutPathLength,
+  materialCutTornWidthFactor,
   materialCutVisibleMask,
   sampleMaterialCutPath,
   splitMaterialCutMask,
@@ -188,6 +189,26 @@ test("edge styling keeps endpoints stable and produces deterministic visible var
     assert.ok(first.some((point) => Math.abs(point.y) > 0.5));
   }
   assert.ok(styleMaterialCutPath(source, "straight", 5).every((point) => point.y === 0));
+});
+
+test("torn paper core varies strongly on both sides and closes without a visible seam", () => {
+  const total = 240,
+    left = Array.from({ length: 121 }, (_, index) =>
+      materialCutTornWidthFactor(index * 2, total, 4.2, 1, true),
+    ),
+    right = Array.from({ length: 121 }, (_, index) =>
+      materialCutTornWidthFactor(index * 2, total, 4.2, -1, true),
+    );
+  assert.ok(Math.max(...left) - Math.min(...left) > 0.75);
+  assert.ok(Math.max(...right) - Math.min(...right) > 0.75);
+  assert.ok(left.some((value, index) => Math.abs(value - right[index]) > 0.35));
+  assert.ok(Math.abs(left[0] - left.at(-1)) < 1e-10);
+  assert.ok(Math.abs(right[0] - right.at(-1)) < 1e-10);
+  assert.ok(
+    [...left, ...right].every(
+      (value) => Number.isFinite(value) && value >= 0.32 && value <= 1.72,
+    ),
+  );
 });
 
 test("visible bounds ignore transparent pixels outside the retained subject", () => {

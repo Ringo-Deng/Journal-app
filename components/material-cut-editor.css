@@ -37,6 +37,7 @@
 }
 
 .material-cut-host .material-cut-toolbar > label,
+.material-cut-host .material-cut-toolbar > .material-cut-setting,
 .material-cut-host .material-cut-bottom > label {
   display: inline-flex;
   align-items: center;
@@ -45,6 +46,18 @@
   color: #697561;
   font-size: 11px;
   white-space: nowrap;
+}
+
+.material-cut-host .material-cut-core-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.material-cut-host .material-cut-core-options button {
+  min-height: 28px;
+  padding: 4px 7px;
+  border-color: #d8ddd1;
 }
 
 .material-cut-host .material-cut-toolbar button,

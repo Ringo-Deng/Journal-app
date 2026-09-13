@@ -87,6 +87,39 @@ export function sampleMaterialCutPath(points: MaterialCutPoint[], spacing = 1.25
   return result;
 }
 
+export function materialCutTornWidthFactor(
+  distance: number,
+  total: number,
+  seed: number,
+  side: -1 | 1,
+  closed: boolean,
+) {
+  const safeTotal = Math.max(1, total);
+  const noise = (scale: number, salt: number) => {
+    const count = closed ? Math.max(3, Math.round(safeTotal / scale)) : 0,
+      position = closed ? (distance / safeTotal) * count : distance / scale,
+      cell = Math.floor(position),
+      mix = position - cell,
+      smooth = mix * mix * (3 - 2 * mix),
+      wrap = (value: number) => (closed ? ((value % count) + count) % count : value),
+      value = (index: number) => {
+        const raw = Math.sin(
+            (wrap(index) + 1) * 12.9898 + seed * 23.417 + side * 37.719 + salt * 17.131,
+          ) * 43758.5453,
+          unit = raw - Math.floor(raw);
+        return unit * 2 - 1;
+      };
+    return value(cell) * (1 - smooth) + value(cell + 1) * smooth;
+  };
+  const factor =
+    0.84 +
+    noise(31, 0.7) * 0.36 +
+    noise(10.5, 2.3) * 0.27 +
+    noise(4.2, 4.9) * 0.18 +
+    noise(1.8, 8.1) * 0.11;
+  return Math.max(0.32, Math.min(1.72, factor + side * 0.035));
+}
+
 export function styleMaterialCutPath(
   points: MaterialCutPoint[],
   edge: MaterialCutEdge,

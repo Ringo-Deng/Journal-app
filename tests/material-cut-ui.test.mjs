@@ -22,6 +22,7 @@ test('the custom cutter exposes the approved scissors workflow and keeps every p
     '波浪',
     '锯齿',
     '手撕白纸露出',
+    '无白边',
     '撤销',
     '重做',
     '恢复原图',
@@ -32,6 +33,8 @@ test('the custom cutter exposes the approved scissors workflow and keeps every p
   assert.match(editor, /全部留在原位/);
   assert.match(editor, /闭合一圈可以取出中间裁片/);
   assert.match(editor, /const ordered = \[\.\.\.piecesRef\.current\]\.sort/);
+  assert.match(editor, /aria-pressed=\{paperCore === option\.value\}/);
+  assert.match(editor, /if \(width <= 0\) return/);
 });
 
 test('draft cutting stays client-side, uploads incrementally, then applies to the page once', () => {
@@ -81,6 +84,7 @@ test('custom cutting styles are scoped to the dedicated host and remain pointer 
   assert.match(css, /\.material-cut-host \.material-cut-editor/);
   assert.doesNotMatch(css, /\.material-studio \.material-cut-editor/);
   assert.match(css, /touch-action: none/);
+  assert.match(css, /\.material-cut-core-options/);
   assert.match(css, /\[data-mode="move"\] canvas|\[data-mode='move'\] canvas/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /@media \(max-height: 640px\)/);

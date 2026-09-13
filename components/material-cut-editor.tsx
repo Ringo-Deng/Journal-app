@@ -19,6 +19,7 @@ import {
   materialCutExportGeometry,
   materialCutMaskBounds,
   materialCutPathLength,
+  materialCutTornWidthFactor,
   materialCutVisibleMask,
   sampleMaterialCutPath,
   splitMaterialCutMask,
@@ -88,6 +89,12 @@ const edgeNames: Record<MaterialCutEdge, string> = {
 };
 const strengthValues = { small: 2, medium: 5, large: 9 } as const;
 const paperCoreValues = { small: 5, medium: 11, large: 20 } as const;
+const paperCoreOptions = [
+  { value: 0, label: "无白边" },
+  { value: paperCoreValues.small, label: "少" },
+  { value: paperCoreValues.medium, label: "中" },
+  { value: paperCoreValues.large, label: "多" },
+] as const;
 const renderedPieceCache = new WeakMap<CutPiece, Map<number, HTMLCanvasElement>>();
 
 function makeCanvas(width: number, height: number) {
@@ -174,8 +181,10 @@ function tearRibbon(tear: Tear, width: number) {
         points[0].y - points[points.length - 1].y,
       ) < 2;
   return points.map((point, index) => {
-    const before = points[Math.max(0, index - 7)],
-      after = points[Math.min(points.length - 1, index + 7)],
+    const loopLength = Math.max(1, points.length - 1),
+      loopPoint = (next: number) => points[((next % loopLength) + loopLength) % loopLength],
+      before = closed ? loopPoint(index - 7) : points[Math.max(0, index - 7)],
+      after = closed ? loopPoint(index + 7) : points[Math.min(points.length - 1, index + 7)],
       dx = after.x - before.x,
       dy = after.y - before.y,
       length = Math.hypot(dx, dy) || 1;
@@ -183,13 +192,13 @@ function tearRibbon(tear: Tear, width: number) {
       taper = closed ? 1 : Math.min(1, distance / 18, (total - distance) / 18),
       nx = -dy / length,
       ny = dx / length;
-    const irregular = (phase: number) =>
-      0.88 +
-      0.22 * Math.sin(distance * 0.071 + phase) +
-      0.13 * Math.sin(distance * 0.193 + phase * 2) +
-      0.085 * Math.sin(distance * 1.21 + phase);
-    const left = width * irregular(tear.seed) * taper,
-      right = width * 0.63 * irregular(tear.seed + 2.8) * taper;
+    const left =
+        width * materialCutTornWidthFactor(distance, total, tear.seed, 1, closed) * taper,
+      right =
+        width *
+        0.78 *
+        materialCutTornWidthFactor(distance, total, tear.seed, -1, closed) *
+        taper;
     return {
       point,
       nx,
@@ -203,6 +212,7 @@ function tearRibbon(tear: Tear, width: number) {
 }
 
 function paintTornCore(context: CanvasRenderingContext2D, tear: Tear, width: number) {
+  if (width <= 0) return;
   const ribbon = tearRibbon(tear, width);
   if (ribbon.length < 2) return;
   const polygon = [...ribbon.map((item) => item.a), ...ribbon.map((item) => item.b).reverse()];
@@ -217,23 +227,26 @@ function paintTornCore(context: CanvasRenderingContext2D, tear: Tear, width: num
   context.globalAlpha = 0.62;
   context.stroke();
   context.globalAlpha = 1;
-  context.fillStyle = "#fffdf8";
+  context.fillStyle = "#fffaf0";
   context.fill();
-  const core = tearRibbon(tear, width * 0.65);
+  const core = tearRibbon(tear, width * 0.58);
   pathOn(context, [...core.map((item) => item.a), ...core.map((item) => item.b).reverse()]);
   context.closePath();
   context.fillStyle = "#fff";
-  context.globalAlpha = 0.8;
+  context.globalAlpha = 0.72;
   context.fill();
-  for (let i = 2; i < ribbon.length - 2; i += 3) {
+  for (let i = 2; i < ribbon.length - 2; ) {
     const item = ribbon[i],
       value = (Math.sin(i * 127.1 + tear.seed * 19.7) * 43758.5453) % 1,
       amount = Math.abs(value);
     for (const side of [-1, 1]) {
       const reach = side > 0 ? item.left : item.right,
-        inside = reach * (0.27 + 0.5 * amount),
-        outside = reach * (1.02 + 0.13 * amount),
-        bend = (amount - 0.5) * 4;
+        sideAmount = Math.abs(
+          (Math.sin(i * 41.7 + tear.seed * 11.3 + side * 3.1) * 27183.919) % 1,
+        ),
+        inside = reach * (0.2 + 0.52 * amount),
+        outside = reach * (1.01 + 0.32 * sideAmount),
+        bend = (sideAmount - 0.5) * 6;
       context.beginPath();
       context.moveTo(
         item.point.x + side * item.nx * inside,
@@ -243,11 +256,12 @@ function paintTornCore(context: CanvasRenderingContext2D, tear: Tear, width: num
         item.point.x + side * item.nx * outside - item.ny * bend,
         item.point.y + side * item.ny * outside + item.nx * bend,
       );
-      context.lineWidth = 0.45 + amount * 0.65;
-      context.strokeStyle = i % 9 ? "#fff" : "#d9cfc2";
-      context.globalAlpha = i % 9 ? 0.5 : 0.23;
+      context.lineWidth = 0.35 + sideAmount * 0.85;
+      context.strokeStyle = (i + side) % 11 ? "#fff" : "#d9cfc2";
+      context.globalAlpha = (i + side) % 11 ? 0.42 + amount * 0.18 : 0.25;
       context.stroke();
     }
+    i += 2 + Math.floor(amount * 5);
   }
   context.restore();
 }
@@ -1102,22 +1116,30 @@ export default function MaterialCutEditor({
             <option value={strengthValues.large}>大</option>
           </select>
         </label>
-        <label>
-          手撕露白
-          <select
-            aria-label="手撕白纸露出"
-            value={paperCore}
-            disabled={disabled || edge !== "torn"}
-            onChange={(event) => {
-              setPaperCore(Number(event.target.value));
-              setStatus("已调整白纸露出，已有手撕边也会同步预览。");
-            }}
-          >
-            <option value={paperCoreValues.small}>少</option>
-            <option value={paperCoreValues.medium}>中</option>
-            <option value={paperCoreValues.large}>多</option>
-          </select>
-        </label>
+        <div className="material-cut-setting">
+          <span>手撕露白</span>
+          <div className="material-cut-core-options" role="group" aria-label="手撕白纸露出">
+            {paperCoreOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="quiet"
+                aria-pressed={paperCore === option.value}
+                disabled={disabled || edge !== "torn"}
+                onClick={() => {
+                  setPaperCore(option.value);
+                  setStatus(
+                    option.value === 0
+                      ? "已关闭白边，保留手撕轮廓。"
+                      : "已调整白纸露出，已有手撕边也会同步预览。",
+                  );
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="material-cut-stage-wrap">
         <canvas
