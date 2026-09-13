@@ -16,6 +16,7 @@ export default function Book3DTest({ appVersion }: { appVersion?: string }) {
       <Book3DView
         key={mode}
         appVersion={appVersion}
+        deskFinish="walnut"
         experiment
         initialPaperStyle={paperStyle}
         onPageTurnStart={playPageTurnSound}

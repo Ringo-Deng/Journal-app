@@ -741,46 +741,160 @@ function BookModel({
   );
 }
 
-function WoodenDesk() {
+type DeskFinish = "classic" | "walnut";
+
+function createDeskTextures(finish: DeskFinish) {
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = 1536;
+  colorCanvas.height = 1024;
+  const color = colorCanvas.getContext("2d")!;
+
+  if (finish === "classic") {
+    color.fillStyle = "#b18c61";
+    color.fillRect(0, 0, colorCanvas.width, colorCanvas.height);
+    for (let row = 0; row < colorCanvas.height; row += 2) {
+      const shade = (Math.sin(row * 1.73) + 1) / 2;
+      color.strokeStyle = `rgba(74,43,20,${0.025 + shade * 0.07})`;
+      color.lineWidth = 0.5 + shade;
+      color.beginPath();
+      for (let x = 0; x <= colorCanvas.width; x += 8) {
+        const y = row + Math.sin(x / 130 + row / 60) * 3 + Math.sin(x / 320 + row / 32) * 5;
+        if (x === 0) color.moveTo(x, y);
+        else color.lineTo(x, y);
+      }
+      color.stroke();
+    }
+    for (let y = 256; y < colorCanvas.height; y += 256) {
+      color.fillStyle = "rgba(67,43,24,.13)";
+      color.fillRect(0, y, colorCanvas.width, 2);
+      color.fillStyle = "rgba(255,234,199,.16)";
+      color.fillRect(0, y + 2, colorCanvas.width, 1);
+    }
+    const colorMap = new CanvasTexture(colorCanvas);
+    colorMap.colorSpace = SRGBColorSpace;
+    colorMap.anisotropy = 8;
+    return { colorMap, surfaceMap: null };
+  }
+
+  const surfaceCanvas = document.createElement("canvas");
+  surfaceCanvas.width = colorCanvas.width;
+  surfaceCanvas.height = colorCanvas.height;
+  const surface = surfaceCanvas.getContext("2d")!;
+  // Keep one continuous tabletop. Hard plank joints read like a crack under the
+  // overhead light, so broad tonal variation stays within a seamless panel.
+  const base = color.createLinearGradient(0, 0, colorCanvas.width, colorCanvas.height);
+  base.addColorStop(0, "#8b6344");
+  base.addColorStop(0.42, "#9b7350");
+  base.addColorStop(0.72, "#855c40");
+  base.addColorStop(1, "#957052");
+  color.fillStyle = base;
+  color.fillRect(0, 0, colorCanvas.width, colorCanvas.height);
+  const warmLight = color.createRadialGradient(360, 140, 20, 360, 140, 980);
+  warmLight.addColorStop(0, "rgba(255,230,193,.16)");
+  warmLight.addColorStop(0.52, "rgba(255,222,178,.025)");
+  warmLight.addColorStop(1, "rgba(37,20,11,.13)");
+  color.fillStyle = warmLight;
+  color.fillRect(0, 0, colorCanvas.width, colorCanvas.height);
+
+  surface.fillStyle = "#ece8e2";
+  surface.fillRect(0, 0, surfaceCanvas.width, surfaceCanvas.height);
+
+  // Layer long fibres at different scales. Low alpha keeps the desk supportive
+  // of the journal instead of turning the wood into a competing illustration.
+  for (let row = 0; row < colorCanvas.height; row += 3) {
+    const wave = Math.sin(row * 0.087) + Math.sin(row * 0.019 + 1.4);
+    const strength = 0.035 + ((Math.sin(row * 1.37) + 1) / 2) * 0.08;
+    color.strokeStyle = `rgba(46,24,12,${strength})`;
+    color.lineWidth = 0.55 + Math.abs(wave) * 0.32;
+    surface.strokeStyle = `rgba(38,38,38,${0.045 + strength * 0.68})`;
+    surface.lineWidth = color.lineWidth;
+    color.beginPath();
+    surface.beginPath();
+    for (let x = 0; x <= colorCanvas.width; x += 10) {
+      const y =
+        row + Math.sin(x / 105 + row / 49) * (1.8 + wave) + Math.sin(x / 330 + row / 27) * 3.6;
+      if (x === 0) {
+        color.moveTo(x, y);
+        surface.moveTo(x, y);
+      } else {
+        color.lineTo(x, y);
+        surface.lineTo(x, y);
+      }
+    }
+    color.stroke();
+    surface.stroke();
+  }
+
+  // A few restrained knots break the procedural regularity without making the
+  // large desk look busy at the default reading distance.
+  for (const [cx, cy, rx, ry] of [
+    [276, 178, 54, 18],
+    [1182, 416, 72, 22],
+    [672, 830, 63, 20],
+  ] as const) {
+    for (let ring = 0; ring < 7; ring += 1) {
+      color.strokeStyle = `rgba(48,24,12,${0.16 - ring * 0.016})`;
+      color.lineWidth = ring === 0 ? 2.4 : 1.2;
+      color.beginPath();
+      color.ellipse(cx, cy, rx + ring * 10, ry + ring * 4, -0.05, 0, Math.PI * 2);
+      color.stroke();
+      surface.strokeStyle = `rgba(34,34,34,${0.12 - ring * 0.011})`;
+      surface.lineWidth = color.lineWidth;
+      surface.beginPath();
+      surface.ellipse(cx, cy, rx + ring * 10, ry + ring * 4, -0.05, 0, Math.PI * 2);
+      surface.stroke();
+    }
+    const core = color.createRadialGradient(cx, cy, 2, cx, cy, rx * 0.9);
+    core.addColorStop(0, "rgba(42,20,10,.34)");
+    core.addColorStop(1, "rgba(66,34,17,0)");
+    color.fillStyle = core;
+    color.fillRect(cx - rx, cy - ry * 2, rx * 2, ry * 4);
+  }
+
+  // Fine pores make close zooms less digitally smooth. Coordinates use modular
+  // arithmetic instead of randomness so screenshots and tests remain stable.
+  for (let pore = 0; pore < 720; pore += 1) {
+    const x = (pore * 197 + 83) % colorCanvas.width;
+    const y = (pore * 101 + Math.floor(pore / 9) * 37) % colorCanvas.height;
+    const length = 2 + (pore % 7);
+    color.fillStyle = `rgba(42,23,13,${0.035 + (pore % 5) * 0.009})`;
+    color.fillRect(x, y, length, 0.8);
+    surface.fillStyle = `rgba(44,44,44,${0.025 + (pore % 4) * 0.012})`;
+    surface.fillRect(x, y, length, 1);
+  }
+
+  const colorMap = new CanvasTexture(colorCanvas);
+  colorMap.colorSpace = SRGBColorSpace;
+  colorMap.anisotropy = 8;
+  const surfaceMap = new CanvasTexture(surfaceCanvas);
+  surfaceMap.anisotropy = 8;
+  return { colorMap, surfaceMap };
+}
+
+function WoodenDesk({ finish = "classic" }: { finish?: DeskFinish }) {
   const { BOOK, coverHeight } = useBookScene();
 
-  const texture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 1536;
-    canvas.height = 1024;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#b18c61";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // Long, gently wandering grain with subtle board joints, all generated locally.
-    for (let row = 0; row < 1024; row += 2) {
-      const shade = (Math.sin(row * 1.73) + 1) / 2;
-      ctx.strokeStyle = `rgba(74,43,20,${0.025 + shade * 0.07})`;
-      ctx.lineWidth = 0.5 + shade;
-      ctx.beginPath();
-      for (let x = 0; x <= 1536; x += 8) {
-        const y = row + Math.sin(x / 130 + row / 60) * 3 + Math.sin(x / 320 + row / 32) * 5;
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-    for (let y = 256; y < 1024; y += 256) {
-      ctx.fillStyle = "rgba(67,43,24,.13)";
-      ctx.fillRect(0, y, 1536, 2);
-      ctx.fillStyle = "rgba(255,234,199,.16)";
-      ctx.fillRect(0, y + 2, 1536, 1);
-    }
-    const result = new CanvasTexture(canvas);
-    result.colorSpace = SRGBColorSpace;
-    result.anisotropy = 8;
-    return result;
-  }, []);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const textures = useMemo(() => createDeskTextures(finish), [finish]);
+  useEffect(
+    () => () => {
+      textures.colorMap.dispose();
+      textures.surfaceMap?.dispose();
+    },
+    [textures],
+  );
   return (
     <group>
       <mesh position={[0, 0, coverHeight("below") - BOOK.cover / 2 - 0.15 - 0.006]} receiveShadow>
         <boxGeometry args={[38, 28, 0.3]} />
-        <meshStandardMaterial map={texture} roughness={0.88} />
+        <meshPhysicalMaterial
+          map={textures.colorMap}
+          bumpMap={textures.surfaceMap}
+          roughnessMap={textures.surfaceMap}
+          bumpScale={finish === "walnut" ? 0.032 : 0}
+          roughness={finish === "walnut" ? 0.84 : 0.88}
+          clearcoat={finish === "walnut" ? 0.1 : 0}
+          clearcoatRoughness={0.88}
+        />
       </mesh>
     </group>
   );
@@ -818,6 +932,7 @@ function CameraFit({
 type ViewProps = {
   experiment?: boolean;
   initialPaperStyle?: PaperStyle;
+  deskFinish?: DeskFinish;
   toolbar?: HTMLDivElement | null;
   appVersion?: string;
   content?: Book3DContent;
@@ -834,6 +949,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
     toolbar,
     experiment = false,
     initialPaperStyle,
+    deskFinish = "classic",
   },
   ref,
 ) {
@@ -1138,7 +1254,7 @@ const Book3DBody = forwardRef<Book3DHandle, ViewProps>(function Book3DBody(
                   )
                 }
               />
-              <WoodenDesk />
+              <WoodenDesk finish={deskFinish} />
             </Canvas>
           )}
           {!ready && preparing && (

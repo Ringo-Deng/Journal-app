@@ -24,6 +24,20 @@ test("book and desk remain flat while the camera owns the closed-cover presentat
   assert.doesNotMatch(source, /DeskScene|setTilt|书本视角|root\.current\.rotation/);
   assert.match(source, /presentationCamera\(presentationOpening\.current/);
 });
+
+test("the richer walnut desk is opt-in for the isolated flip test", async () => {
+  const [view, flipTest, reader] = await Promise.all([
+    readFile(new URL("../components/book3d/Book3DView.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/book3d/Book3DTest.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/reading-book3d.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(view, /deskFinish = "classic"/);
+  assert.match(view, /roughnessMap=\{textures\.surfaceMap\}/);
+  assert.match(view, /bumpScale=\{finish === "walnut" \? 0\.032 : 0\}/);
+  assert.match(flipTest, /deskFinish="walnut"/);
+  assert.doesNotMatch(reader, /deskFinish=/);
+});
+
 test("both closed covers and open book stay above the desk plane at every viewing angle", () => {
   for (const book of [BOOK, bookGeometry(120, 1.43), bookGeometry(1, 2)]) {
     const deskZ = coverHeight("below", book) - book.cover / 2 - 0.006;
