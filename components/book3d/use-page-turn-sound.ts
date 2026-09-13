@@ -7,16 +7,25 @@ type PageTurnAudio = {
   forward: HTMLAudioElement;
   backward: HTMLAudioElement;
 };
+type PageTurnSoundOptions = {
+  forwardSource?: string;
+  backwardSource?: string;
+  volume?: number;
+};
 
-export function usePageTurnSound() {
+export function usePageTurnSound({
+  forwardSource = "/sounds/mixkit-single-book-paging-1101-first.wav",
+  backwardSource = "/sounds/mixkit-single-book-paging-1101-second.wav",
+  volume = 0.22,
+}: PageTurnSoundOptions = {}) {
   const pageTurnAudio = useRef<PageTurnAudio | null>(null);
 
   useEffect(() => {
-    const forward = new Audio("/sounds/mixkit-single-book-paging-1101-first.wav");
-    const backward = new Audio("/sounds/mixkit-single-book-paging-1101-second.wav");
+    const forward = new Audio(forwardSource);
+    const backward = new Audio(backwardSource);
     for (const audio of [forward, backward]) {
       audio.preload = "auto";
-      audio.volume = 0.22;
+      audio.volume = volume;
       audio.load();
     }
     pageTurnAudio.current = { forward, backward };
@@ -25,7 +34,7 @@ export function usePageTurnSound() {
       backward.pause();
       pageTurnAudio.current = null;
     };
-  }, []);
+  }, [backwardSource, forwardSource, volume]);
 
   return useCallback((direction: PageTurnDirection) => {
     const sounds = pageTurnAudio.current;

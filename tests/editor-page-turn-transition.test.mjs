@@ -8,6 +8,9 @@ const transitionCss = await readFile(
   new URL('../app/editor-rounded-transition.css', import.meta.url),
   'utf8',
 );
+const paperFlip = await readFile(
+  new URL('../public/sounds/mixkit-page-turn-single-1104.wav', import.meta.url),
+);
 
 test('editor page turns paint the complete segmented leaf frame without rerendering the workbench', () => {
   assert.match(page, /const frame=leafFrame\(progress,direction>0,10\)/);
@@ -43,4 +46,14 @@ test('the editor suppresses transient work-area scrollbars only while a page is 
     /\.compact-shell\.is-editing \.work-area\[data-fit-page='true'\]:has\(\.page-turn-layer\)\s*\{\s*overflow:\s*hidden;/,
   );
   assert.doesNotMatch(transitionCss, /\.compact-shell\.is-editing \.work-area\s*\{[^}]*overflow:\s*hidden;/);
+});
+
+test('successful editor page turns play the paper flip without affecting reading mode', () => {
+  assert.match(page, /usePageTurnSound\(\{[\s\S]*?mixkit-page-turn-single-1104\.wav/);
+  assert.match(
+    page,
+    /setTurnSettling\(false\);\s*if\(!reading\)playEditingPageTurnSound\(direction>0\?1:-1\)/,
+  );
+  assert.equal(paperFlip.subarray(0, 4).toString('ascii'), 'RIFF');
+  assert.equal(paperFlip.subarray(8, 12).toString('ascii'), 'WAVE');
 });

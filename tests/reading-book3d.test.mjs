@@ -174,10 +174,13 @@ test("appreciation and its preview map the two page sounds to opposite direction
   assert.match(view, /onPageTurnStart\?: \(direction: -1 \| 1\) => void/);
   assert.match(view, /state\.motion\?\.kind === "page"/);
   assert.match(view, /onPageTurnStart\?\.\(state\.motion\.to > state\.motion\.from \? 1 : -1\)/);
-  assert.match(sound, /forward = new Audio\("\/sounds\/mixkit-single-book-paging-1101-first\.wav"\)/);
-  assert.match(sound, /backward = new Audio\("\/sounds\/mixkit-single-book-paging-1101-second\.wav"\)/);
+  assert.match(sound, /forwardSource = "\/sounds\/mixkit-single-book-paging-1101-first\.wav"/);
+  assert.match(sound, /backwardSource = "\/sounds\/mixkit-single-book-paging-1101-second\.wav"/);
+  assert.match(sound, /forward = new Audio\(forwardSource\)/);
+  assert.match(sound, /backward = new Audio\(backwardSource\)/);
   assert.match(sound, /direction === 1 \? sounds\.forward : sounds\.backward/);
-  assert.match(sound, /audio\.volume = 0\.22/);
+  assert.match(sound, /volume = 0\.22/);
+  assert.match(sound, /audio\.volume = volume/);
   assert.match(preview, /onPageTurnStart=\{playPageTurnSound\}/);
   assert.match(appreciation, /onPageTurnStart=\{playPageTurnSound\}/);
   for (const audio of [forwardAudio, backwardAudio]) {

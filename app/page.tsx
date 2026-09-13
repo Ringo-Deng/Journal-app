@@ -40,6 +40,7 @@ import {DEFAULT_VELLUM_COLOR,DEFAULT_VELLUM_OPACITY,VELLUM_BORDER_COLOR,pieceDis
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye } from 'lucide-react';
 import ReadingDeck from '@/components/reading-deck';
+import {usePageTurnSound} from '@/components/book3d/use-page-turn-sound';
 import PageTurn, {SpreadPreview} from '@/components/page-turn';
 import type { CSSProperties } from 'react';
 import { paperSettings, applyPaper, type PaperStyle, type PaperRulingSize } from '@/lib/journal';
@@ -304,6 +305,10 @@ export default function Home() {
     [],
   );
   const [reading, setReading] = useState(false);
+  const playEditingPageTurnSound=usePageTurnSound({
+    forwardSource:'/sounds/mixkit-page-turn-single-1104.wav',
+    backwardSource:'/sounds/mixkit-page-turn-single-1104.wav',
+  });
   const [libraryOpen,setLibraryOpen]=useState(false);
   const [zoom, setZoom] = useState(100);
   const [proportional,setProportional]=useState(false);
@@ -964,6 +969,7 @@ export default function Home() {
     setFlipping(direction > 0 ? 'next' : 'previous');
     setTurnProgress(0);
     setTurnSettling(false);
+    if(!reading)playEditingPageTurnSound(direction>0?1:-1);
     return true;
   }
   /* 翻页进度直接写入 DOM，避免每帧重渲染整个工作台。 */
