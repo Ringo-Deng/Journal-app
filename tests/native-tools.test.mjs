@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { upgradeManualMaterialJobs, prepareNativeImageTools } from '../local/native-tools.mjs';
+import { upgradeManualMaterialJobs, prepareNativeImageTools, inspectImageTools } from '../local/native-tools.mjs';
 
 test('restores stale manual-only Pinterest jobs after native segmentation becomes available', () => {
   const input = [{
@@ -74,6 +74,24 @@ test('does not falsely enable macOS native tools on unsupported architectures', 
   const result = await prepareNativeImageTools({ root, platformName: 'darwin', archName: 'x64' });
   assert.equal(result.segment, false);
   assert.equal(result.upgradedJobs, false);
+});
+
+test('enables portable image tools on Windows without changing the macOS native backend', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'shiguang-windows-tools-'));
+  const data = join(root, 'data');
+  await mkdir(data, { recursive: true });
+  const windows = await prepareNativeImageTools({ root, dataDir: data, platformName: 'win32', archName: 'x64' });
+  assert.equal(windows.backend, 'portable');
+  assert.equal(windows.segment, true);
+  assert.equal(windows.cutout, true);
+  assert.equal(windows.palette, true);
+  const inspected = await inspectImageTools({ root, platformName: 'win32', archName: 'x64' });
+  assert.deepEqual(inspected, {
+    segment: true, cutout: true, palette: true, cleanPaper: false, backend: 'portable',
+  });
+  const mac = await inspectImageTools({ root, platformName: 'darwin', archName: 'x64' });
+  assert.equal(mac.backend, 'none');
+  assert.equal(mac.segment, false);
 });
 
 test('recovered Pinterest job makes the current Continue Recognition button eligible', () => {

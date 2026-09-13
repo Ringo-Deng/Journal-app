@@ -50,7 +50,7 @@
 | 素材模型与插入 | `lib/journal.ts`：素材库条目 `Asset`、页面素材 `Piece`，页面内容存于 `Spread.elements`；`app/page.tsx` 的 `insertLibraryAssets` 经 `change/changeSpread` 写入；“添加”菜单中的 `addVellumSheet` 以独立装饰插入硫酸纸，`lib/vellum-sheet.ts` 统一颜色、透明度、雾化参数与旧数据兼容，`components/journal-drawing.tsx` 负责编辑／阅读共用的雾面渲染 |
 | 素材库 | `components/material-library.tsx`：库内筛选及待插入素材，通过 `onInsert` 进入编辑器；库内待插入选择与画布选择用途不同 |
 | 素材处理与纸面裁切 | `components/material-studio.tsx`：自动识别、点选／框选补漏、候选选择及入库；左侧工具栏的独立“照片库”由 `app/page.tsx` 打开 `components/photo-library.tsx`，照片预览可沿 `/api/materials/source` 送回素材处理台；选中纸面单个普通素材后，`components/element-controls.tsx` 从工具栏打开 `components/page-material-cutter.tsx`，浏览器内的 `components/material-cut-editor.tsx` / `lib/material-cut.ts` 生成裁片，经 `/api/material-cuts/upload` 保存图片，再由 `lib/page-material-cut.ts` 一次替换当前 `Piece` 并进入原保存流；素材库原图不变。`/api/materials/add-data-item` 仅兼容升级前已打开的旧裁切会话，不是现行 UI 入口 |
-| 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的自动候选路由，再载入 `local/server.mjs`；路由通过 `execFile` 的自定义 promisify 接入 `local/segment` 调用 |
+| 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的 Mac 原生自动候选路由，再载入 `local/server.mjs`；`local/image-tool-runner.mjs` 保持 Apple Silicon Mac 走现有原生程序，Windows 单独走 `local/portable-image-tools.mjs` 的透明图、纸底、单色背景分离和主色提取 |
 | AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/design-context.mjs` 本地保留手选素材、锁定及隐藏内容，按整组调整已有拼贴；`local/editorial.mjs` 依据用户指令限定改字与分段权限；`local/reference-layout-guide.mjs` 提供共用参考规则与明确杂志风指令识别；普通短文由 `local/paper-group.mjs` 提供实图选材与彩色底纸，`local/paper-group-layout.mjs` 按全文尺寸组合纸张、搜索横纵空位并逐步减少放不下的新装饰，`local/paper-art.mjs` 生成纸形与花纹；明确杂志风与其他内容由 `local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` / `local/collage-layout.mjs` 排版，`local/editorial-shapes.mjs` 提供本地几何图形；`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据并保留锁定元素图层顺序，重设计经 `designPreview/applyDesignPreview` 预览应用 |
 | 照片蒙版与回收站 | `app/page.tsx` 的 `photoMaskDraft` 仅供编辑画布预览；`lib/photo-mask.mjs` 共用轮廓与取景几何；`local/photo-mask.mjs` 经原保存队列生成透明图、登记回收引用及检查安全删除；`components/photo-trash.tsx` 提供恢复与手动清理 |
 | 本地服务 | `local/server-bootstrap.mjs`：初始化原生工具和请求适配后载入 `local/server.mjs`；开发、正式启动均使用 bootstrap 入口 |
@@ -109,6 +109,7 @@
 - `data/` 仅保留已受控说明文件；`node_modules/`、`.next/`、`.vinext/`、`dist/`、`build/` 等运行产物保持排除。
 - **`local/segment`、`local/cutout`、`local/clean-paper`、`local/material-palette` 是已受 Git 管理的可执行文件。** `.gitignore` 中同名且带尾随 `/` 的规则匹配目录，不代表这些文件可以删除或忽略。
 - 修改 `local/segment.swift` 后，必须重新编译、验证并同步受控的 `local/segment`；其他原生工具同样保持源码与交付程序一致。需在支持的 macOS/架构上验证真实素材输入及结果，不能仅提交源码或以语法检查代替原生行为验证。
+- Windows 图片适配不得改写 Mac 原生程序的选择优先级；跨平台处理失败必须保留原图并回到已有裁切路径。Windows 启动入口为根目录 `启动拾光手帐-Windows.cmd`，不得使用旧版 GitHub 初始化脚本代替启动器。
 - 任何可能造成数据丢失的变更，须在预检与最终交付中单独说明风险及保护措施。
 
 ## 6. UI、样式与命名

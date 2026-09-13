@@ -22,11 +22,10 @@ import {createFullBackup, journalBackupSnapshot, recoverBackupTransaction} from 
 import {commitMaterialImportFiles} from '../lib/material-import-commit.mjs';
 import {mapMaterialSourceBounds,normalizeMaterialSourceBounds} from '../lib/material-source-bounds.mjs';
 import {nameSegmentedMaterialItems} from './material-batch-naming.mjs';
+import {inspectImageTools} from './native-tools.mjs';
+import {runCutoutTool,runPaletteTool,runSegmentTool} from './image-tool-runner.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-const run = promisify(execFile);
 import {
   readFile,
   writeFile,
@@ -44,7 +43,6 @@ import { randomUUID, createHash } from 'node:crypto';
 import { platform } from 'node:os';
 import { inflateRawSync } from 'node:zlib';
 import { StringDecoder } from 'node:string_decoder';
-import { access, constants as fsConstants } from 'node:fs/promises';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = process.env.JOURNAL_DATA_DIR || resolve(root, 'data');
 const configData = process.env.JOURNAL_CONFIG_DIR || data;
@@ -96,21 +94,7 @@ let settings = await readConfigJSON('settings.json', {
   settings = migrated.config;
   if (migrated.changed) await atomicAt(configData, 'settings.json', settings);
 }
-const nativeImageTool = async (name) => {
-  if (platform() !== 'darwin' || process.arch !== 'arm64') return false;
-  try {
-    await access(resolve(root, 'local', name), fsConstants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-};
-const nativeCapabilities = {
-  segment: await nativeImageTool('segment'),
-  cutout: await nativeImageTool('cutout'),
-  palette: await nativeImageTool('material-palette'),
-  cleanPaper: await nativeImageTool('clean-paper'),
-};
+const imageCapabilities = await inspectImageTools({root});
 const FONT_EXTS=new Set(['.ttf','.otf','.woff','.woff2']);
 const FONT_MIME={'.ttf':'font/ttf','.otf':'font/otf','.woff':'font/woff','.woff2':'font/woff2'};
 let userFonts=(await readJSON('fonts.json',[])).filter(font=>font&&/^[a-f0-9]{24}$/.test(font.id)&&FONT_EXTS.has(font.ext)&&typeof font.name==='string');
@@ -208,9 +192,9 @@ async function rawLibrary() {
 const paletteCache=new Map();
 async function withMaterialColors(assets){
  const pending=assets.filter(a=>!paletteCache.has(a.src)&&/^\/(materials|uploads)\/[a-zA-Z0-9._-]+$/.test(a.src));
- if(pending.length && nativeCapabilities.palette){
+ if(pending.length && imageCapabilities.palette){
   const paths=pending.map(a=>resolve(a.src.startsWith('/uploads/')?data:resolve(root,'public'),'.'+a.src));
-  try{const r=await run(resolve(root,'local/material-palette'),paths,{timeout:20000,maxBuffer:1024*1024});const colors=JSON.parse(r.stdout);pending.forEach((a,i)=>paletteCache.set(a.src,colors[paths[i]]||[]));}catch{/* Colour metadata is optional; never block a design on extraction. */}
+  try{const colors=await runPaletteTool({backend:imageCapabilities.backend,root,paths,options:{timeout:20000,maxBuffer:1024*1024}});pending.forEach((a,i)=>paletteCache.set(a.src,colors[paths[i]]||[]));}catch{/* Colour metadata is optional; never block a design on extraction. */}
  }
  return assets.map(a=>({...a,colors:paletteCache.get(a.src)||[]}));
 }
@@ -686,7 +670,7 @@ const server = http.createServer(async (req, res) => {
       activeDataRequests++;countedDataRequest=true;
     }
     if (path === '/api/health') return json(res, { ok: true, runtimeId: 'page-elements-v0.1.20' });
-    if (path === '/api/capabilities' && req.method === 'GET') return json(res, { platform: platform(), ...nativeCapabilities });
+    if (path === '/api/capabilities' && req.method === 'GET') return json(res, { platform: platform(), ...imageCapabilities });
     if (path === '/api/fonts' && req.method === 'GET') return json(res,{fonts:userFonts.map(fontPublic)});
     if (path === '/api/fonts.css' && req.method === 'GET') {
       const css=userFonts.map(font=>`@font-face{font-family:'Journal User ${font.id}';src:url('/api/fonts/file/${font.id}');font-weight:400;font-style:normal;font-display:swap;}`).join('\n');
@@ -909,7 +893,7 @@ const server = http.createServer(async (req, res) => {
           originalUrl: existing.originalUrl,
           imageUrl: existing.imageUrl,
           sha256: existing.sha256,
-          autoSegment: nativeCapabilities.segment,
+          autoSegment: imageCapabilities.segment,
           platform: platform(),
         });
       }
@@ -931,7 +915,7 @@ const server = http.createServer(async (req, res) => {
         };
         pinterestImports = [record, ...pinterestImports.filter((item) => item.sha256 !== sha256)].slice(0, 2000);
         await atomic('pinterest-imports.json', pinterestImports);
-        return json(res, { ...record, duplicate: false, autoSegment: nativeCapabilities.segment, platform: platform() });
+        return json(res, { ...record, duplicate: false, autoSegment: imageCapabilities.segment, platform: platform() });
       } catch (e) {
         if (wrote) try { await unlink(target); } catch {}
         throw e;
@@ -948,7 +932,7 @@ const server = http.createServer(async (req, res) => {
       const previous = consolidatedJobs(materialJobs).find((j) => j.source === input.src);
       if (previous&&!replaceAsset) return json(res, previous);
       const pinRecord = pinterestBySrc(input.src);
-      const autoSegment = nativeCapabilities.segment;
+      const autoSegment = imageCapabilities.segment;
       const job = {
         id: randomUUID(), source: input.src, name: String(input.name || '导入素材').slice(0, 80), createdAt: new Date().toISOString(),
         engine: pinRecord
@@ -1013,7 +997,7 @@ const server = http.createServer(async (req, res) => {
       if (!validMaterialPoint(input.point)) throw error('点选位置无效。');
       if (configIssue(settings)) throw error(`${configIssue(settings)} 仍可使用框选补漏。`, 409);
       if (!settings.vision) throw error('请先在 AI 设置中开启图片理解；也可以使用框选补漏。', 409);
-      if (!nativeCapabilities.segment) throw error('当前系统暂不支持本机精细抠图，请使用框选保留原底。', 501);
+      if (!imageCapabilities.segment) throw error('当前系统暂不支持本机精细抠图，请使用框选保留原底。', 501);
       const previous = consolidatedJobs(materialJobs).find((job) => job.source === input.src);
       if (!previous || (input.jobId && previous.id !== input.jobId))
         throw error('未找到这条素材处理记录，请重新打开原图。', 404);
@@ -1046,12 +1030,10 @@ const server = http.createServer(async (req, res) => {
 
       let result;
       try {
-        const output = await run(
-          resolve(root, 'local/segment'),
-          [source, resolve(data, 'uploads'), 'point', '28', ...located.bounds.map(String)],
-          {timeout:120000,maxBuffer:1024*1024},
-        );
-        result = JSON.parse(output.stdout);
+        result = await runSegmentTool({
+          backend:imageCapabilities.backend,root,input:source,outputDir:resolve(data,'uploads'),
+          mode:'point',tolerance:28,rect:located.bounds,options:{timeout:120000,maxBuffer:1024*1024},
+        });
       } catch {
         throw error('已经找到点击的素材，但精细抠图没有完成。原有结果未改动，请再点一次或使用框选补漏。', 422);
       }
@@ -1102,21 +1084,13 @@ const server = http.createServer(async (req, res) => {
       )
         throw error('框选范围无效。');
       if (['single','crop'].includes(mode) && !rect) throw error('请先框选单个素材。');
-      if (!nativeCapabilities.segment) throw error('当前系统暂不支持本机自动拆图；Mac 版可使用自动拆图，Windows 版请先使用普通图片素材与自由裁切。', 501);
+      if (!imageCapabilities.segment) throw error('当前系统暂不支持本机自动拆图，请先使用普通图片素材与自由裁切。', 501);
       let result;
       try {
-        const output = await run(
-          resolve(root, 'local/segment'),
-          [
-            resolve(data, input.src.slice(1)),
-            resolve(data, 'uploads'),
-            mode,
-            String(effectiveTolerance),
-            ...(rect ? rect.map(String) : []),
-          ],
-          { timeout: 120000, maxBuffer: 1024 * 1024 },
-        );
-        result = JSON.parse(output.stdout);
+        result = await runSegmentTool({
+          backend:imageCapabilities.backend,root,input:resolve(data,input.src.slice(1)),outputDir:resolve(data,'uploads'),
+          mode,tolerance:effectiveTolerance,rect,options:{timeout:120000,maxBuffer:1024*1024},
+        });
       } catch {
         result = { items: [], engine: '识别未完成，请框选或切换模式' };
       }
@@ -1336,14 +1310,12 @@ const server = http.createServer(async (req, res) => {
       const input = await body(req);
       if (!UPLOAD_SOURCE.test(input.src || ''))
         throw error('请选择本机上传的照片。');
-      if (!nativeCapabilities.cutout) throw error('当前系统暂不支持本机主体抠图；原图不会被修改，可继续使用自由裁切。', 501);
+      if (!imageCapabilities.cutout) throw error('当前系统暂不支持本机主体抠图；原图不会被修改，可继续使用自由裁切。', 501);
       const name = randomUUID() + '.png';
       try {
-        await run(
-          resolve(root, 'local/cutout'),
-          [resolve(data, input.src.slice(1)), resolve(data, 'uploads', name)],
-          { timeout: 90000 },
-        );
+        await runCutoutTool({
+          backend:imageCapabilities.backend,root,input:resolve(data,input.src.slice(1)),output:resolve(data,'uploads',name),options:{timeout:90000},
+        });
         return json(res, { src: '/uploads/' + name });
       } catch {
         throw error(

@@ -5,6 +5,7 @@ import { installDeepSeekCurlFallback } from './deepseek-curl-fallback.mjs';
 import { installDeepSeekVisionRouter } from './deepseek-vision-router.mjs';
 import { installMaterialClassifierFallback } from './deepseek-material-classifier.mjs';
 import { installMaterialSegmentRouter } from './material-segment-router.mjs';
+import { installPortableSips } from './portable-sips.mjs';
 import { syncManagedDeepSeekKey } from './managed-ai-key.mjs';
 import { prepareNativeImageTools } from './native-tools.mjs';
 import { installRuntimeHealth } from './runtime-health.mjs';
@@ -27,6 +28,9 @@ installDeepSeekVisionRouter();
 // unavailable or returns malformed JSON. Fall back to conservative metadata
 // classification rather than failing an entire batch.
 installMaterialClassifierFallback();
+// Windows has no macOS sips command. Keep Mac byte-for-byte unchanged and
+// provide the two existing thumbnail/conversion operations through sharp only.
+installPortableSips();
 // Auto segmentation keeps the existing native recognizer as its first choice.
 // Only weak results trigger bounded fallback strategies, and replacements need
 // a clear deterministic quality improvement before they can become authoritative.
@@ -38,4 +42,6 @@ if (nativeTools.upgradedJobs) console.log('已恢复旧素材记录的自动拆�
 if (process.platform === 'darwin' && process.arch === 'arm64' && !nativeTools.segment) {
   console.warn('本机自动拆图程序不可用；请重新下载完整版本。');
 }
+if (nativeTools.backend === 'portable')
+  console.log('已启用 Windows 本地图像兼容引擎；原图会保留，复杂背景可继续使用自由裁切。');
 await import('./server.mjs');
