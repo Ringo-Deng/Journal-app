@@ -154,6 +154,10 @@ export function paperTemplateFrom(bg: PaperBg, name: string, id = uid()): PaperT
     name: name.trim().slice(0, 20) || '我的内页',
   };
 }
+export function paperTemplateFromAsset(asset: Pick<Asset, 'src' | 'name'>, existing?: PaperTemplate): PaperTemplate {
+  if (existing?.src === asset.src) return existing;
+  return paperTemplateFrom({ src: asset.src, x: 0, y: 0, scale: 100 }, asset.name);
+}
 export function putPaperTemplate(templates: PaperTemplate[] | undefined, template: PaperTemplate): PaperTemplate[] {
   const existing = templates?.find((item) => item.id === template.id || item.src === template.src);
   const saved = existing ? { ...template, id: existing.id } : template;

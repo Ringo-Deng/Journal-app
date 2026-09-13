@@ -1,20 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover,DEFAULT_CUSTOM_COVER_COLOR,paperTemplateFrom,putPaperTemplate} from '../lib/journal.ts';
+import {newBook,applyHeader,applyPaper,applyPaperBg,defaultHeader,headerOf,renderHeader,addBlankSpread,paperBgOf,formatHeaderDate,headerDateFormats,coverMaterials,coverInfo,coverChoiceForSettings,customCoverId,isCustomCover,DEFAULT_CUSTOM_COVER_COLOR,paperTemplateFrom,paperTemplateFromAsset,putPaperTemplate} from '../lib/journal.ts';
 import {copyNotebooks,notebookUploads,remapNotebookUploads} from '../lib/journal-backup.ts';
 
 test('notebook settings use a safe page scope, real-page preview and responsive control hierarchy',async()=>{
- const [page,styles]=await Promise.all([
+ const [page,styles,picker]=await Promise.all([
   readFile(new URL('../app/page.tsx',import.meta.url),'utf8'),
   readFile(new URL('../app/globals.css',import.meta.url),'utf8'),
+  readFile(new URL('../components/paper-material-picker.tsx',import.meta.url),'utf8'),
  ]);
  assert.match(page,/const initialScope = canStartOnSpread \? 'spread' : 'book'/);
  assert.match(page,/className="notebook-scope-warning"/);
  assert.match(page,/页面内容和素材位置不会改变/);
  assert.match(page,/className="notebook-preview-spread"[\s\S]*<SpreadPreview/);
  assert.match(page,/function notebookWithSettingsDraft/);
- assert.match(page,/上传并保存到我的内页/);
+ assert.match(page,/从素材库选择/);
+ assert.match(page,/PaperMaterialPicker assets=\{assets\}/);
+ assert.match(page,/已从素材库加入“我的内页”/);
+ assert.match(page,/setCoverTemplateName\(currentTemplates\.find\(template=>template\.src===currentBackground\?\.src\)\?\.name\|\|'我的内页'\)/);
+ assert.match(picker,/搜索名称、标签或分类/);
+ assert.match(picker,/\[\.\.\.available\]\.reverse\(\)/);
+ assert.match(styles,/\.paper-material-picker-grid\{display:grid/);
  assert.match(page,/className="notebook-settings-section notebook-paper-background-section"/);
  assert.doesNotMatch(page,/paperAdvancedOpen|setPaperAdvancedOpen/);
  assert.match(page,/if\(editingBookId\)change\(all=>all\.map\(item=>item\.id===editingBookId\?\{\.\.\.item,paperTemplates:putPaperTemplate/);
@@ -44,6 +51,18 @@ test('uploaded paper templates stay reusable, update in place and sort newest fi
  assert.equal(templates.length,2);
  assert.deepEqual(templates[0],{src:'/uploads/first.png',x:-8,y:6,scale:145,id:'first',name:'更新后的内页'});
  assert.equal(templates[1].id,'second');
+});
+
+test('material-library images become reusable paper templates without replacing saved adjustments',()=>{
+ const asset={src:'/materials/paper-green.png',name:'绿色拼贴纸'};
+ const created=paperTemplateFromAsset(asset);
+ assert.deepEqual({...created,id:'generated'},{src:asset.src,x:0,y:0,scale:100,id:'generated',name:asset.name});
+ const adjusted={...created,x:-12,y:8,scale:138,name:'调整后的绿色内页'};
+ assert.equal(paperTemplateFromAsset(asset,adjusted),adjusted);
+ const another=paperTemplateFromAsset({src:'/uploads/another.png',name:'另一张纸'},adjusted);
+ assert.equal(another.src,'/uploads/another.png');
+ assert.equal(another.name,'另一张纸');
+ assert.deepEqual({x:another.x,y:another.y,scale:another.scale},{x:0,y:0,scale:100});
 });
 
 test('cover choices keep three plaid, three kraft and one custom colour without notebook titles or plain-cover furniture',async()=>{

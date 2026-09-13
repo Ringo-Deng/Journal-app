@@ -19,7 +19,8 @@ import JournalHistory from '@/components/journal-history';
 import NotebookPageOverview from '@/components/notebook-page-overview';
 import {removeNotebookSpread,pageAfterSpreadRemoval,reorderNotebookSpread,pageAfterSpreadReorder} from '@/lib/notebook-pages';
 import NotebookPaper from '@/components/notebook-paper';
-import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace, paperTemplateFrom, putPaperTemplate } from '@/lib/journal';
+import PaperMaterialPicker from '@/components/paper-material-picker';
+import { canAddSpreadElements, pageSpread, patchPage, pageInk, reserveHeaderSpace, paperTemplateFrom, paperTemplateFromAsset, putPaperTemplate } from '@/lib/journal';
 import { notebookUploads, copyNotebooks } from '@/lib/journal-backup';
 import { resolveNotebookAssetSources } from '@/lib/notebook-material-sources.mjs';
 import JournalDrawing from '@/components/journal-drawing';
@@ -371,6 +372,7 @@ export default function Home() {
   const coverHeaderText = useRef<HTMLTextAreaElement>(null);
   const notebookSettingsScroll = useRef<HTMLDivElement>(null);
   const [coverUploadBusy, setCoverUploadBusy] = useState(false);
+  const [coverMaterialPickerOpen, setCoverMaterialPickerOpen] = useState(false);
   const [coverTemplateName, setCoverTemplateName] = useState('我的内页');
   const canvas = useRef<HTMLDivElement>(null),
     fileInput = useRef<HTMLInputElement>(null),
@@ -1105,8 +1107,11 @@ export default function Home() {
     setCoverHeaderOn(headerOf(b, current).enabled);
     setCoverHeader({...headerOf(b, current)});
     const currentBackground = paperBgOf(b, current) || null;
+    const currentTemplates = b?.paperTemplates || [];
     setCoverBg(currentBackground);
-    setCoverTemplates(b?.paperTemplates || []);
+    setCoverTemplates(currentTemplates);
+    setCoverTemplateName(currentTemplates.find(template=>template.src===currentBackground?.src)?.name||'我的内页');
+    setCoverMaterialPickerOpen(false);
     setCoverTab('cover');
     setCoverScope(initialScope);
     setCoverDate(spread?.date||spread?.days[0]?.date||today());
@@ -1788,6 +1793,15 @@ export default function Home() {
       toast('已保存到“我的内页”；是否应用由你决定。');
     } catch(e) {toast((e as Error).message);} finally {setCoverUploadBusy(false);if(coverBgInput.current)coverBgInput.current.value='';}
   }
+  function chooseCoverBackgroundFromMaterial(asset:Asset){
+    const template=paperTemplateFromAsset(asset,coverTemplates?.find(item=>item.src===asset.src));
+    const background={src:template.src,x:template.x,y:template.y,scale:template.scale};
+    setCoverBg(background);setCoverTemplateName(template.name);
+    setCoverTemplates(current=>putPaperTemplate(current,template));
+    if(editingBookId)change(all=>all.map(item=>item.id===editingBookId?{...item,paperTemplates:putPaperTemplate(item.paperTemplates,template)}:item));
+    setCoverMaterialPickerOpen(false);
+    toast('已从素材库加入“我的内页”；调整后保存设置即可应用。');
+  }
   function saveCoverBgTemplate(){
     if(!coverBg)return;
     const existing=coverTemplates?.find(item=>item.src===coverBg.src);
@@ -1807,6 +1821,7 @@ export default function Home() {
     const current=scope==='book'?undefined:scope==='spread'?spread:pageSpread(spread,scope==='right'?'right':'left');
     const paper=paperSettings(b,current),header=headerOf(b,current),background=paperBgOf(b,current)||null;
     setCoverPaperStyle(paper.style);setCoverPaperColor(paper.color);setCoverPaperRulingSize(paper.rulingSize);setCoverBg(background);setCoverHeader({...header});setCoverHeaderOn(header.enabled);
+    setCoverTemplateName(b?.paperTemplates?.find(template=>template.src===background?.src)?.name||'我的内页');
     setCoverDate(current?.date||current?.days[0]?.date||spread?.date||spread?.days[0]?.date||today());
   }
   function notebookWithSettingsDraft(existing: Book) {
@@ -3546,11 +3561,12 @@ export default function Home() {
                     <section className="notebook-settings-section notebook-paper-background-section">
                       <div className="paper-background-heading">
                         <span className="advanced-icon"><ImagePlus /></span>
-                        <span><strong>自定义内页背景</strong><small>上传图片、调整位置或使用已保存模板</small></span>
+                        <span><strong>自定义内页背景</strong><small>从素材库选择或上传图片，再调整位置和大小</small></span>
                       </div>
                       <div className="paper-background-content">
                         <input hidden type="file" ref={coverBgInput} accept="image/jpeg,image/png" onChange={(event) => void uploadCoverBackground(event.target.files?.[0])} />
-                        <button className="outline full" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传并保存到我的内页'}</button>
+                        <div className="paper-background-source-actions"><button className="outline" onClick={() => setCoverMaterialPickerOpen(open=>!open)}><Layers />{coverMaterialPickerOpen?'收起素材库':'从素材库选择'}</button><button className="outline" disabled={coverUploadBusy} onClick={() => coverBgInput.current?.click()}><ImagePlus />{coverUploadBusy ? '正在导入…' : '上传图片'}</button></div>
+                        {coverMaterialPickerOpen&&<PaperMaterialPicker assets={assets} onChoose={chooseCoverBackgroundFromMaterial} onClose={()=>setCoverMaterialPickerOpen(false)}/>}
                         {coverBg && (
                           <>
                             <div className="bg-preview" style={{ '--spread-ratio': coverFormat === 'tn-regular' ? 1.05 : 1.43 } as CSSProperties}
