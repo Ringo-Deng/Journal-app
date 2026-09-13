@@ -5,6 +5,7 @@ import {
 
 const MAX_STROKES = 300;
 const MAX_POINTS = 12000;
+export const MATERIAL_ERASER_TRIM_THRESHOLD = 2;
 
 export function normalizeMaterialEraserStrokes(value) {
   if (!Array.isArray(value) || !value.length || value.length > MAX_STROKES) return null;

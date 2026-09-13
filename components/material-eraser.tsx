@@ -6,6 +6,7 @@ import { Check, Loader2, Redo2, RotateCcw, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 
 type Point = [number, number];
+type VisibleBounds = { x: number; y: number; width: number; height: number };
 export type MaterialEraserStroke = { size: number; points: Point[] };
 export type MaterialEraserTarget = {
   id: string;
@@ -17,6 +18,7 @@ export type MaterialEraserTarget = {
 
 const MAX_WORK_SIDE = 1600;
 const MAX_WORK_PIXELS = 2_400_000;
+const VISIBLE_ALPHA_THRESHOLD = 2;
 
 function drawStroke(
   context: CanvasRenderingContext2D,
@@ -72,6 +74,7 @@ export default function MaterialEraser({
     [naturalSize, setNaturalSize] = useState({ w: 1, h: 1 }),
     [viewport, setViewport] = useState({ w: 760, h: 480 }),
     [cursor, setCursor] = useState<Point | null>(null),
+    [visibleBounds, setVisibleBounds] = useState<VisibleBounds | null>(null),
     [status, setStatus] = useState("正在打开素材…"),
     [, refresh] = useState(0);
   const dirty = strokesRef.current.length > 0;
@@ -91,10 +94,48 @@ export default function MaterialEraser({
     if (activeRef.current)
       drawStroke(context, activeRef.current.stroke, canvas.width, canvas.height);
   }
+  function measureVisibleBounds() {
+    const canvas = canvasRef.current,
+      context = canvas?.getContext("2d");
+    if (!canvas || !context) return null;
+    let pixels: Uint8ClampedArray;
+    try {
+      pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    } catch {
+      const fallback = { x: 0, y: 0, width: 1, height: 1 };
+      setVisibleBounds(fallback);
+      return fallback;
+    }
+    let left = canvas.width,
+      top = canvas.height,
+      right = -1,
+      bottom = -1;
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] <= VISIBLE_ALPHA_THRESHOLD) continue;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+    const next =
+      right < left
+        ? null
+        : {
+            x: left / canvas.width,
+            y: top / canvas.height,
+            width: (right - left + 1) / canvas.width,
+            height: (bottom - top + 1) / canvas.height,
+          };
+    setVisibleBounds(next);
+    return next;
+  }
   function syncHistory(message: string) {
     renderAll();
+    const bounds = measureVisibleBounds();
     refresh((value) => value + 1);
-    setStatus(message);
+    setStatus(bounds ? message : "这次把整张素材擦空了，请撤销一部分后再保存。");
   }
 
   useEffect(() => {
@@ -105,6 +146,7 @@ export default function MaterialEraser({
     setBrush(5);
     setZoom(100);
     setCursor(null);
+    setVisibleBounds(null);
     setStatus("正在打开素材…");
     strokesRef.current = [];
     futureRef.current = [];
@@ -134,7 +176,10 @@ export default function MaterialEraser({
         setWorkSize({ w: width, h: height });
         setLoaded(true);
         setStatus("按住并拖动，擦掉不需要的碎片。");
-        requestAnimationFrame(renderAll);
+        requestAnimationFrame(() => {
+          renderAll();
+          measureVisibleBounds();
+        });
       })
       .catch((cause) => {
         if (!cancelled)
@@ -229,8 +274,14 @@ export default function MaterialEraser({
     activeRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
+    renderAll();
+    const bounds = measureVisibleBounds();
     refresh((value) => value + 1);
-    setStatus("已擦除；可以继续处理，或撤销后重来。");
+    setStatus(
+      bounds
+        ? "已擦除；绿色边框已按剩余内容收紧。"
+        : "这次把整张素材擦空了，请撤销一部分后再保存。",
+    );
   }
   function cancelPointer(event: ReactPointerEvent<HTMLCanvasElement>) {
     const active = activeRef.current;
@@ -307,7 +358,7 @@ export default function MaterialEraser({
       <DialogContent className="material-eraser-dialog" showCloseButton={!saving}>
         <DialogTitle>素材橡皮 · {target?.name || "分离结果"}</DialogTitle>
         <DialogDescription>
-          只修改这个尚未入库的分离结果。导入原图和其他结果不变；保存时会自动收紧多余的透明边缘。
+          只修改这个尚未入库的分离结果。绿色细框会随剩余内容缩窄，保存后就是素材的新边界；导入原图和其他结果不变。
         </DialogDescription>
         <div className="material-eraser" tabIndex={-1} onKeyDown={keyDown}>
           <div className="material-eraser-toolbar">
@@ -393,6 +444,18 @@ export default function MaterialEraser({
                   }}
                 />
               )}
+              {loaded && visibleBounds && (
+                <span
+                  className="material-eraser-bounds"
+                  aria-hidden="true"
+                  style={{
+                    left: (canvas?.offsetLeft || 14) + visibleBounds.x * displayWidth,
+                    top: (canvas?.offsetTop || 14) + visibleBounds.y * displayHeight,
+                    width: visibleBounds.width * displayWidth,
+                    height: visibleBounds.height * displayHeight,
+                  }}
+                />
+              )}
               {!loaded && (
                 <span className="material-eraser-loading">
                   <Loader2 className="spinning" />
@@ -413,7 +476,7 @@ export default function MaterialEraser({
             </button>
             <button
               className="primary"
-              disabled={!loaded || !dirty || saving}
+              disabled={!loaded || !dirty || !visibleBounds || saving}
               onClick={() => void save()}
             >
               {saving ? <Loader2 className="spinning" /> : <Check />}保存擦除结果

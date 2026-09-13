@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
 import {
+  MATERIAL_ERASER_TRIM_THRESHOLD,
   erasedMaterialSourceBounds,
   materialEraserSvg,
   normalizeMaterialEraserStrokes,
@@ -22,6 +23,7 @@ const styles = await readFile(
 const server = await readFile(new URL("../local/server.mjs", import.meta.url), "utf8");
 
 test("eraser input is bounded and source placement follows transparent-edge trimming", () => {
+  assert.equal(MATERIAL_ERASER_TRIM_THRESHOLD, 2);
   const strokes = normalizeMaterialEraserStrokes([
     {
       size: 0.05,
@@ -59,12 +61,17 @@ test("studio exposes a per-result eraser with reversible local editing", () => {
   for (const label of ["橡皮大小", "撤销", "重做", "重置本次", "保存擦除结果"])
     assert.match(editor, new RegExp(label));
   assert.match(editor, /strokesRef\.current/);
+  assert.match(editor, /function measureVisibleBounds\(\)/);
+  assert.match(editor, /绿色边框已按剩余内容收紧/);
+  assert.match(editor, /!visibleBounds \|\| saving/);
   assert.match(editor, /window\.confirm\(["']擦除草稿还没有保存/);
   assert.match(editor, /addEventListener\(["']beforeunload/);
   assert.match(styles, /touch-action: none/);
   assert.match(styles, /background-image: conic-gradient/);
+  assert.match(styles, /\.material-eraser-bounds/);
   assert.match(server, /\/api\/materials\/erase/);
   assert.match(server, /blend:'dest-out'/);
+  assert.match(server, /threshold:MATERIAL_ERASER_TRIM_THRESHOLD/);
 });
 
 const { dir, base } = await startTestServer(test);
@@ -87,6 +94,11 @@ test("erasing updates one unimported result atomically and keeps its source imag
       pixels[at + 2] = 110;
       pixels[at + 3] = 255;
     }
+  const faintEdge = (5 * 10 + 9) * 4;
+  pixels[faintEdge] = 220;
+  pixels[faintEdge + 1] = 80;
+  pixels[faintEdge + 2] = 110;
+  pixels[faintEdge + 3] = 1;
   const sourceBytes = await sharp(pixels, { raw: { width: 10, height: 10, channels: 4 } })
       .png()
       .toBuffer(),

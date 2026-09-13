@@ -145,13 +145,29 @@
   touch-action: none;
   cursor: none;
   user-select: none;
-  outline: 1px solid rgba(85, 101, 76, 0.22);
+  outline: none;
   box-shadow: 0 7px 24px rgba(55, 64, 48, 0.12);
 }
 
-.material-eraser-stage canvas:focus-visible {
-  outline: 2px solid #718960;
-  outline-offset: 2px;
+.material-eraser-stage:has(canvas:focus-visible) {
+  box-shadow: inset 0 0 0 2px rgba(113, 137, 96, 0.7);
+}
+
+.material-eraser-bounds {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border: 1.5px solid #698657;
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 249, 0.82),
+    0 1px 5px rgba(54, 72, 46, 0.2);
+  transition:
+    left 120ms ease,
+    top 120ms ease,
+    width 120ms ease,
+    height 120ms ease;
+  pointer-events: none;
 }
 
 .material-eraser-cursor {

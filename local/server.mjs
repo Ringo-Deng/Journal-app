@@ -25,7 +25,7 @@ import {nameSegmentedMaterialItems} from './material-batch-naming.mjs';
 import {inspectImageTools} from './native-tools.mjs';
 import {runCutoutTool,runPaletteTool,runSegmentTool} from './image-tool-runner.mjs';
 import {decodeMaterialUpload,normalizeMaterialUpload} from './material-upload.mjs';
-import {erasedMaterialSourceBounds,materialEraserSvg,normalizeMaterialEraserStrokes} from './material-eraser.mjs';
+import {MATERIAL_ERASER_TRIM_THRESHOLD,erasedMaterialSourceBounds,materialEraserSvg,normalizeMaterialEraserStrokes} from './material-eraser.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import {
@@ -978,7 +978,7 @@ const server = http.createServer(async (req, res) => {
       }catch{throw error('擦除没有完成，原素材没有修改。')}
       const stats=await sharp(erased,{limitInputPixels:40_000_000}).stats();
       if(!stats.channels[3]||stats.channels[3].max<=0)throw error('不能把整个素材擦空；请撤销一部分后再保存。');
-      const trimmed=await sharp(erased,{limitInputPixels:40_000_000}).trim({background:{r:0,g:0,b:0,alpha:0},threshold:0}).png({compressionLevel:9,adaptiveFiltering:true}).toBuffer({resolveWithObject:true});
+      const trimmed=await sharp(erased,{limitInputPixels:40_000_000}).trim({background:{r:0,g:0,b:0,alpha:0},threshold:MATERIAL_ERASER_TRIM_THRESHOLD}).png({compressionLevel:9,adaptiveFiltering:true}).toBuffer({resolveWithObject:true});
       const left=Math.abs(Number(trimmed.info.trimOffsetLeft||0)),top=Math.abs(Number(trimmed.info.trimOffsetTop||0)),sourceBounds=erasedMaterialSourceBounds(snapshotItem,{sourceWidth,sourceHeight,left,top,width:trimmed.info.width,height:trimmed.info.height});
       const name=createHash('sha256').update(trimmed.data).digest('hex')+'.png',target=resolve(data,'uploads',name);
       const result=await materialWrite(async()=>{
