@@ -24,7 +24,8 @@ test('the main left rail separates Material Studio from importing new material',
 });
 
 test('local and Pinterest acquisition live in the importer instead of Material Studio',()=>{
-  assert.match(importer,/type="file"[^>]+accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(importer,/type="file"[^>]+accept="image\/png,image\/jpeg,image\/webp,image\/heic,image\/heif,\.heic,\.heif"/);
+  assert.match(importer,/JSON\.stringify\(\{data,name:item\.name\}\)/);
   assert.match(importer,/request<Job>\('\/source',\{src:uploaded\.src,name:item\.name\}\)/);
   assert.match(importer,/opened\+\+;targetSource=source\.source/);
   assert.match(importer,/request<Job>\('\/segment',\{src:uploaded\.src,name:item\.name,mode:'auto',tolerance:28\}\)/);

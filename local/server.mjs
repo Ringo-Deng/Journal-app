@@ -24,6 +24,7 @@ import {mapMaterialSourceBounds,normalizeMaterialSourceBounds} from '../lib/mate
 import {nameSegmentedMaterialItems} from './material-batch-naming.mjs';
 import {inspectImageTools} from './native-tools.mjs';
 import {runCutoutTool,runPaletteTool,runSegmentTool} from './image-tool-runner.mjs';
+import {decodeMaterialUpload,normalizeMaterialUpload} from './material-upload.mjs';
 import http from 'node:http';
 import sharp from 'sharp';
 import {
@@ -1302,8 +1303,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/api/upload' && req.method === 'POST') {
       const input = await body(req);
-      const decoded = decodeUploadedImage(input.data), name = randomUUID() + '.' + decoded.extension;
-      await writeFile(resolve(data, 'uploads', name), decoded.buffer, { mode: 0o600 });
+      const decoded = decodeMaterialUpload(input.data, input.name);
+      const normalized = await normalizeMaterialUpload(decoded, {directory:data}), name = randomUUID() + '.' + normalized.extension;
+      await writeFile(resolve(data, 'uploads', name), normalized.buffer, { mode: 0o600 });
       return json(res, { src: '/uploads/' + name });
     }
     if (path === '/api/cutout' && req.method === 'POST') {

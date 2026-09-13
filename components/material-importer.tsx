@@ -56,9 +56,10 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
    for(const item of list){
     setProgress(`正在处理 ${completed+1} / ${list.length}：${item.name}`);
     try{
-     if(!['image/png','image/jpeg','image/webp'].includes(item.type)||item.size>10*1024*1024)throw Error('请选择 10 MB 以内的 JPG、PNG 或 WebP');
+     const type=item.type.toLowerCase(),heic=/\.(?:heic|heif)$/i.test(item.name);
+     if((!['image/png','image/jpeg','image/webp','image/heic','image/heif'].includes(type)&&!((!type||type==='application/octet-stream')&&heic))||item.size>10*1024*1024)throw Error('请选择 10 MB 以内的 JPG、PNG、WebP 或 HEIC');
      const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):reject(Error('图片读取失败'));reader.onerror=()=>reject(Error('图片读取失败'));reader.readAsDataURL(item)});
-     const response=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data})});
+     const response=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data,name:item.name})});
      const uploaded=await response.json() as {src?:string;error?:string};
      if(!response.ok||!uploaded.src)throw Error(uploaded.error||'上传失败');
      if(mode==='whole'){
@@ -135,7 +136,7 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
   </fieldset>
   <section className="material-import-local">
    <ImagePlus/>
-   <div><strong>本机图片</strong><small>支持 JPG、PNG、WebP，可一次选择多张，每张不超过 10 MB。</small></div>
+   <div><strong>本机图片</strong><small>支持 JPG、PNG、WebP、HEIC，可一次选择多张，每张不超过 10 MB。</small></div>
    <button className="primary" disabled={busy} onClick={()=>file.current?.click()}>{busy?<Loader2 className="spinning"/>:<ImagePlus/>}{mode==='whole'?'选择图片并入库':'选择图片并拆分'}</button>
   </section>
   <section className="material-import-pinterest" aria-label="Pinterest 素材导入">
@@ -154,6 +155,6 @@ export default function MaterialImporter({open,onClose,onReady,onImported,onOpen
   </section>
   <output className="material-import-status" aria-live="polite">{busy?(progress||'正在导入…'):message}</output>
   {!busy&&mode==='whole'&&importedCount>0&&<button className="primary" onClick={onOpenLibrary}>打开素材库</button>}
-  <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={event=>void upload(event.target.files)}/>
+  <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" multiple onChange={event=>void upload(event.target.files)}/>
  </DialogContent></Dialog>;
 }
