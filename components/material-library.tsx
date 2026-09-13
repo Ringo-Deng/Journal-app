@@ -11,7 +11,7 @@ type Labels=MaterialLabels;
 type BatchMode='add'|'remove';
 type Taxonomy={groups:string[];labels:Record<Dimension,string[]>};
 type Catalog={revision:number;taxonomy:Taxonomy;lastJobId?:string};
-type Proposal={id:string;group?:string;labels?:Partial<Labels>;reason?:string};
+type Proposal={id:string;name?:string;group?:string;labels?:Partial<Labels>;reason?:string};
 type Job={id:string;status:string;done:number;total:number;proposals:Proposal[];errors:{id:string;message:string}[];message?:string};
 type GroupFilter='all'|'unclassified'|string;
 
@@ -41,14 +41,14 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
  useEffect(()=>{try{const saved=JSON.parse(window.localStorage.getItem(hiddenKey)||'[]');if(Array.isArray(saved))setHiddenIds(new Set(saved.filter((id):id is string=>typeof id==='string')))}catch{/* Ignore unavailable or old browser storage. */}},[]);
  useEffect(()=>{const c=new AbortController();void request<Catalog>('/catalog',undefined,c.signal).then(async data=>{setCatalog(data);if(data.lastJobId){const previous=await request<Job>('/classify/'+data.lastJobId,undefined,c.signal);if(!running(previous)&&(previous.status==='complete'||previous.status==='partial'))await applyJob(previous);else if(previous.status==='failed'){setError(previous.message||'AI 整理失败，素材原分类已保留。');void request('/classify/'+previous.id+'/discard',{}).catch(()=>{});}else setJob(previous)}}).catch(e=>{if(e.name!=='AbortError')setError(e.message)});return()=>c.abort()},[]);
  const isRunning=running(job);
- useEffect(()=>{if(!job?.id||!isRunning)return;const c=new AbortController();let timer:ReturnType<typeof setTimeout>;const id=job.id;const poll=async()=>{try{const next=await request<Job>('/classify/'+id,undefined,c.signal);setJob(next);if(running(next))timer=setTimeout(()=>void poll(),1400);else if(next.status==='complete'||next.status==='partial')await applyJob(next);else if(next.status==='failed'){setError(next.message||'AI 整理失败，素材原分类已保留。');setClassifyingId(null);setJob(null);void request('/classify/'+next.id+'/discard',{}).catch(()=>{})}}catch(e){if(!c.signal.aborted){setError((e as Error).message);setClassifyingId(null);setJob(j=>j?{...j,status:'failed'}:j)}}};timer=setTimeout(()=>void poll(),1000);return()=>{clearTimeout(timer);c.abort()}},[job?.id,isRunning]);
+ useEffect(()=>{if(!job?.id||!isRunning)return;const c=new AbortController();let timer:ReturnType<typeof setTimeout>;const id=job.id;const poll=async()=>{try{const next=await request<Job>('/classify/'+id,undefined,c.signal);setJob(next);if(running(next))timer=setTimeout(()=>void poll(),1400);else if(next.status==='complete'||next.status==='partial')await applyJob(next);else if(next.status==='failed'){setError(next.message||'AI 识别失败，素材原名称和分类已保留。');setClassifyingId(null);setJob(null);void request('/classify/'+next.id+'/discard',{}).catch(()=>{})}}catch(e){if(!c.signal.aborted){setError((e as Error).message);setClassifyingId(null);setJob(j=>j?{...j,status:'failed'}:j)}}};timer=setTimeout(()=>void poll(),1000);return()=>{clearTimeout(timer);c.abort()}},[job?.id,isRunning]);
 
- // AI 全托管：整理完成后直接应用有效建议；漏返回或失败的素材保留原状态。
+ // AI 全托管：识别完成后直接应用有效建议；漏返回或失败的素材保留原状态。
  async function applyJob(j:Job){
   if(!j.proposals.length){
    const failed=j.errors?.length||j.total;
    const failedAsset=j.total===1&&j.errors?.length?assets.find(a=>a.id===j.errors[0].id):undefined;
-   setError(j.total===1?(failedAsset?.group?`识别失败，已保留原分类「${failedAsset.group}」。`:'识别失败，素材仍保留在「未分类」。'):`有 ${failed} 件素材没有返回有效识别结果，已保留原分类。`);
+   setError(j.total===1?(failedAsset?.group?`识别失败，已保留原名称和分类「${failedAsset.group}」。`:'识别失败，已保留原名称，素材仍在「未分类」。'):`有 ${failed} 件素材没有返回有效识别结果，已保留原名称和分类。`);
    setClassifyingId(null);setJob(null);void request('/classify/'+j.id+'/discard',{}).catch(()=>{});return;
   }
   setSaving(true);setError('');
@@ -57,7 +57,8 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
    const result=await request<{catalog:Catalog;assets:Asset[]}>('/catalog',{action:'apply',jobId:j.id,ids:j.proposals.map(p=>p.id),revision:snap.revision});
    setCatalog(result.catalog);onUpdated(result.assets);
    const failed=j.errors?.length||0;
-   setFeedback(j.total===1?`识别完成：${j.proposals[0].group||'其他'}`:failed?`AI 整理完成：${j.proposals.length} 件已更新，${failed} 件保留原分类。`:`AI 整理完成：已更新 ${j.proposals.length} 件素材。`);
+   const recognized=j.total===1?result.assets.find(a=>a.id===j.proposals[0].id):undefined;
+   setFeedback(j.total===1?`识别完成：${recognized?.name||'素材'} · ${recognized?.group||j.proposals[0].group||'其他'}`:failed?`AI 识别完成：${j.proposals.length} 件已更新，${failed} 件保留原名称和分类。`:`AI 识别完成：已检查并更新 ${j.proposals.length} 件素材的名称、分类和标签。`);
    setJob(null);
   }catch(e){setError((e as Error).message)}finally{setClassifyingId(null);setSaving(false)}
  }
@@ -114,15 +115,15 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
   <header className="library-heading">
    <h1><Layers/>素材库 <small>{libraryAssets.length} 件素材</small></h1>
    <div className="library-ai-actions">
-    <button className="outline ai-organize-top" title={chosen.length?`只整理选中的 ${chosen.length} 件素材`:groupFilter==='unclassified'?'整理全部未分类素材':'整理全部素材'} disabled={busy||!(chosen.length||organizeAssets.length)} onClick={()=>void classify(chosen.length?chosen.map(a=>a.id):undefined)}>
-     {busy?<Loader2 className="spinning"/>:<Sparkles/>}{running(job)?'AI 整理中…':chosen.length?`AI 整理所选（${chosen.length}）`:'AI 一键整理'}
+    <button className="outline ai-organize-top" title={chosen.length?`命名并整理选中的 ${chosen.length} 件素材`:groupFilter==='unclassified'?'命名并整理全部未分类素材':'命名并整理全部素材'} disabled={busy||!(chosen.length||organizeAssets.length)} onClick={()=>void classify(chosen.length?chosen.map(a=>a.id):undefined)}>
+     {busy?<Loader2 className="spinning"/>:<Sparkles/>}{running(job)?'AI 识别中…':chosen.length?`AI 识别所选（${chosen.length}）`:'AI 一键识别'}
     </button>
    </div>
    <div className="search-field"><Search/><input aria-label="搜索全部素材" placeholder="搜索名称、标签或分类" value={query} onChange={e=>setQuery(e.target.value)}/></div>
    <div className="library-insert"><span className="library-chosen">已选 {chosen.length} 件</span><button className="primary" disabled={!chosen.length||chosen.length>24} onClick={()=>{if(onInsert(chosen))setSelected(new Set())}}><Plus/>插入手帐{chosen.length>24?'（每次最多24件）':''}</button></div>
    <button className="quiet" onClick={onBack}><ArrowLeft/>返回手帐</button>
   </header>
-  {job&&<output className="library-ai-progress"><progress max={job.total||1} value={job.done}/><span>{running(job)?`AI 正在整理 ${job.done}/${job.total}`:job.status==='cancelled'?'AI 整理已停止':job.status==='failed'?'AI 整理失败':`AI 整理完成 · 已识别 ${job.proposals.length} 件`}</span>{running(job)?<button className="quiet" onClick={()=>void request('/classify/'+job.id+'/cancel',{}).catch(e=>setError(e.message))}>停止</button>:<button className="quiet" onClick={()=>void request('/classify/'+job.id+'/discard',{}).then(()=>{setClassifyingId(null);setJob(null)}).catch(e=>setError(e.message))}>关闭</button>}</output>}
+  {job&&<output className="library-ai-progress"><progress max={job.total||1} value={job.done}/><span>{running(job)?`AI 正在识别 ${job.done}/${job.total}`:job.status==='cancelled'?'AI 识别已停止':job.status==='failed'?'AI 识别失败':`AI 识别完成 · 已处理 ${job.proposals.length} 件`}</span>{running(job)?<button className="quiet" onClick={()=>void request('/classify/'+job.id+'/cancel',{}).catch(e=>setError(e.message))}>停止</button>:<button className="quiet" onClick={()=>void request('/classify/'+job.id+'/discard',{}).then(()=>{setClassifyingId(null);setJob(null)}).catch(e=>setError(e.message))}>关闭</button>}</output>}
   {!job&&feedback&&<output className="library-ai-progress"><span>{feedback}</span><button className="quiet" onClick={()=>setFeedback('')}>关闭</button></output>}
   {error&&<div className="library-error" role="alert">{error}<button aria-label="关闭素材提示" onClick={()=>setError('')}><X/></button></div>}
   <div className="library-body"><nav className="library-filters" aria-label="素材分类"><button className={groupFilter==='all'?'active':''} onClick={()=>setGroupFilter('all')}>全部素材 <span>{libraryAssets.length}</span></button><button className={groupFilter==='unclassified'?'active':''} onClick={()=>setGroupFilter('unclassified')}>未分类 <span>{unclassifiedAssets.length}</span></button><h3>主分类 <small>{draggingId?'拖到分类即可归类':''}</small></h3>{groups.map(g=><button key={g} className={`${groupFilter===g?'active ':''}${draggingId?'drop-ready ':''}${dragOverGroup===g?'drop-target':''}`.trim()} onClick={()=>setGroupFilter(g)} onDragOver={e=>{if(!draggingId)return;e.preventDefault();e.dataTransfer.dropEffect='move';setDragOverGroup(g)}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('text/material-id')||draggingId;setDraggingId(null);setDragOverGroup(null);if(id)void setAssetGroup(id,g)}}>{g}<span>{groupCounts[g]||0}</span></button>)}</nav>
@@ -134,7 +135,7 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
     <div className="library-status"><span>当前：<b>{groupName}</b> · {visible.length} 件结果</span><label className="library-sort">入库顺序<select aria-label="素材排序" value={sortOrder} onChange={e=>setSortOrder(e.target.value==='oldest'?'oldest':'newest')}><option value="newest">从新到旧</option><option value="oldest">从旧到新</option></select></label>{pickedList.length>0&&<span className="library-status-tags">已选标签：{pickedList.map(t=><em key={t.dim+t.value}>{dimensionNames[t.dim]}·{t.value}</em>)}</span>}{pickedList.length>0&&<button className="quiet" onClick={clearPicked}>清除标签</button>}<span className="library-status-actions">{chosen.length>1&&<button className="quiet library-batch-labels" onClick={openBatchEditor}><Pencil/>统一编辑标签（{chosen.length}）</button>}<button className="quiet" onClick={()=>setSelected(old=>new Set([...old,...visible.map(a=>a.id)]))}>全选当前结果</button>{selected.size>0&&<button className="quiet" onClick={()=>setSelected(new Set())}>清空选择</button>}</span></div>
     <div className="library-grid">{visible.map(a=>{const labels=labelsOf(a),chips=[a.group||'未分类',...labels.content,...labels.style,...labels.color];return <div key={a.id} className={`library-card ${selected.has(a.id)?'selected':''} ${draggingId===a.id?'dragging':''}`}><button className="library-card-main" draggable={!!catalog&&!busy} aria-pressed={selected.has(a.id)} aria-label={`选择素材：${a.name}`} onDragStart={e=>{e.dataTransfer.setData('text/material-id',a.id);e.dataTransfer.effectAllowed='move';setDraggingId(a.id)}} onDragEnd={()=>{setDraggingId(null);setDragOverGroup(null)}} onClick={()=>toggle(a.id)}><div className="library-thumb"><img src={a.src} alt={a.name} loading="lazy"/><span className="library-check">{selected.has(a.id)&&<Check/>}</span></div><strong>{a.name}</strong></button><div className="library-chips"><span>{a.group||'未分类'}</span>{chips.slice(1,4).map((v,i)=><span key={i}>{v}</span>)}{chips.length>4&&<span className="muted">+{chips.length-4}</span>}</div><div className="library-card-actions">
       <button className="library-edit" aria-label={`编辑${a.name}的标签`} onClick={()=>openEditor(a)}><Pencil/>编辑标签</button>
-      <button className="library-edit" title="重新判断这个素材的分类与标签" aria-label={`AI分类${a.name}`} disabled={busy} onClick={()=>void classify([a.id],a.id)}><RefreshCw/>{classifyingId===a.id?'识别中…':'AI分类'}</button>
+      <button className="library-edit" title="为这个素材命名并重新判断分类与标签" aria-label={`AI识别${a.name}`} disabled={busy} onClick={()=>void classify([a.id],a.id)}><RefreshCw/>{classifyingId===a.id?'识别中…':'AI识别'}</button>
       <button className="library-edit" title="以当前素材为起点继续抠图或识别" aria-label={`再次编辑${a.name}`} disabled={busy} onClick={()=>void reopenAsset(a)}><Scissors/>再次编辑</button>
       <button className="library-edit danger" aria-label={`删除${a.name}`} disabled={busy} onClick={()=>void removeAsset(a)}><Trash2/>删除</button>
     </div></div>})}</div>{!visible.length&&<div className="library-empty">没有匹配的素材。请调整或清除筛选条件，或导入新素材。</div>}

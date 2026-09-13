@@ -17,7 +17,7 @@ export type Asset = {
   group?: string;
   labels?: {content?: string[]; style?: string[]; color?: string[]};
   review?: {pending: boolean; reason?: string};
-  manual?: {group?: boolean; labels?: boolean};
+  manual?: {name?: boolean; group?: boolean; labels?: boolean};
 };
 export type Piece = {
   id: string;

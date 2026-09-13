@@ -28,13 +28,14 @@ async function complete(service,job){
  throw Error('classification did not finish');
 }
 
-test('single-material classification applies all job proposals when ids are omitted',async()=>{
- const service=await fixture(async()=>({items:[{id:'fresh',group:'装饰贴纸',labels:{content:['植物'],style:[],color:['绿']},confident:true,reason:'图片主体明确'}]}));
+test('single-material classification applies its AI name and all job proposals when ids are omitted',async()=>{
+ const service=await fixture(async()=>({items:[{id:'fresh',name:'绿色叶片贴纸',group:'装饰贴纸',labels:{content:['植物'],style:[],color:['绿']},confident:true,reason:'图片主体明确'}]}));
  assert.equal(service.decorate([asset])[0].group,undefined);
  const job=await service.handle('/api/materials/classify','POST',{ids:['fresh'],useImages:false});
  const finished=await complete(service,job);
  assert.equal(finished.status,'complete');
  const result=await service.handle('/api/materials/catalog','POST',{revision:0,action:'apply',jobId:job.id});
+ assert.equal(result.assets[0].name,'绿色叶片贴纸');
  assert.equal(result.assets[0].group,'装饰贴纸');
 });
 

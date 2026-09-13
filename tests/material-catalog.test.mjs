@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMaterialCatalog,classificationProposals,defaultTaxonomy} from '../local/material-catalog.mjs';
+import {createMaterialCatalog,classificationProposals,defaultTaxonomy,shouldUseSuggestedMaterialName} from '../local/material-catalog.mjs';
 const assets=[{id:'built-in',name:'玫瑰',category:'植物',tags:['玫瑰'],src:'/materials/a.png'},{id:'imported',name:'素材01',category:'我的素材',tags:['用户导入'],src:'/uploads/b.png'}];
 async function fixture(requestAI,files=new Map()){
  const batchReply=mapper=>async messages=>{const payload=JSON.parse(typeof messages.at(-1).content==='string'?messages.at(-1).content:messages.at(-1).content[0].text);return {items:payload.items.map(mapper)};};
@@ -54,6 +54,25 @@ test('AI suggestions never overwrite manual group or labels',async()=>{
  assert.equal(result.assets[0].group,'纸张');
  assert.deepEqual(result.assets[0].labels,{content:['几何符号'],style:[],color:[]});
 });
+test('AI names generic imports while preserving descriptive and manually maintained names',async()=>{
+ const reply=async messages=>{const payload=JSON.parse(messages.at(-1).content);return{items:payload.items.map(a=>({id:a.id,name:a.id==='built-in'?'AI 改写的玫瑰':'  粉色花朵\n贴纸  ',group:'装饰贴纸',labels:{content:['植物'],style:[],color:['粉']},confident:true,reason:'看图命名'}))}};
+ const {service}=await fixture(reply);
+ const job=await service.handle('/api/materials/classify','POST',{ids:assets.map(a=>a.id),useImages:false});
+ const finished=await complete(service,job);
+ assert.equal(finished.proposals[1].name,'粉色花朵 贴纸');
+ let result=await service.handle('/api/materials/catalog','POST',{revision:0,action:'apply',jobId:job.id});
+ assert.equal(result.assets[0].name,'玫瑰');
+ assert.equal(result.assets[1].name,'粉色花朵 贴纸');
+ result=await service.handle('/api/materials/catalog','POST',{revision:1,action:'apply',manual:true,patches:[{id:'imported',name:'旅行纪念贴纸'}]});
+ assert.equal(result.assets[1].manual.name,true);
+ const second=await service.handle('/api/materials/classify','POST',{ids:['imported'],useImages:false});
+ await complete(service,second);
+ result=await service.handle('/api/materials/catalog','POST',{revision:2,action:'apply',jobId:second.id});
+ assert.equal(result.assets[1].name,'旅行纪念贴纸');
+ assert.equal(shouldUseSuggestedMaterialName('素材 01'),true);
+ assert.equal(shouldUseSuggestedMaterialName('Pinterest 123456'),true);
+ assert.equal(shouldUseSuggestedMaterialName('手绘玫瑰贴纸'),false);
+});
 test('AI cannot invent words or silently omit assets',()=>{
  assert.throws(()=>classificationProposals({items:[]},assets,defaultTaxonomy),/数量/);
  assert.throws(()=>classificationProposals({items:assets.map(a=>({id:a.id,group:'随便编造',labels:{content:[],style:[],color:[]},confident:true}))},assets,defaultTaxonomy),/无效主分类/);
@@ -84,6 +103,8 @@ test('classification prompt requires independent dimensions, strict single label
  const {service}=await fixture(async messages=>{
   const system=messages[0].content;
   assert.match(system,/逐一、相互独立/);
+  assert.match(system,/中文名称 name/);
+  assert.match(system,/不沿用“素材01”“导入素材”等占位名/);
   assert.match(system,/每个维度最多输出一个标签/);
   assert.match(system,/内容维度严格单标/);
   assert.match(system,/没有任何颜色达到约80%且明显多色混杂，标「多彩」/);
@@ -92,11 +113,11 @@ test('classification prompt requires independent dimensions, strict single label
   assert.doesNotMatch(system,/confident/);
   checked=true;
   const payload=JSON.parse(messages.at(-1).content);
-  return {items:payload.items.map(a=>({id:a.id,group:'装饰贴纸',labels:{content:['植物'],style:[],color:['多彩']},reason:'规则测试'}))};
+  return {items:payload.items.map(a=>({id:a.id,name:'多彩花朵贴纸',group:'装饰贴纸',labels:{content:['植物'],style:[],color:['多彩']},reason:'规则测试'}))};
  });
  const job=await service.handle('/api/materials/classify','POST',{ids:['built-in'],useImages:false});
  const finished=await complete(service,job);
- assert.equal(finished.status,'complete');assert.equal(checked,true);assert.deepEqual(finished.proposals[0].labels.color,['多彩']);
+ assert.equal(finished.status,'complete');assert.equal(checked,true);assert.equal(finished.proposals[0].name,'多彩花朵贴纸');assert.deepEqual(finished.proposals[0].labels.color,['多彩']);
 });
 test('cancelling an active classification does not commit any metadata',async()=>{
  const {service}=await fixture((_m,_a,_d,signal)=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true})));

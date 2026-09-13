@@ -5,9 +5,10 @@ import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../components/material-library.tsx',import.meta.url),'utf8');
 const css=await readFile(new URL('../app/material-library-refresh.css',import.meta.url),'utf8');
 
-test('material library keeps AI organize in the top bar and removes the right action sidebar',()=>{
+test('material library keeps AI name-and-organize in the top bar and removes the right action sidebar',()=>{
   assert.match(source,/className="outline ai-organize-top"/);
-  assert.match(source,/AI 一键整理/);
+  assert.match(source,/AI 一键识别/);
+  assert.match(source,/命名并整理全部素材/);
   assert.doesNotMatch(source,/className="library-actions"/);
   assert.doesNotMatch(source,/批量整理/);
 });
@@ -74,11 +75,12 @@ test('every material can reopen from its current image instead of requiring its 
   assert.doesNotMatch(source,/request\('\/reopen'/);
 });
 
-test('single-material AI classification is available for every material and is not confused with image editing',()=>{
-  assert.match(source,/aria-label={`AI分类\$\{a\.name\}`}/);
-  assert.match(source,/重新判断这个素材的分类与标签/);
+test('single-material AI recognition names and classifies without being confused with image editing',()=>{
+  assert.match(source,/aria-label={`AI识别\$\{a\.name\}`}/);
+  assert.match(source,/为这个素材命名并重新判断分类与标签/);
   assert.match(source,/onClick=\{\(\)=>void classify\(\[a\.id\],a\.id\)\}/);
   assert.doesNotMatch(source,/再次识别\$\{a\.name\}/);
+  assert.match(source,/recognized\?\.name/);
 });
 
 test('each material card shows all four actions in a stable two-by-two grid',()=>{
@@ -86,7 +88,7 @@ test('each material card shows all four actions in a stable two-by-two grid',()=
   assert.ok(actions);
   assert.equal([...actions.matchAll(/<button\b/g)].length,4);
   assert.match(actions,/>编辑标签<\/button>/);
-  assert.match(actions,/classifyingId===a\.id\?'识别中…':'AI分类'/);
+  assert.match(actions,/classifyingId===a\.id\?'识别中…':'AI识别'/);
   assert.match(actions,/>再次编辑<\/button>/);
   assert.match(actions,/onClick=\{\(\)=>void removeAsset\(a\)\}/);
   assert.match(actions,/>删除<\/button>/);
