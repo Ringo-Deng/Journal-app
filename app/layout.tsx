@@ -41,7 +41,7 @@ export default function RootLayout({
           } as CSSProperties
         }
       >
-        <RuntimeCompatibility />
+        <RuntimeCompatibility appVersion={packageJson.version} />
         <ThreeTestGateway appVersion={packageJson.version} />
         <MaterialRecovery />
         <style>{`

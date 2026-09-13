@@ -53,7 +53,7 @@
 | 素材识别 | `local/server-bootstrap.mjs` 先安装 `local/material-segment-router.mjs` 的 Mac 原生自动候选路由，再载入 `local/server.mjs`；`local/image-tool-runner.mjs` 保持 Apple Silicon Mac 走现有原生程序，Windows 单独走 `local/portable-image-tools.mjs` 的透明图、纸底、单色背景分离和主色提取 |
 | AI 创作 | `app/page.tsx` 的 `generate` → `/api/generate` → `local/server.mjs`；`local/design-context.mjs` 本地保留手选素材、锁定及隐藏内容，按整组调整已有拼贴；`local/editorial.mjs` 依据用户指令限定改字与分段权限；`local/reference-layout-guide.mjs` 提供共用参考规则与明确杂志风指令识别；普通短文由 `local/paper-group.mjs` 提供实图选材与彩色底纸，`local/paper-group-layout.mjs` 按全文尺寸组合纸张、搜索横纵空位并逐步减少放不下的新装饰，`local/paper-art.mjs` 生成纸形与花纹；明确杂志风与其他内容由 `local/ai-response.mjs` / `local/design-plan.mjs` 解析校验，`local/layout-composition.mjs` / `local/collage-layout.mjs` 排版，`local/editorial-shapes.mjs` 提供本地几何图形；`lib/journal.ts` 的 `appendDay/regenerateSpread` 转换数据并保留锁定元素图层顺序，重设计经 `designPreview/applyDesignPreview` 预览应用 |
 | 照片蒙版与回收站 | `app/page.tsx` 的 `photoMaskDraft` 仅供编辑画布预览；`lib/photo-mask.mjs` 共用轮廓与取景几何；`local/photo-mask.mjs` 经原保存队列生成透明图、登记回收引用及检查安全删除；`components/photo-trash.tsx` 提供恢复与手动清理 |
-| 本地服务 | `local/server-bootstrap.mjs`：初始化原生工具和请求适配后载入 `local/server.mjs`；开发、正式启动均使用 bootstrap 入口 |
+| 本地服务 | `local/server-bootstrap.mjs`：初始化原生工具和请求适配后载入 `local/server.mjs`；开发、正式启动均使用 bootstrap 入口。`components/runtime-compatibility.tsx` 对比页面与 `/api/health` 的应用版本，发现旧后台时阻止继续编辑并保留当前页面，重启匹配后自动恢复 |
 | 保存 | `app/page.tsx` 的 `books` → `pending/flush` → `/api/state` → `local/server.mjs` 的校验、写入队列、revision 冲突检查及 JSON 原子写入；`JOURNAL_DATA_DIR` 指定数据目录 |
 | 数据兼容 | `lib/journal.ts` 的默认值与 `ensureFlyleaf`、`local/server.mjs` 的 `validateState`：兼容及校验入口；当前没有统一手帐 schema migration，`revision` 是写入并发号 |
 | 专项迁移 | `local/material-catalog.mjs` 的 `createMaterialCatalog`：素材目录迁移；`local/ai-config.mjs` 的 `migrateLegacyConfig`：旧 AI 配置兼容 |

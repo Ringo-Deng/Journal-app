@@ -70,3 +70,20 @@ test('launcher validates the full health version and preserves requested-path st
   assert.match(source, /SHIGUANG_OPEN_PATH/);
   assert.match(source, /openBrowser\(openUrl\)/);
 });
+
+test('the page blocks new editing when its build is newer than the running local API', async () => {
+  const root = resolve(new URL('..', import.meta.url).pathname);
+  const [layout, compatibility, styles] = await Promise.all([
+    readFile(resolve(root, 'app/layout.tsx'), 'utf8'),
+    readFile(resolve(root, 'components/runtime-compatibility.tsx'), 'utf8'),
+    readFile(resolve(root, 'components/runtime-compatibility.css'), 'utf8'),
+  ]);
+  assert.match(layout, /<RuntimeCompatibility appVersion={packageJson\.version} \/>/);
+  assert.match(compatibility, /fetch\(['"]\/api\/health['"], { cache: ['"]no-store['"] }\)/);
+  assert.match(compatibility, /health\.appVersion === appVersion/);
+  assert.match(compatibility, /window\.setInterval\(\(\) => void checkRuntime\(\), 3000\)/);
+  assert.match(compatibility, /新旧版本混用可能导致保存失败/);
+  assert.match(compatibility, /如果正在编辑，不要刷新/);
+  assert.match(styles, /\.runtime-mismatch/);
+  assert.match(styles, /z-index: 10000/);
+});
