@@ -10,8 +10,9 @@ const [page,studio,library,layout,styles]=await Promise.all([
  readFile(new URL('../app/photo-library.css',import.meta.url),'utf8'),
 ]);
 
-test('Material Studio exposes a photo category without merging photos into sticker assets',()=>{
- assert.match(studio,/aria-label="素材工作台分类"/);assert.match(studio,/>素材处理<\/button>/);assert.match(studio,/>照片<\/button>/);assert.match(studio,/<PhotoLibrary/);
+test('the outer rail exposes a standalone photo library without merging photos into sticker assets',()=>{
+ assert.match(page,/aria-label="照片库"/);assert.match(page,/modal==='photo-library'/);assert.match(page,/<PhotoLibrary onInsert=\{insertPhotoLibrary\}/);
+ assert.doesNotMatch(studio,/素材工作台分类|<PhotoLibrary|section==='photos'/);
  assert.doesNotMatch(library,/\bAsset\b/);assert.match(layout,/import '\.\/photo-library\.css'/);assert.match(styles,/\.photo-library\{/);
 });
 
@@ -23,7 +24,7 @@ test('photo category supports lazy file and folder import, time groups and expli
 
 test('photo category preserves backup, preview, processing and deletion protection controls',()=>{
  assert.match(library,/\/api\/photos\/backup/);assert.match(library,/\/api\/photos\/restore/);assert.match(library,/送到素材处理/);assert.match(library,/电脑上的原文件不会受影响/);assert.match(library,/protectedSources/);
- assert.match(page,/photoProtectedSources=/);assert.match(studio,/onProcess=\{processPhoto\}/);
+ assert.match(page,/photoProtectedSources=/);assert.match(page,/onProcess=\{processPhotoLibraryItem\}/);assert.match(page,/api<\{source:string\}>\('\/materials\/source'/);assert.match(page,/setMaterialStudioTargetSource\(job\.source\)/);
 });
 
 test('existing photo upload paths save through the photo library before changing the journal',()=>{

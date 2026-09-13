@@ -46,6 +46,7 @@ import { paperSettings, applyPaper, type PaperStyle, type PaperRulingSize } from
 import MaterialStudio from '@/components/material-studio';
 import MaterialImporter from '@/components/material-importer';
 import MaterialLibrary from '@/components/material-library';
+import PhotoLibrary,{type PhotoLibraryItem} from '@/components/photo-library';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 import {leafFrame} from '@/lib/page-motion';
@@ -66,6 +67,7 @@ import {
   Sparkles,
   X,
   ImagePlus,
+  Images,
   Lock,
   Unlock,
   Trash2,
@@ -253,7 +255,7 @@ export default function Home() {
   const [panel, setPanel] = useState<'write' | 'elements' | null>(null),
     [selected, _setSelected] = useState<string | null>(null),
     [modal, setModal] = useState<
-      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'material-cut' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
+      'settings' | 'covers' | 'index' | 'material-import' | 'studio' | 'photo-library' | 'material-cut' | 'paper' | 'date' | 'header' | 'history' | 'backup' | null
     >(null);
   const [materialStudioNotice,setMaterialStudioNotice]=useState(''),
     [materialStudioTargetSource,setMaterialStudioTargetSource]=useState('');
@@ -1341,6 +1343,12 @@ export default function Home() {
     changeSpread(currentSpread=>({...currentSpread,elements:[...currentSpread.elements,...pieces]}));
     setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setModal(null);setMultiIds(pieces.length>1?pieces.map(piece=>piece.id):[]);setSelected(pieces[0]?.id||null);toast(`已将 ${pieces.length} 张照片放入当前跨页，可继续调整。`);return true;
   }
+  async function processPhotoLibraryItem(item:PhotoLibraryItem){
+    const job=await api<{source:string}>('/materials/source',send('POST',{src:item.src,name:item.originalName}));
+    setMaterialStudioNotice('照片原片仍保留在照片库中；可以在这里裁切或提取主体。');
+    setMaterialStudioTargetSource(job.source);
+    setModal('studio');
+  }
   function savePaper() {
     if (!book) return;
     change((all) =>
@@ -2007,6 +2015,7 @@ export default function Home() {
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
         <button className={modal==='studio'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setMaterialStudioTargetSource('');setModal('studio')}}><Sticker/><span>素材<br/>工作台</span></button>
+        <button className={modal==='photo-library'?'active':''} aria-label="照片库" onClick={()=>setModal('photo-library')}><Images/><span>照片库</span></button>
         <button className={modal==='material-import'?'active':''} aria-label="导入新素材" onClick={()=>{setMaterialStudioTargetSource('');setModal('material-import')}}><ImagePlus/><span>导入<br/>新素材</span></button>
         <button className={panel==='write'?'active':''} aria-label="AI 创作" disabled={!ready||busy||!book} onClick={()=>{if(reading)switchMode('edit');setView('workbench');openWrite();}}><Sparkles/><span>AI 创作</span></button>
         <div className="rail-spacer"/>
@@ -3130,11 +3139,16 @@ export default function Home() {
         onClose={() => setModal(null)}
         onImport={() => {setMaterialStudioTargetSource('');setModal('material-import')}}
         onImported={setAssets}
-        onInsertPhotos={insertPhotoLibrary}
-        photoProtectedSources={photoProtectedSources}
         notice={materialStudioNotice}
         targetSource={materialStudioTargetSource}
       />
+      <Dialog open={modal === 'photo-library'} onOpenChange={(open)=>{if(!open)setModal(null)}}>
+        <DialogContent className="photo-library-dialog">
+          <DialogTitle className="sr-only">照片库</DialogTitle>
+          <DialogDescription className="sr-only">按拍摄时间浏览、导入并添加本机照片。</DialogDescription>
+          <PhotoLibrary onInsert={insertPhotoLibrary} onProcess={processPhotoLibraryItem} protectedSources={photoProtectedSources}/>
+        </DialogContent>
+      </Dialog>
       <PageMaterialCutter
         open={modal === 'material-cut'}
         target={pageMaterialCutTarget}

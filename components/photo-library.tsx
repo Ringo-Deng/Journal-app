@@ -37,9 +37,9 @@ export default function PhotoLibrary({onInsert,onProcess,protectedSources}:{onIn
   }finally{setBusy(false);if(photosInput.current)photosInput.current.value='';if(folderInput.current)folderInput.current.value=''}
  }
  function insert(){const sources=items.filter(item=>selected.includes(item.id)).map(item=>item.src);if(!sources.length)return;if(onInsert(sources)){setSelected([]);setMessage(`已将 ${sources.length} 张照片放入当前跨页。`)}}
- async function processPhoto(item:PhotoLibraryItem){setBusy(true);try{await onProcess(item)}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
+ async function processPhoto(item:PhotoLibraryItem){setBusy(true);try{await onProcess(item);setPreview(null)}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
  async function remove(item:PhotoLibraryItem){
-  if(!window.confirm(`从照片分类删除「${item.originalName}」？电脑上的原文件不会受影响。`))return;setBusy(true);
+  if(!window.confirm(`从照片库删除「${item.originalName}」？电脑上的原文件不会受影响。`))return;setBusy(true);
   try{await result(await fetch('/api/photos/'+item.id,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({protectedSources})}));setPreview(null);setSelected(ids=>ids.filter(id=>id!==item.id));await load(true);setMessage('照片已从拾光手帐中删除，电脑原文件未改动。')}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}
  }
  async function restore(file?:File){
@@ -47,9 +47,9 @@ export default function PhotoLibrary({onInsert,onProcess,protectedSources}:{onIn
   try{const restored=await result<{restored:number;duplicates:number}>(await fetch('/api/photos/restore',{method:'POST',headers:{'Content-Type':'application/x-shiguang-photo-library'},body:file}));await load(true);setMessage(`已恢复 ${restored.restored} 张照片${restored.duplicates?`，跳过 ${restored.duplicates} 张已有照片`:''}。`)}catch(error){setMessage((error as Error).message)}finally{setBusy(false);if(restoreInput.current)restoreInput.current.value=''}
  }
  const grouped=new Map<string,PhotoLibraryItem[]>();for(const item of items){const key=month(item.capturedAt);grouped.set(key,[...(grouped.get(key)||[]),item])}
- return <section className="photo-library" aria-label="照片分类">
+ return <section className="photo-library" aria-label="照片库">
   <header className="photo-library-tools">
-   <div><strong>照片</strong><small>{total?`${total} 张 · 按拍摄时间排列`:'原片会按拍摄时间自动排列'}</small></div>
+   <div><strong>照片库</strong><small>{total?`${total} 张 · 按拍摄时间排列`:'原片会按拍摄时间自动排列'}</small></div>
    <button className="primary" disabled={busy} onClick={()=>photosInput.current?.click()}><ImagePlus/>导入照片</button>
    <button className="outline" disabled={busy} onClick={()=>folderInput.current?.click()}><FolderOpen/>导入文件夹</button>
    <button className="outline" disabled={busy||!items.length} onClick={()=>{window.location.href='/api/photos/backup'}}><Download/>导出照片库</button>

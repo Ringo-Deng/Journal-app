@@ -9,7 +9,7 @@ const layout=await readFile(new URL('../app/layout.tsx',import.meta.url),'utf8')
 test('opening the studio selects the exact requested source and does not run the legacy reopen path',()=>{
   assert.match(studio,/const target=targetSource\?list\.find\(job=>job\.source===targetSource\):list\[0\]/);
   assert.match(studio,/if\(target\)\{choose\(target\)/);
-  assert.match(studio,/if\(targetSource\)\{setJobs\(\[\]\);clearJobView\(\);setSection\('process'\)\}/);
+  assert.match(studio,/if\(targetSource\)\{setJobs\(\[\]\);clearJobView\(\)\}/);
   assert.doesNotMatch(studio,/request<\{item\?:\{src:string;name:string\}\|null\}>\('\/reopen'\)/);
   assert.doesNotMatch(studio,/request\('\/reopen'/);
 });

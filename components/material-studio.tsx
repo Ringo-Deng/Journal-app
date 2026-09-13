@@ -6,7 +6,6 @@ import {ImagePlus,Loader2,Check,Plus,CheckCheck,Trash2,MousePointer2,Crop} from 
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Checkbox} from '@/components/ui/checkbox';
 import type {Asset} from '@/lib/journal';
-import PhotoLibrary,{type PhotoLibraryItem} from '@/components/photo-library';
 
 type Item={id:string;src:string;name:string;width:number;height:number;imported:boolean;manual?:boolean;pointSelected?:boolean;bounds?:number[];sourceBounds?:number[];cutSaveId?:string};
 type SourceMeta={type:'pinterest';pinId:string;originalUrl:string;imageUrl:string;sha256:string};
@@ -45,14 +44,13 @@ function DeductedMaterialPreview({items,dimensions}:{items:Item[];dimensions:{w:
  },[dimensions.h,dimensions.w,masks]);
  return masks.length?<canvas ref={canvas} className="studio-deducted-preview" aria-hidden="true"/>:null;
 }
-export default function MaterialStudio({open,onClose,onImport,onImported,onInsertPhotos,photoProtectedSources,notice,targetSource}:{open:boolean;onClose:()=>void;onImport:()=>void;onImported:(a:Asset[])=>void;onInsertPhotos:(sources:string[])=>boolean;photoProtectedSources:string[];notice?:string;targetSource?:string}){
+export default function MaterialStudio({open,onClose,onImport,onImported,notice,targetSource}:{open:boolean;onClose:()=>void;onImport:()=>void;onImported:(a:Asset[])=>void;notice?:string;targetSource?:string}){
  const [jobs,setJobs]=useState<Job[]>([]),[active,setActive]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[mode,setMode]=useState('auto'),[strength,setStrength]=useState(28),[selected,setSelected]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[zoom,setZoom]=useState(100),[dimensions,setDimensions]=useState({w:1,h:1}),[imageReady,setImageReady]=useState(false),[viewport,setViewport]=useState({w:400,h:500}),[crop,setCrop]=useState<number[]|null>(null),[cropping,setCropping]=useState(false),[picking,setPicking]=useState(false),[pickPoint,setPickPoint]=useState<number[]|null>(null),[progress,setProgress]=useState(''),[replacementItemId,setReplacementItemId]=useState('');
- const [section,setSection]=useState<'process'|'photos'>('process');
  const imageArea=useRef<HTMLDivElement>(null),imageViewport=useRef<HTMLDivElement>(null),previewSource=useRef(''),pan=useRef<{x:number;y:number;left:number;top:number}|null>(null),start=useRef<number[]|null>(null);
  const job=jobs.find(j=>j.id===active);
 
  function choose(j:Job,preservePreview=j.source===previewSource.current){
-  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setSection('process');setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}previewSource.current=j.source;setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
+  const available=j.items.filter(i=>!i.imported).map(i=>i.id);setActive(j.id);setSelected(available);setReplacementItemId(j.replaceAssetId&&!j.replacementDone?available[0]||'':'');setNames(Object.fromEntries(j.items.map(i=>[i.id,i.name])));setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);if(!preservePreview){setZoom(100);setImageReady(false);setDimensions({w:1,h:1})}previewSource.current=j.source;setMode(j.mode||'auto');setStrength(Number(j.tolerance||28));setMessage('');
  }
  function clearJobView(){
   previewSource.current='';setActive('');setSelected([]);setReplacementItemId('');setNames({});setCrop(null);setCropping(false);setPicking(false);setPickPoint(null);setZoom(100);setImageReady(false);setDimensions({w:1,h:1});
@@ -61,7 +59,7 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
   if(!open)return;
   let cancelled=false;
   setBusy(true);setProgress('正在打开素材处理记录…');
-  if(targetSource){setJobs([]);clearJobView();setSection('process')}
+  if(targetSource){setJobs([]);clearJobView()}
   setMessage(notice||'');
   request<Job[]>('/jobs').then(list=>{
    if(cancelled)return;
@@ -69,8 +67,8 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
    // Import and re-edit flows pass their exact source; direct entry falls back to the newest job.
    const target=targetSource?list.find(job=>job.source===targetSource):list[0];
    if(target){choose(target);if(notice)setMessage(notice)}
-   else{clearJobView();if(targetSource)setSection('process');setMessage(targetSource?'这条素材处理记录已不存在，请返回素材库后重新打开。':notice||'')}
-  }).catch(e=>{if(!cancelled){setJobs([]);clearJobView();if(targetSource)setSection('process');setMessage(e.message)}}).finally(()=>{if(!cancelled){setBusy(false);setProgress('')}});
+   else{clearJobView();setMessage(targetSource?'这条素材处理记录已不存在，请返回素材库后重新打开。':notice||'')}
+  }).catch(e=>{if(!cancelled){setJobs([]);clearJobView();setMessage(e.message)}}).finally(()=>{if(!cancelled){setBusy(false);setProgress('')}});
   return()=>{cancelled=true};
  },[open,notice,targetSource]);
  useEffect(()=>{
@@ -83,7 +81,7 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
   const observer=new ResizeObserver(()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(measure)});
   measure();observer.observe(el);
   return()=>{cancelAnimationFrame(frame);observer.disconnect()};
- },[open,job?.source,section]);
+ },[open,job?.source]);
  const fit=imageReady?Math.min(viewport.w/dimensions.w,viewport.h/dimensions.h,1):1;
 
  function selectResults(ids:string[],candidate=ids[0]||''){
@@ -145,10 +143,6 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
   if(!job||!selected.length)return;setBusy(true);
   try{const result=await request<{added:number;updated?:number;assets:Asset[];job:Job}>('/import',{jobId:job.id,itemIds:selected,names,...(replacing?{replacementItemId}:{})});onImported(result.assets);setJobs(old=>old.map(j=>j.id===job.id?result.job:j));setSelected([]);setReplacementItemId('');setMessage(result.updated?`已更新原素材${result.added?`，并新增 ${result.added} 个素材`:''}；原分类、标签及手帐引用均已保留。`:`已将 ${result.added} 个独立素材加入素材库，之后排版时也可以使用。`)}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}
  }
- async function processPhoto(item:PhotoLibraryItem){
-  const next=await request<Job>('/source',{src:item.src,name:item.originalName});
-  setJobs(old=>[next,...old.filter(job=>job.source!==next.source)]);choose(next);setSection('process');setMessage('照片原片仍保留在照片分类中；可以在这里裁切或提取主体。');
- }
  function position(e:ReactPointerEvent<HTMLDivElement>){const r=imageArea.current!.getBoundingClientRect();return[Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]}
  function beginPreviewPointer(e:ReactPointerEvent<HTMLDivElement>){
   if(busy||e.button!==0)return;
@@ -169,18 +163,15 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
 
  const replacing=!!job?.replaceAssetId&&!job.replacementDone;
  return <Dialog open={open} onOpenChange={v=>{if(!v)closeStudio()}}><DialogContent className="material-studio" showCloseButton={!busy}>
-  <DialogDescription className="studio-accessible-description">素材处理支持自动识别、点选和框选补漏；照片分类保存旅游原片并按拍摄时间排列。</DialogDescription>
+  <DialogDescription className="studio-accessible-description">素材处理支持自动识别、点选和框选补漏。</DialogDescription>
   <div className="studio-topline">
    <DialogTitle>素材工作台</DialogTitle>
-   <div className="studio-section-tabs" role="tablist" aria-label="素材工作台分类"><button role="tab" aria-selected={section==='process'} className={section==='process'?'active':''} disabled={busy} onClick={()=>setSection('process')}>素材处理</button><button role="tab" aria-selected={section==='photos'} className={section==='photos'?'active':''} disabled={busy} onClick={()=>setSection('photos')}>照片</button></div>
-   {section==='process'&&<>
    <button className="outline" disabled={busy} onClick={onImport}><ImagePlus/>导入新素材</button>
    <button className={`outline ${cropping?'crop-active':''}`} disabled={busy||!job} onClick={()=>{setCropping(!cropping);setPicking(false);setPickPoint(null);setCrop(null)}}><Crop/>{cropping?'退出框选':'框选补漏'}</button>
    {cropping&&<><button className="primary" disabled={busy||!crop||crop[2]<.01||crop[3]<.01} onClick={()=>void rerun(crop!,'crop')}>保留原底裁出</button><button className="outline" disabled={busy||!crop||crop[2]<.01||crop[3]<.01||!!job?.manualOnly} onClick={()=>void rerun(crop!,'single')}>{job?.manualOnly?'去底裁出（Mac 自动拆图）':'去底裁出'}</button></>}
    <div className="studio-advanced" role="group" aria-label="识别设置"><button className={`outline ${picking?'crop-active':''}`} disabled={busy||!job||!!job.manualOnly} title="图片由已连接的 AI 定位，透明边缘在本机生成" onClick={()=>{setPicking(!picking);setCropping(false);setCrop(null);setPickPoint(null)}}><MousePointer2/>{picking?'退出点选':'点选素材'}</button><select aria-label="识别模式" value={mode} disabled={busy||!!job?.manualOnly} onChange={e=>setMode(e.target.value)}>{recognitionModes.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select><label className="studio-strength">去底 {strength}<input type="range" aria-label="去底强度" min={5} max={100} value={strength} disabled={busy||!!job?.manualOnly} onChange={e=>setStrength(Number(e.target.value))}/></label><button className="outline" disabled={busy||!job||!!job.manualOnly} onClick={recognizeWithNextMode}>换一种策略</button></div>
-   </>}
   </div>
-  {section==='photos'?<PhotoLibrary onInsert={onInsertPhotos} onProcess={processPhoto} protectedSources={photoProtectedSources}/>:<><div className="studio-body">
+  <div className="studio-body">
    <aside className="studio-history"><h3>导入记录</h3>{jobs.map(j=><button key={j.id} disabled={busy} className={active===j.id?'active':''} onClick={()=>choose(j)}><img src={j.source} alt="导入原图缩略图"/><span>{j.name}<small>{j.items.length} 个结果 · {j.engine}{j.attempt&&j.attempt>1?` · 已识别 ${j.attempt} 次`:''}</small></span></button>)}{!jobs.length&&<p>导入的原图和切分结果<br/>会保存在这里。</p>}</aside>
    <main className="studio-main">{job?<div className="studio-columns">
     <section className="studio-original"><div className="studio-source-tools"><h3>原图</h3><button className="quiet" aria-label="缩小原图" onClick={()=>setZoom(v=>Math.max(50,v-25))}>−</button><span>{zoom}%</span><button className="quiet" aria-label="放大原图" onClick={()=>setZoom(v=>Math.min(500,v+25))}>＋</button><button className="quiet" onClick={()=>setZoom(100)}>适合窗口</button><small>{picking?'点击想要的素材 · 原图交给已连接的 AI 定位':cropping?'拖动框选 · 可滚动查看':'拖动平移 · 可滚动查看'}</small></div>
@@ -193,6 +184,6 @@ export default function MaterialStudio({open,onClose,onImport,onImported,onInser
     <section className="studio-results"><div className="row"><h3>分离结果 <small>{job.items.length} 个</small></h3><button className="quiet" disabled={busy} onClick={selectAllResults}><CheckCheck/>全选</button><button className="quiet" disabled={busy} onClick={clearResultSelection}>清空选择</button></div><div className="sticker-grid">{job.items.map(item=><article className={selected.includes(item.id)?'chosen':''} key={item.id}><label className="transparent-preview material-select-preview" htmlFor={`material-select-${item.id}`} data-disabled={busy||item.imported?'':undefined} title={item.imported?'已入库':busy?'正在处理…':item.id===replacementItemId?'此裁片将更新原素材':selected.includes(item.id)?'点击取消选择':'点击选择素材'}><img src={item.src} alt={names[item.id]||item.name} draggable={false}/><Checkbox id={`material-select-${item.id}`} aria-label={`选择${item.name}`} disabled={busy||item.imported} checked={item.imported||selected.includes(item.id)} onCheckedChange={v=>toggleResult(item.id,!!v)}/>{item.imported&&<span className="imported-label"><Check/>已入库</span>}{replacing&&item.id===replacementItemId&&<span className="replacement-label"><Check/>更新原素材</span>}</label><input aria-label="素材名称" value={names[item.id]??item.name} disabled={item.imported||busy} maxLength={80} onChange={e=>setNames(old=>({...old,[item.id]:e.target.value}))}/><small>{item.width} × {item.height} · PNG</small></article>)}</div>{!job.items.length&&<p className="studio-empty-result">没有检测到可分离素材。可以继续点选或框选补漏；如需自由裁切，请点“导入新素材”选择“整图入库”，放入手帐后从选中工具栏打开。</p>}</section>
    </div>:<div className="studio-empty"><ImagePlus/><h2>还没有可处理的素材。</h2><p>导入本机图片或 Pinterest 素材后，就可以在这里继续拆分、框选和入库。</p><button className="primary" disabled={busy} onClick={onImport}>导入新素材</button></div>}</main>
   </div>
-  <footer className="studio-footer"><button className="outline danger studio-delete" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button><span className="studio-accessible-status" role="status">{busy?(progress||'正在保存…'):message}</span><button className="primary" disabled={busy||!selected.length} onClick={()=>void importItems()}>{busy?<Loader2 className="spinning"/>:<Plus/>}{replacing?(selected.length===1?'保存并更新原素材':`更新原素材并新增 ${selected.length-1} 个`):`将选中的 ${selected.length} 个素材入库`}</button></footer></>}
+  <footer className="studio-footer"><button className="outline danger studio-delete" disabled={busy||!job} onClick={()=>void deleteCurrentJob()}><Trash2/>删除记录</button><span className="studio-accessible-status" role="status">{busy?(progress||'正在保存…'):message}</span><button className="primary" disabled={busy||!selected.length} onClick={()=>void importItems()}>{busy?<Loader2 className="spinning"/>:<Plus/>}{replacing?(selected.length===1?'保存并更新原素材':`更新原素材并新增 ${selected.length-1} 个`):`将选中的 ${selected.length} 个素材入库`}</button></footer>
  </DialogContent></Dialog>;
 }
