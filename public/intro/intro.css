@@ -7,6 +7,9 @@
   --cream: #f5f1e7;
   --paper: #fffdf6;
   --rust: #985b42;
+  --forest: #173f32;
+  --lime: #b8d547;
+  --yellow: #f3c942;
   --texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.84' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%236b583b' opacity='.065' filter='url(%23n)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
   --ink: #304234;
   --muted: #75796c;
@@ -804,7 +807,7 @@ body:has(.screenshot-viewer[open]) {
 .reading-progress span {
   display: block;
   height: 100%;
-  background: #a16e4c;
+  background: var(--forest);
   transform: scaleX(0);
   transform-origin: left;
 }
@@ -822,13 +825,41 @@ body:has(.screenshot-viewer[open]) {
   perspective: 1200px;
   padding-bottom: 18px;
 }
+.hero-desk::before,
+.hero-desk::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 6px #39402a1c);
+}
+.hero-desk::before {
+  width: 39%;
+  height: 27%;
+  right: -3%;
+  top: -4%;
+  background: var(--lime);
+  transform: rotate(6deg);
+  clip-path: polygon(2% 8%, 13% 1%, 29% 6%, 44% 0, 61% 7%, 76% 2%, 100% 10%, 96% 91%, 78% 97%, 60% 92%, 42% 100%, 25% 93%, 0 98%);
+}
+.hero-desk::after {
+  width: 31%;
+  height: 25%;
+  left: -4%;
+  bottom: 1%;
+  background: var(--yellow);
+  transform: rotate(-7deg);
+  clip-path: polygon(0 7%, 18% 1%, 34% 8%, 52% 2%, 70% 7%, 100% 0, 96% 91%, 78% 97%, 55% 90%, 34% 100%, 13% 92%, 3% 97%);
+}
 .desk-paper {
   position: absolute;
+  z-index: 0;
   inset: -12px 20px 12px -15px;
   transform: rotate(-5deg);
-  background: var(--texture), #dce1ce;
-  border: 1px solid #cbd2bc;
-  box-shadow: 0 7px 18px #483b2710;
+  background: var(--texture), var(--forest);
+  border: 1px solid #0f3428;
+  box-shadow: 0 8px 20px #24352a26;
+  clip-path: polygon(1% 2%, 9% 0, 19% 2%, 29% 0, 40% 2%, 51% 0, 61% 2%, 72% 0, 83% 2%, 100% 0, 99% 98%, 89% 100%, 77% 98%, 67% 100%, 55% 98%, 43% 100%, 31% 98%, 19% 100%, 7% 98%, 0 100%);
 }
 .desk-paper span {
   position: absolute;
@@ -838,10 +869,11 @@ body:has(.screenshot-viewer[open]) {
     8px Georgia,
     serif;
   letter-spacing: 1.5px;
-  color: #818a70;
+  color: var(--lime);
 }
 .hero-photo {
   position: relative;
+  z-index: 2;
   padding: 13px 13px 0;
   background: var(--texture), var(--paper);
   transform: rotate(1.4deg) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
@@ -859,8 +891,8 @@ body:has(.screenshot-viewer[open]) {
   left: 40%;
   width: 106px;
   height: 32px;
-  background: repeating-linear-gradient(90deg, #b5ad7350 0 6px, #d7cf9840 6px 12px);
-  border-inline: 1px dashed #b4a97680;
+  background: repeating-linear-gradient(90deg, #f3c942a8 0 6px, #fff0a0a8 6px 12px);
+  border-inline: 1px dashed #b9992580;
   transform: rotate(-7deg);
   pointer-events: none;
 }
@@ -876,41 +908,39 @@ body:has(.screenshot-viewer[open]) {
   font:
     29px JournalScript,
     cursive;
-  color: #667450;
+  color: var(--forest);
 }
 .photo-caption > span:last-child {
   font-size: 10px;
   color: #898371;
 }
-.hero-botanical {
-  position: absolute;
-  width: 104px;
-  height: auto;
-  left: -76px;
-  bottom: -4px;
-  transform: rotate(-20deg);
-  filter: drop-shadow(3px 5px 2px #4f45321a);
-  pointer-events: none;
-}
 .handwritten-note {
   position: absolute;
-  right: -19px;
-  top: -58px;
-  color: var(--rust);
-  transform: rotate(7deg);
+  z-index: 3;
+  right: -16px;
+  top: -53px;
+  padding: 7px 14px 9px;
+  color: var(--forest);
+  background: var(--yellow);
+  transform: rotate(5deg);
+  box-shadow: 2px 4px 0 #173f3220;
+  clip-path: polygon(2% 7%, 16% 0, 34% 6%, 50% 1%, 68% 7%, 84% 2%, 100% 8%, 97% 91%, 82% 100%, 64% 93%, 47% 100%, 30% 94%, 12% 100%, 0 91%);
   pointer-events: none;
 }
 .handwritten-note span {
   font:
-    25px JournalScript,
-    cursive;
+    10px Georgia,
+    serif;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
 }
 .handwritten-note svg {
   display: block;
-  margin-left: 95px;
-  margin-top: -6px;
-  width: 80px;
-  height: 30px;
+  position: absolute;
+  right: 5px;
+  top: 24px;
+  width: 62px;
+  height: 25px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.3;
@@ -1100,9 +1130,6 @@ body:has(.screenshot-viewer[open]) {
 }
 .motion-ready .hero-photo {
   animation: paper-unfold 1.25s 0.3s both;
-}
-.motion-ready .hero-botanical {
-  animation: botanical-arrive 1.2s 0.5s both;
 }
 .motion-ready .handwritten-note {
   animation: arrive 0.8s 0.85s both;
@@ -1493,11 +1520,6 @@ body:has(.screenshot-viewer[open]) {
   .photo-caption > span:last-child {
     font-size: 8px;
   }
-  .hero-botanical {
-    width: 54px;
-    left: -6px;
-    bottom: -31px;
-  }
   .desk-paper {
     inset: -8px 8px 7px -7px;
     transform: rotate(-4deg);
@@ -1512,12 +1534,11 @@ body:has(.screenshot-viewer[open]) {
     right: 0;
   }
   .handwritten-note span {
-    font-size: 23px;
+    font-size: 8px;
   }
   .handwritten-note svg {
-    width: 55px;
-    height: 23px;
-    margin-left: 105px;
+    width: 48px;
+    height: 19px;
   }
   .hero-visual figcaption {
     margin-top: 18px;
@@ -1622,12 +1643,8 @@ body:has(.screenshot-viewer[open]) {
   .photo-caption > span:last-child {
     font-size: 9px;
   }
-  .hero-botanical {
-    width: 92px;
-    left: -42px;
-  }
   .handwritten-note span {
-    font-size: 22px;
+    font-size: 9px;
   }
   .keepsake-card {
     width: 240px;
@@ -1643,7 +1660,6 @@ body:has(.screenshot-viewer[open]) {
   }
   .motion-ready .hero-copy > *,
   .motion-ready .hero-visual,
-  .motion-ready .hero-botanical,
   .motion-ready .handwritten-note {
     opacity: 1;
     translate: none;
