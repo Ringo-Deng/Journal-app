@@ -1,3 +1,8 @@
+import { exportMaterialPack, readMaterialPack, importMaterialPack } from './material-pack.mjs';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import {tidyLayout} from '../lib/layout-safety.mjs';
 import {nextMaterialStrategy} from '../lib/material-retry.mjs';
 import {materialPointPrompt, normalizeMaterialPointSelection, validMaterialPoint} from '../lib/material-point-selection.mjs';
@@ -743,6 +748,31 @@ const server = http.createServer(async (req, res) => {
     if(trashMatch&&req.method==='DELETE'&&!trashMatch[2]){const sources=photoTrashProtection(req.headers['content-type']?await body(req):{});return json(res,await photoTask(()=>photoMasks.remove(trashMatch[1],sources)));}
     if (path === '/api/history' && req.method === 'GET') return json(res, await journalHistory.list());
     if (path.startsWith('/api/history/') && req.method === 'GET') return json(res, await journalHistory.read(path.slice('/api/history/'.length)));
+    if (path === '/api/materials/pack/export' && req.method === 'POST') {
+      const input = await body(req);
+      const directory = await mkdtemp(resolve(tmpdir(), 'shiguang-material-export-'));
+      try {
+        const packed = await exportMaterialPack({ ids: input.ids, assets: await library(), data,
+          publicDir: resolve(root, 'public'), directory,
+          appVersion: JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version });
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store',
+          'Content-Disposition': 'attachment; filename="shiguang-materials.shiguang-materials"' });
+        await pipeline(createReadStream(packed.archive), res);
+      } finally { await rm(directory, { recursive: true, force: true }); }
+      return;
+    }
+    if (path === '/api/materials/pack/import' && req.method === 'POST') {
+      if (!String(req.headers['content-type']).startsWith('application/octet-stream')) throw error('请选择素材包文件。', 415);
+      const directory = await mkdtemp(resolve(tmpdir(), 'shiguang-material-import-'));
+      try {
+        const staged = await readMaterialPack(req, directory);
+        const result = await materialWrite(async () => importMaterialPack({ staged, existing: customAssets,
+          allAssets: await rawLibrary(), data, publicDir: resolve(root, 'public'),
+          registerTaxonomy: items => catalogService.registerImportedTaxonomy(items),
+          writeAssets: async assets => { await atomic('materials.json', assets); customAssets = assets; } }));
+        return json(res, { ...result, assets: await library(), catalog: await catalogService.handle('/api/materials/catalog', 'GET') });
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    }
     if (path === '/api/state' && req.method === 'GET') return json(res, state);
     if (path === '/api/state' && req.method === 'PUT') {
       const next = await body(req);

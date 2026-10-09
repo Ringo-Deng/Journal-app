@@ -2738,6 +2738,9 @@ button {
 .library-heading button{font-size:12px;padding:6px 10px;white-space:nowrap;}
 .library-heading select{padding:6px;background:#f8f8f0;border:1px solid #d8ddcc;border-radius:5px;font-size:12px;max-width:100%;}
 .library-insert{display:flex;align-items:center;gap:8px;min-width:0;}.library-chosen{font-size:11px;color:#7a8273;white-space:nowrap;}
+.material-library .library-ai-actions{display:flex;flex-wrap:wrap;gap:6px;max-width:100%;}
+.material-library .library-ai-actions button{display:inline-flex;align-items:center;gap:5px;}
+.material-library .library-ai-actions svg{width:14px;height:14px;}
 .library-heading .ai-organize-top{display:inline-flex;align-items:center;gap:5px;}.library-heading .ai-organize-top svg{width:14px;height:14px;}
 .library-ai-progress{display:flex;align-items:center;gap:10px;padding:6px 16px;border-bottom:1px solid #dedfd3;background:#f0f2e7;font-size:11px;color:#68755c;}.library-ai-progress progress{width:150px;max-width:28vw;accent-color:#758e5d;}.library-ai-progress span{margin-right:auto;}.library-ai-progress button{font-size:11px;padding:4px 8px;}
 .library-body{display:grid;grid-template-columns:180px minmax(0,1fr);flex:1;min-height:0;}

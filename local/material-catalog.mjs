@@ -214,7 +214,17 @@ export async function createMaterialCatalog({readJSON,atomic,readAssets,getSetti
   }catch(e){job.status=signal.aborted?'cancelled':'failed';job.message=signal.aborted?'已停止识别。':`识别失败：${safeClassificationError(e)}`;}
   finally{if(temp)await rmdir(temp).catch(()=>{});try{await saveJobs();}finally{controllers.delete(job.id);}}
  }
- return {isBusy:()=>controllers.size>0,decorate,handles:path=>path==='/api/materials/catalog'||path.startsWith('/api/materials/classify'),async handle(path,method,input){
+ const registerImportedTaxonomy=items=>serial(async()=>{
+  const next=structuredClone(catalog);let changed=false;
+  for(const asset of items){
+   if(asset.group&&!next.taxonomy.groups.includes(asset.group)){next.taxonomy.groups.push(asset.group);changed=true;}
+   for(const dim of dimensions)for(const label of asset.labels?.[dim]||[]){
+    if(!next.taxonomy.labels[dim].includes(label)){next.taxonomy.labels[dim].push(label);changed=true;}
+   }
+  }
+  if(changed){next.revision++;await atomic('material-catalog.json',next);catalog=next;}
+ });
+ return {registerImportedTaxonomy,isBusy:()=>controllers.size>0,decorate,handles:path=>path==='/api/materials/catalog'||path.startsWith('/api/materials/classify'),async handle(path,method,input){
   if(path==='/api/materials/catalog'&&method==='GET')return snapshot();
   if(path==='/api/materials/catalog'&&method==='POST')return serial(async()=>{
    if(input.revision!==catalog.revision)throw fail('素材分类已被其他窗口修改，请刷新素材库后重试。',409);

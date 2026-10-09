@@ -1,7 +1,7 @@
 'use client';
 /* oxlint-disable next/no-img-element -- The gallery shows local material originals. */
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Layers,Search,Sparkles,Plus,Check,ArrowLeft,Loader2,X,Pencil,RefreshCw,Trash2,Scissors} from 'lucide-react';
+import {Layers,Search,Sparkles,Plus,Check,ArrowLeft,Loader2,X,Pencil,RefreshCw,Trash2,Scissors,Download,Upload} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import type {Asset} from '@/lib/journal';
 import {mergeMaterialLabels,type MaterialLabelDimension,type MaterialLabels} from '@/lib/material-batch-labels';
@@ -34,7 +34,9 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
  const [sortOrder,setSortOrder]=useState<'newest'|'oldest'>('newest');
  const gallery=useRef<HTMLDivElement>(null);
  const [catalog,setCatalog]=useState<Catalog|null>(null),[error,setError]=useState(''),[feedback,setFeedback]=useState(''),[saving,setSaving]=useState(false),[query,setQuery]=useState(''),[groupFilter,setGroupFilter]=useState<GroupFilter>('all'),[picked,setPicked]=useState<Record<Dimension,Set<string>>>(emptyLabelChanges()),[selected,setSelected]=useState<Set<string>>(new Set()),[draggingIds,setDraggingIds]=useState<string[]>([]),[dragOverGroup,setDragOverGroup]=useState<string|null>(null),[editing,setEditing]=useState<Asset|null>(null),[draftGroup,setDraftGroup]=useState(''),[draftLabels,setDraftLabels]=useState<Labels>(emptyLabels()),[newLabel,setNewLabel]=useState<Record<Dimension,string>>({content:'',style:'',color:''}),[batchEditing,setBatchEditing]=useState(false),[batchMode,setBatchMode]=useState<BatchMode>('add'),[batchAdds,setBatchAdds]=useState<Record<Dimension,Set<string>>>(emptyLabelChanges()),[batchRemoves,setBatchRemoves]=useState<Record<Dimension,Set<string>>>(emptyLabelChanges()),[batchError,setBatchError]=useState(''),[job,setJob]=useState<Job|null>(null),[classifyingId,setClassifyingId]=useState<string|null>(null),[hiddenIds,setHiddenIds]=useState<Set<string>>(new Set());
- const busy=saving||running(job),groups=catalog?.taxonomy.groups||['纸张','胶带','边框','标签便签','文字数字','装饰贴纸','其他'];
+ const packFile=useRef<HTMLInputElement>(null);
+ const [packing,setPacking]=useState(false);
+ const busy=packing||saving||running(job),groups=catalog?.taxonomy.groups||['纸张','胶带','边框','标签便签','文字数字','装饰贴纸','其他'];
  const libraryAssets=useMemo(()=>assets.filter(a=>!hiddenIds.has(a.id)),[assets,hiddenIds]);
  const unclassifiedAssets=useMemo(()=>libraryAssets.filter(a=>!a.group),[libraryAssets]);
  const organizeAssets=groupFilter==='unclassified'?unclassifiedAssets:libraryAssets;
@@ -111,11 +113,35 @@ export default function MaterialLibrary({assets,onUpdated,onInsert,onBack,onOpen
   setSaving(true);setError('');try{const result=await request<{assets:Asset[]}>('/remove',{id:a.id});onUpdated(result.assets);setSelected(old=>{const n=new Set(old);n.delete(a.id);return n})}catch(e){setError((e as Error).message)}finally{setSaving(false)}
  }
 
+ async function exportPack(){
+  if(!chosen.length||packing)return;setPacking(true);setError('');setFeedback('');
+  try{
+   const response=await fetch('/api/materials/pack/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:chosen.map(a=>a.id)})});
+   if(!response.ok){const failure=await response.json() as {error?:string};throw Error(failure.error||'素材包导出失败。');}
+   const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');
+   link.href=url;link.download=`拾光素材包-${chosen.length}件.shiguang-materials`;link.click();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);setFeedback(`已导出 ${chosen.length} 件成品素材及标签，不含原始整图、照片库或手帐。`);
+  }catch(e){setError((e as Error).message)}finally{setPacking(false)}
+ }
+ async function importPack(file:File){
+  if(packing)return;
+  if(file.size>256*1024*1024){setError('素材包不能超过 256 MB，请分批导入。');return}
+  setPacking(true);setError('');setFeedback('');
+  try{
+   const response=await fetch('/api/materials/pack/import',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+   const result=await response.json() as {error?:string;assets:Asset[];catalog:Catalog;added:number;skipped:number};if(!response.ok)throw Error(result.error||'素材包导入失败。');
+   onUpdated(result.assets);setCatalog(result.catalog);setFeedback(`素材包已导入：新增 ${result.added} 件，跳过重复 ${result.skipped} 件。`);
+  }catch(e){setError((e as Error).message)}finally{setPacking(false)}
+ }
  const groupName=groupFilter==='all'?'全部素材':groupFilter==='unclassified'?'未分类':groupFilter;
  return <section className="material-library">
   <header className="library-heading">
    <h1><Layers/>素材库 <small>{libraryAssets.length} 件素材</small></h1>
    <div className="library-ai-actions">
+    <input ref={packFile} type="file" accept=".shiguang-materials" hidden onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void importPack(file)}}/>
+    <button className="outline" disabled={busy} onClick={()=>packFile.current?.click()}><Upload/>导入素材包</button>
+    <button className="outline" disabled={busy||!chosen.length||chosen.length>200} title="最多 200 件、256 MB；只包含所选成品图片、名称与标签" onClick={()=>void exportPack()}>{packing?<Loader2 className="spinning"/>:<Download/>}导出所选素材包</button>
+
     <button className="outline ai-organize-top" title={chosen.length?`命名并整理选中的 ${chosen.length} 件素材`:groupFilter==='unclassified'?'命名并整理全部未分类素材':'命名并整理全部素材'} disabled={busy||!(chosen.length||organizeAssets.length)} onClick={()=>void classify(chosen.length?chosen.map(a=>a.id):undefined)}>
      {busy?<Loader2 className="spinning"/>:<Sparkles/>}{running(job)?'AI 识别中…':chosen.length?`AI 识别所选（${chosen.length}）`:'AI 一键识别'}
     </button>
