@@ -62,6 +62,7 @@
 | 3D 阅读 | `components/reading-deck.tsx` → `components/reading-book3d.tsx` → `components/book3d/Book3DView.tsx`；`lib/book3d-motion.ts` 控制翻页几何；`app/three-test/page.tsx` 为独立测试入口 |
 | 跨页预览、排序、删除与图片导出 | `components/notebook-page-overview.tsx` 供编辑索引与欣赏四宫格共用，支持拖动调整普通跨页顺序、按跨页 ID 多选并确认删除；`app/page.tsx` 经 `lib/notebook-pages.ts` 调整页面位置，排序与删除仍进入原 `change` 保存及撤销流；`components/notebook-image-export.tsx` 串行生成高清 PNG，多页打包 ZIP |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
+| Mac 桌面 | `desktop/main.mjs` 使用 Electron 独立窗口和 utility process 运行原本地服务；`desktop/preload.cjs` → `lib/desktop-close.ts` → `app/page.tsx` 在退出前清空原保存队列，服务忙时拒绝退出；桌面数据独立于源码目录，`desktop/package-mac.mjs` 按白名单生成 Apple 芯片 Mac 测试包 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
 
 ### 3.2 修改前要追清的相关数据流
@@ -84,6 +85,7 @@
 | 开发 | `npm run dev`：`local/dev.mjs` 启动本地 API 与 vinext；默认 API `4329`、网页 `4330` |
 | 构建 | `npm run build`：vinext 构建后由 `local/stamp-dist.mjs` 写入构建版本标记 |
 | 正式服务 | `npm start` / `npm run service`：均使用 `local/server-bootstrap.mjs` |
+| Mac 桌面预览 / 打包 | `npm run desktop:dev` / `npm run desktop:mac`：先构建页面，再预览或生成未公证的 Apple 芯片 Mac 测试包 |
 | 类型检查 | `npx tsc --noEmit` |
 | 静态检查 | `npm run lint`：仅检查 `package.json` 脚本列明的目录和组件，不代表所有模板已检查 |
 | 全部单测 | `npm test`：运行 `tests/*.test.mjs` |

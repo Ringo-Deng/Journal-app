@@ -1409,3 +1409,20 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, '127.0.0.1', () =>
   console.log(`拾光本地服务 http://127.0.0.1:${port}`),
 );
+
+// Only the packaged desktop parent can request a graceful shutdown.
+if (process.env.JOURNAL_DESKTOP === '1' && process.parentPort) {
+  process.parentPort.on('message', async ({ data: message }) => {
+    if (message?.type !== 'desktop-shutdown') return;
+    if (activeDataRequests || backupMaintenance || catalogService.isBusy()) {
+      process.parentPort.postMessage({ id: message.id, ok: false });
+      return;
+    }
+    server.close(async () => {
+      await Promise.all([writeQueue, materialQueue, materialCutUploadQueue]);
+      process.parentPort.postMessage({ id: message.id, ok: true });
+      process.exitCode = 0;
+    });
+    server.closeIdleConnections();
+  });
+}

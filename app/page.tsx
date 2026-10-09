@@ -1,4 +1,6 @@
 'use client';
+import { promptLayerName } from '../lib/desktop-prompt';
+import { prepareDesktopClose } from '../lib/desktop-close';
 import StationeryCover from '@/components/stationery-cover';
 import CollageTools from '@/components/collage-tools';
 import FontSettings from '@/components/font-settings';
@@ -530,6 +532,12 @@ export default function Home() {
     window.addEventListener('beforeunload', before);
     return () => window.removeEventListener('beforeunload', before);
   }, []);
+  useEffect(() => window.shiguangDesktop?.onBeforeClose(async () => {
+    if (!ready || document.querySelector('dialog.desktop-name-dialog[open]')) throw Error('请先完成当前操作');
+    if (dirty.current && !pending.current && !writing.current) pending.current = booksRef.current;
+    await prepareDesktopClose({ flush, isWriting: () => writing.current,
+      hasPending: () => Boolean(pending.current), isBlocked: () => saveBlocked.current });
+  }), [ready, flush]);
   const remember = () => {
     if(maskDraftRef.current)return;
     history.current.push(structuredClone(booksRef.current));
@@ -721,10 +729,10 @@ export default function Home() {
     const ids=new Set(members.map(p=>p.id));
     changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?{...p,locked}:p)}));
   }
-  function renameLayer(members:Piece[],group=false){
+  async function renameLayer(members:Piece[],group=false){
     if(!members.length)return;
     const current=group?pieceGroupName(members[0]):pieceLayerName(members[0]);
-    const entered=window.prompt(group?'组合名称':'图层名称',current||'');
+    const entered=await promptLayerName(group?'组合名称':'图层名称',current||'');
     if(entered===null)return;
     const name=entered.trim().slice(0,40)||undefined,ids=new Set(members.map(p=>p.id));
     changeSpread(s=>({...s,elements:s.elements.map(p=>ids.has(p.id)?withLayerMeta(p,group?{groupName:name}:{layerName:name}):p)}));

@@ -1,6 +1,6 @@
 {
   "name": "shiguang-journal",
-  "version": "0.1.261",
+  "version": "0.1.262",
   "private": true,
   "engines": {
     "node": ">=22.21.0"
@@ -12,7 +12,9 @@
     "lint": "oxlint app lib local tests components/material-studio.tsx components/material-cut-editor.tsx components/photo-library.tsx components/material-library.tsx components/material-recovery.tsx components/journal-drawing.tsx components/page-turn.tsx components/notebook-paper.tsx components/paper-material-picker.tsx components/full-backup.tsx",
     "format": "oxfmt",
     "service": "node local/server-bootstrap.mjs",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "desktop:dev": "npm run build && install-electron && electron desktop/main.mjs",
+    "desktop:mac": "npm run build && node desktop/package-mac.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -41,6 +43,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
+    "@electron/packager": "20.3.0",
     "@openai/sites-vite-plugin": "0.2.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
@@ -49,6 +52,7 @@
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "electron": "44.7.0",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
