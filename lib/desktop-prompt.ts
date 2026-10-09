@@ -13,7 +13,7 @@ export function promptLayerName(title: string, initial: string): Promise<string 
     input.value = initial;
     input.maxLength = 40;
     input.style.cssText = 'display:block;margin:12px 0 20px;width:100%;padding:8px;font:inherit';
-    label.append(input);
+    label.appendChild(input);
     const cancel = document.createElement('button');
     cancel.type = 'button'; cancel.textContent = '取消';
     const save = document.createElement('button');
@@ -23,7 +23,8 @@ export function promptLayerName(title: string, initial: string): Promise<string 
     cancel.addEventListener('click', () => dialog.close());
     form.addEventListener('submit', () => { result = input.value; });
     dialog.addEventListener('close', () => { dialog.remove(); resolve(result); }, { once: true });
-    form.append(label, cancel, save); dialog.append(form); document.body.append(dialog);
+    form.appendChild(label); form.appendChild(cancel); form.appendChild(save);
+    dialog.appendChild(form); document.body.appendChild(dialog);
     dialog.showModal(); input.focus(); input.select();
   });
 }
