@@ -414,7 +414,7 @@ const mime = {
   '.ico': 'image/x-icon',
   '.wav': 'audio/wav',
 };
-async function serve(res, path, base) {
+async function serve(res, path, base, req) {
   const absolute = resolve(base, '.' + path);
   if (absolute !== resolve(base) && !absolute.startsWith(resolve(base) + sep))
     throw error('路径无效。', 403);
@@ -427,6 +427,25 @@ async function serve(res, path, base) {
   }
   try {
     const buffer = await readFile(file);
+    if (extname(file) === '.wav') {
+      // Chromium reopens audio with byte ranges, including after a cached session.
+      // Explicit lengths and no-store keep partial/chunked audio out of disk cache.
+      const headers = { 'Content-Type': 'audio/wav', 'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes' };
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req?.headers.range || '');
+      let start = 0, end = buffer.length - 1;
+      if (range) {
+        start = range[1] ? Number(range[1]) : Math.max(0, buffer.length - Number(range[2]));
+        end = range[1] && range[2] ? Math.min(Number(range[2]), end) : end;
+        if ((!range[1] && !range[2]) || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= buffer.length) {
+          res.writeHead(416, { ...headers, 'Content-Range': `bytes */${buffer.length}`, 'Content-Length': '0' });
+          res.end(); return;
+        }
+        headers['Content-Range'] = `bytes ${start}-${end}/${buffer.length}`;
+      }
+      res.writeHead(range ? 206 : 200, { ...headers, 'Content-Length': String(end - start + 1) });
+      res.end(req?.method === 'HEAD' ? undefined : buffer.subarray(start, end + 1)); return;
+    }
     res.writeHead(200, {
       'Content-Type': mime[extname(file)] || 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
@@ -1427,7 +1446,7 @@ const server = http.createServer(async (req, res) => {
       return await serve(res, path, resolve(root, 'public'));
     if (/^\/(?:fonts|textures)\//.test(path) || path === '/favicon.svg')
       return await serve(res, path, resolve(root, 'public'));
-    return await serve(res, path, resolve(root, 'dist/client'));
+    return await serve(res, path, resolve(root, 'dist/client'), req);
   } catch (e) {
     if (!res.headersSent)
       json(

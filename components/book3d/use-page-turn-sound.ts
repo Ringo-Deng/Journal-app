@@ -21,8 +21,10 @@ export function usePageTurnSound({
   const pageTurnAudio = useRef<PageTurnAudio | null>(null);
 
   useEffect(() => {
-    const forward = new Audio(forwardSource);
-    const backward = new Audio(backwardSource);
+    // New resource identity bypasses audio cached by the old chunked response.
+    const source = (path: string) => `${path}${path.includes('?') ? '&' : '?'}audio=2`;
+    const forward = new Audio(source(forwardSource));
+    const backward = new Audio(source(backwardSource));
     for (const audio of [forward, backward]) {
       audio.preload = "auto";
       audio.volume = volume;

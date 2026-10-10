@@ -11,7 +11,10 @@ export async function initializeExampleNotebook({ data, publicDir, validate }) {
   }
   const book = JSON.parse(await readFile(resolve(publicDir, 'examples/starry-collage/book.json'), 'utf8'));
   const state = { revision: 0, books: [book] };
-  const refs = [book.spreads[0].pages.right.paperBg, ...book.spreads[0].elements.filter(piece => piece.src)];
+  const refs = [book.paperBg, ...[...book.spreads, ...(book.flyleaf ? [book.flyleaf] : [])].flatMap(spread => [
+    spread.paperBg, spread.pages?.left?.paperBg, spread.pages?.right?.paperBg,
+    ...spread.elements.filter(piece => piece.src),
+  ])].filter(Boolean);
   await mkdir(resolve(data, 'uploads'), { recursive: true, mode: 0o700 });
   for (const ref of refs) {
     if (!/^\/examples\/starry-collage\/[a-z-]+\.(png|jpg)$/.test(ref.src)) throw Error('Invalid example asset');

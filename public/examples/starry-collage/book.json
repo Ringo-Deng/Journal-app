@@ -1,6 +1,6 @@
 {
   "id": "sample-starry-collage",
-  "title": "星夜拼贴 · 示例",
+  "title": "拾光拼贴 · 示例",
   "month": "2026-09",
   "cover": "linen-blue",
   "format": "standard",
@@ -139,6 +139,241 @@
         "right": {
           "paperBg": {
             "src": "/examples/starry-collage/paper-stars.jpg",
+            "x": 0,
+            "y": 0,
+            "scale": 100
+          }
+        }
+      }
+    },
+    {
+      "id": "sample-green-spread",
+      "theme": "herbarium",
+      "days": [],
+      "elements": [
+        {
+          "id": "sample-green-piece-1",
+          "kind": "asset",
+          "x": 67.21110532053243,
+          "y": 1.5970555133480235,
+          "w": 31.743421052631582,
+          "rotation": 5.960413206719295,
+          "locked": false,
+          "h": 13.935420517560074,
+          "stretch": true,
+          "stackOrder": 8,
+          "src": "/examples/starry-collage/green-label-week.png"
+        },
+        {
+          "id": "sample-green-piece-2",
+          "kind": "asset",
+          "x": 52.082116517276,
+          "y": 11.976310988816817,
+          "w": 42.36870628455394,
+          "rotation": 0,
+          "locked": false,
+          "h": 84.34705801139599,
+          "stretch": true,
+          "stackOrder": 7,
+          "src": "/examples/starry-collage/green-paper-heart.png"
+        },
+        {
+          "id": "sample-green-piece-3",
+          "kind": "asset",
+          "x": 49.94247436046365,
+          "y": 0.013833263069139968,
+          "w": 20.535300584167704,
+          "rotation": 0,
+          "locked": false,
+          "h": 66.96349013946886,
+          "stretch": true,
+          "stackOrder": 5,
+          "src": "/examples/starry-collage/green-paper-stars-strip.png"
+        },
+        {
+          "id": "sample-green-piece-4",
+          "kind": "asset",
+          "x": 71.36134120152967,
+          "y": 40.123412479255634,
+          "w": 24.53977105418139,
+          "rotation": 0,
+          "locked": false,
+          "h": 57.155878463037325,
+          "stretch": true,
+          "stackOrder": 1,
+          "src": "/examples/starry-collage/green-paper-daisies.png"
+        },
+        {
+          "id": "sample-green-piece-5",
+          "kind": "asset",
+          "x": 68.15788536539321,
+          "y": 25.37754378582999,
+          "w": 22.517915178205943,
+          "rotation": 14.082406765222004,
+          "locked": false,
+          "h": 74.58257402677819,
+          "stretch": true,
+          "stackOrder": 2,
+          "src": "/examples/starry-collage/green-paper-yellow-torn.png"
+        },
+        {
+          "id": "sample-green-piece-6",
+          "kind": "asset",
+          "x": 57.91565444640753,
+          "y": 4.06487141652614,
+          "w": 6.307753437069431,
+          "rotation": -24.59011590403088,
+          "locked": false,
+          "h": 13.658753161888704,
+          "stretch": true,
+          "stackOrder": 14,
+          "src": "/examples/starry-collage/green-pin.png"
+        },
+        {
+          "id": "sample-green-piece-7",
+          "kind": "asset",
+          "x": 53.50826339811543,
+          "y": 73.64486591151086,
+          "w": 15.0331824204947,
+          "rotation": 9.797799007270214,
+          "locked": false,
+          "h": 23.787880715807827,
+          "stretch": true,
+          "stackOrder": 15,
+          "src": "/examples/starry-collage/green-bow.png"
+        },
+        {
+          "id": "sample-green-piece-8",
+          "kind": "asset",
+          "x": 77.6399296206204,
+          "y": 68.21534615520014,
+          "w": 13,
+          "rotation": -8.42278656909457,
+          "locked": false,
+          "h": 5.1947217537942665,
+          "stretch": true,
+          "stackOrder": 19,
+          "src": "/examples/starry-collage/green-tape.png"
+        },
+        {
+          "id": "sample-green-piece-9",
+          "kind": "asset",
+          "x": 52.196609982332156,
+          "y": 15.910096964586847,
+          "w": 28.573941597994196,
+          "rotation": -8.796314832928033,
+          "locked": false,
+          "h": 10.25967221753794,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-label-month.png"
+        },
+        {
+          "id": "sample-green-piece-10",
+          "kind": "asset",
+          "x": 80.4196113074205,
+          "y": 12.046005480607086,
+          "w": 7.654827609057861,
+          "rotation": -11.200505154014309,
+          "locked": false,
+          "h": 17.044577360876897,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-number-one.png"
+        },
+        {
+          "id": "sample-green-piece-11",
+          "kind": "asset",
+          "x": 87.6659305064782,
+          "y": 13.679542580101181,
+          "w": 7.654827609057861,
+          "rotation": 0,
+          "locked": false,
+          "h": 17.043844856661046,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-number-one.png"
+        },
+        {
+          "id": "sample-green-piece-12",
+          "kind": "asset",
+          "x": 87.66940886336867,
+          "y": 33.64368149241149,
+          "w": 7.882766489988222,
+          "rotation": 0,
+          "locked": false,
+          "h": 18.648586569095883,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-drop-right.png"
+        },
+        {
+          "id": "sample-green-piece-13",
+          "kind": "asset",
+          "x": 39.04179549469965,
+          "y": 77.47009380269814,
+          "w": 7.121300795053004,
+          "rotation": 0,
+          "locked": false,
+          "h": 16.950340193097237,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-drop-left.png"
+        },
+        {
+          "id": "sample-green-piece-14",
+          "kind": "asset",
+          "x": 30.484485424028268,
+          "y": 6.587716062394604,
+          "w": 13,
+          "rotation": 0,
+          "locked": false,
+          "src": "/examples/starry-collage/green-fireworks.png"
+        },
+        {
+          "id": "sample-green-piece-15",
+          "kind": "asset",
+          "x": 13.438004632967866,
+          "y": 0.1507924611585874,
+          "w": 9.225961969474412,
+          "rotation": -6.3990913816845705,
+          "locked": false,
+          "h": 8.442898125104609,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-clip.png"
+        },
+        {
+          "id": "sample-green-piece-16",
+          "kind": "asset",
+          "x": 29.51010430285076,
+          "y": 29.587750761086276,
+          "w": 4.913866539306577,
+          "rotation": 23.08636855539055,
+          "locked": false,
+          "h": 6.802476627425847,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-star-blue.png"
+        },
+        {
+          "id": "sample-green-piece-17",
+          "kind": "asset",
+          "x": 7.867343934040047,
+          "y": 10.825964376053964,
+          "w": 6.134386042402827,
+          "rotation": -37.286501594164065,
+          "locked": false,
+          "h": 8.604612348205277,
+          "stretch": true,
+          "src": "/examples/starry-collage/green-star-pink.png"
+        }
+      ],
+      "pages": {
+        "left": {
+          "paperBg": {
+            "src": "/examples/starry-collage/green-background-left.jpg",
+            "x": 0,
+            "y": 0,
+            "scale": 100
+          }
+        },
+        "right": {
+          "paperBg": {
+            "src": "/examples/starry-collage/green-background-right.jpg",
             "x": 0,
             "y": 0,
             "scale": 100

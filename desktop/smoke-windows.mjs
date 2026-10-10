@@ -84,7 +84,7 @@ app.on('browser-window-created', (_event, window) => {
 app.on('will-quit', () => clearTimeout(timeout));
 await import('./main.mjs');
 `);
-for (let revision = 0; revision < 2; revision++) {
+for (let revision = 0; revision < 3; revision++) {
   const resultPath = join(temp, `result-${revision}.json`);
   await new Promise((ok, fail) => {
     const child = spawn(join(install, '拾光手帐.exe'), [], { env: { ...process.env,

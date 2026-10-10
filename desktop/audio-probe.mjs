@@ -5,7 +5,7 @@ export async function probePageTurnAudio() {
     'mixkit-single-book-paging-1101-first.wav', 'mixkit-single-book-paging-1101-second.wav'];
   const results = [];
   for (const file of files) {
-    const source = '/sounds/' + file;
+    const source = '/sounds/' + file + '?audio=2';
     const response = await fetch(source);
     if (!response.ok) throw Error(file + ': HTTP ' + response.status);
     const contentType = response.headers.get('content-type');

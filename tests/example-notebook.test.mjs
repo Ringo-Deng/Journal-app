@@ -16,17 +16,20 @@ test('desktop example preserves layers, contains no private records, and all ima
   const options = await fixture(t);
   assert.equal(await initializeExampleNotebook(options), true);
   const state = JSON.parse(await readFile(resolve(options.data, 'journal.json'), 'utf8'));
-  const book = state.books[0], spread = book.spreads[0];
-  assert.equal(book.title, '星夜拼贴 · 示例');
-  assert.equal(spread.elements.length, 8);
-  assert.deepEqual(spread.days, []);
-  assert.ok(spread.elements.every(e => ['asset','doodle'].includes(e.kind) && !e.photoOriginal && !e.text && !e.assetId));
+  const book = state.books[0];
+  assert.equal(book.title, '拾光拼贴 · 示例');
+  assert.deepEqual(book.spreads.map(s => s.elements.length), [8, 17]);
   const source = JSON.parse(await readFile(resolve(publicDir, 'examples/starry-collage/book.json')));
-  for (let i=0;i<spread.elements.length;i++) {
-    for (const key of ['x','y','w','h','rotation','stackOrder']) assert.equal(spread.elements[i][key], source.spreads[0].elements[i][key]);
+  for (const [page, spread] of book.spreads.entries()) {
+    assert.deepEqual(spread.days, []);
+    assert.ok(spread.elements.every(e => ['asset','doodle'].includes(e.kind) && !e.photoOriginal && !e.text && !e.assetId));
+    for (let i=0;i<spread.elements.length;i++) {
+      for (const key of ['x','y','w','h','rotation','stackOrder']) assert.equal(spread.elements[i][key], source.spreads[page].elements[i][key]);
+    }
   }
   const images = notebookUploads(state.books);
-  assert.equal(images.length, 8);
+  assert.equal(images.length, 26);
+  assert.doesNotMatch(JSON.stringify(book), /\/examples\//);
   for (const image of images) assert.ok((await readFile(resolve(options.data, image.slice(1)))).length > 0);
   const before = await readFile(resolve(options.data, 'journal.json'));
   assert.equal(await initializeExampleNotebook(options), false);
