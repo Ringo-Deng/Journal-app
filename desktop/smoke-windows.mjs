@@ -13,6 +13,19 @@ const pkgPath = join(root, 'package.json');
 const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
 pkg.main = 'desktop/smoke-entry.mjs';
 await writeFile(pkgPath, JSON.stringify(pkg));
+// Trace the packaged lifecycle in the isolated copy without changing delivery code.
+const mainPath = join(root, 'desktop/main.mjs');
+let main = await readFile(mainPath, 'utf8');
+main = "import { appendFileSync } from 'node:fs';\nconst trace = message => appendFileSync(process.env.SMOKE_TRACE, JSON.stringify({ time: Date.now(), pid: process.pid, message }) + '\\n');\n" + main;
+for (const [needle, event] of [
+  ['async function start() {', 'start'],
+  ['async function closeSafely() {', 'close:begin'],
+  ["const result = await backendRequest('desktop-shutdown');", 'close:backend-replied'],
+  ['exiting = true;', 'close:exiting'],
+  ['window.destroy();', 'close:destroyed'],
+  ["backend.on('exit', () => {", 'backend:exit'],
+]) main = main.replace(needle, needle + " trace({ event: '" + event + "', closing, exiting, window: !!window, destroyed: window?.isDestroyed() });");
+await writeFile(mainPath, main);
 await writeFile(join(root, pkg.main), `
 import { app, BrowserWindow, dialog } from 'electron';
 import { writeFile } from 'node:fs/promises';
@@ -60,14 +73,15 @@ for (let revision = 0; revision < 2; revision++) {
   const resultPath = join(temp, `result-${revision}.json`);
   await new Promise((ok, fail) => {
     const child = spawn(join(install, '拾光手帐.exe'), [], { env: { ...process.env,
-      SHIGUANG_DESKTOP_TEST_DIR: join(temp, 'profile'), SMOKE_REVISION: String(revision), SMOKE_RESULT: resultPath }, stdio: 'inherit' });
+      SHIGUANG_DESKTOP_TEST_DIR: join(temp, 'profile'), SMOKE_REVISION: String(revision), SMOKE_RESULT: resultPath, SMOKE_TRACE: join(temp, 'trace.jsonl') }, stdio: 'inherit' });
     const timer = setTimeout(() => { child.kill(); fail(Error('Windows desktop smoke timed out')); }, 120000);
     child.once('error', error => { clearTimeout(timer); fail(error); });
     child.once('exit', async code => {
       clearTimeout(timer);
       if (code === 0) { ok(); return; }
       const diagnostic = await readFile(resultPath, 'utf8').catch(() => 'no diagnostic file');
-      fail(Error(`App exited ${code}: ${diagnostic}`));
+      const trace = await readFile(join(temp, 'trace.jsonl'), 'utf8').catch(() => 'no trace');
+      fail(Error(`App exited ${code}: ${diagnostic}\n${trace}`));
     });
   });
   const result = JSON.parse(await readFile(resultPath, 'utf8'));
