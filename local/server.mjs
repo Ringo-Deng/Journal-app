@@ -1,4 +1,5 @@
 import { exportMaterialPack, readMaterialPack, importMaterialPack } from './material-pack.mjs';
+import { initializeExampleNotebook } from './example-notebook.mjs';
 import { createReadStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -391,6 +392,10 @@ function validateState(s) {
     for (const spread of book.spreads) checkSpread(spread);
     if (book.flyleaf !== undefined) checkSpread(book.flyleaf);
   }
+}
+if (process.env.JOURNAL_DESKTOP === '1') {
+  await initializeExampleNotebook({ data, publicDir: resolve(root, 'public'), validate: validateState });
+  state = await readJSON('journal.json', { revision: 0, books: [] });
 }
 const mime = {
   '.html': 'text/html; charset=utf-8',

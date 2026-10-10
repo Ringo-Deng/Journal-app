@@ -1,0 +1,150 @@
+{
+  "id": "sample-starry-collage",
+  "title": "星夜拼贴 · 示例",
+  "month": "2026-09",
+  "cover": "linen-blue",
+  "format": "standard",
+  "paperStyle": "blank",
+  "paperColor": "#ffffff",
+  "header": {
+    "enabled": false,
+    "text": "",
+    "dateFormat": "dot",
+    "fontSize": 14,
+    "align": "right",
+    "height": 7,
+    "margin": 6
+  },
+  "flyleaf": {
+    "id": "sample-flyleaf",
+    "theme": "herbarium",
+    "days": [],
+    "elements": []
+  },
+  "spreads": [
+    {
+      "id": "sample-spread",
+      "theme": "herbarium",
+      "days": [],
+      "elements": [
+        {
+          "id": "sample-piece-1",
+          "kind": "asset",
+          "x": 70.05583678166263,
+          "y": 11.186921511323252,
+          "w": 23.777845259128387,
+          "rotation": 0,
+          "locked": false,
+          "h": 68.97055649952574,
+          "stretch": true,
+          "stackOrder": 4,
+          "src": "/examples/starry-collage/paper-lined.png"
+        },
+        {
+          "id": "sample-piece-2",
+          "kind": "doodle",
+          "x": 56.84094641868038,
+          "y": 8.68908691881534,
+          "w": 25.804782008013905,
+          "rotation": 10.411230835375363,
+          "locked": false,
+          "h": 51.34010107550841,
+          "stretch": true,
+          "stackOrder": 8,
+          "frame": "vellum-sheet",
+          "material": "paper",
+          "color": "#edf1f0",
+          "opacity": 0.72,
+          "drawing": [
+            {
+              "path": "M 1 1 H 99 V 99 H 1 Z",
+              "fill": "#edf1f0",
+              "stroke": "#9fa9a466",
+              "width": 1
+            }
+          ]
+        },
+        {
+          "id": "sample-piece-3",
+          "kind": "asset",
+          "x": 75.3508729552182,
+          "y": 8.071095305637334,
+          "w": 13,
+          "rotation": 0,
+          "locked": false,
+          "stackOrder": 11,
+          "src": "/examples/starry-collage/tape-dots.png"
+        },
+        {
+          "id": "sample-piece-4",
+          "kind": "asset",
+          "x": 54.64682836037754,
+          "y": 6.092008281647472,
+          "w": 18,
+          "rotation": -20.127073321456805,
+          "locked": false,
+          "stackOrder": 12,
+          "src": "/examples/starry-collage/tape-folded.png"
+        },
+        {
+          "id": "sample-piece-5",
+          "kind": "asset",
+          "x": 67.30968523893657,
+          "y": 70.50305875090339,
+          "w": 32.82569830052162,
+          "rotation": 0,
+          "locked": false,
+          "h": 29.51267164538665,
+          "stretch": true,
+          "stackOrder": 2,
+          "src": "/examples/starry-collage/paper-corner.png"
+        },
+        {
+          "id": "sample-piece-6",
+          "kind": "asset",
+          "x": 51.58090400471143,
+          "y": 66.85602866779088,
+          "w": 13,
+          "rotation": 0,
+          "locked": false,
+          "stackOrder": 1,
+          "src": "/examples/starry-collage/stamp-one.png"
+        },
+        {
+          "id": "sample-piece-7",
+          "kind": "asset",
+          "x": 60.33256036513546,
+          "y": 72.71861825463743,
+          "w": 13,
+          "rotation": 0,
+          "locked": false,
+          "stackOrder": 13,
+          "src": "/examples/starry-collage/stamp-two.png"
+        },
+        {
+          "id": "sample-piece-8",
+          "kind": "asset",
+          "x": 74.12222099528859,
+          "y": 83.48492833052276,
+          "w": 24.159630940343778,
+          "rotation": 0,
+          "locked": false,
+          "h": 13.990698777403034,
+          "stretch": true,
+          "stackOrder": 18,
+          "src": "/examples/starry-collage/sticker-september.png"
+        }
+      ],
+      "pages": {
+        "right": {
+          "paperBg": {
+            "src": "/examples/starry-collage/paper-stars.jpg",
+            "x": 0,
+            "y": 0,
+            "scale": 100
+          }
+        }
+      }
+    }
+  ]
+}

@@ -64,6 +64,7 @@
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | Mac / Windows 桌面 | `desktop/main.mjs` 使用 Electron 独立窗口和 utility process 运行原本地服务；`desktop/preload.cjs` → `lib/desktop-close.ts` → `app/page.tsx` 在退出前清空原保存队列，服务忙时拒绝退出；桌面数据独立于源码目录，`desktop/package-mac.mjs` 按白名单生成 Apple 芯片 Mac 测试包，`desktop/package-windows.mjs` 在 Windows x64 生成免安装测试包，`desktop/smoke-windows.mjs` 验证解压副本的隔离启动与保存回读 |
 | 介绍与下载页 | `website/index.template.html` 提供独立介绍页；`desktop/package-intro.mjs` 从当前版本 Mac / Windows 应用 ZIP 和显式指定的素材合集生成含三个下载入口的本地分享目录，不自动发布 |
+| 安装包示例本 | `public/examples/starry-collage/` 保存已去除照片与正文的示例素材及布局；`local/server.mjs` 在桌面启动时调用 `local/example-notebook.mjs`，仅在没有现存手帐或 previous 文件时初始化，图片进入原 uploads 与备份链路 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
 
 ### 3.2 修改前要追清的相关数据流
