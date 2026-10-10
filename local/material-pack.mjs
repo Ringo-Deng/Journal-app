@@ -6,6 +6,7 @@ import { safeFile, digest, writeArchive, readArchive, fail } from './backup-arch
 
 export const MATERIAL_PACK_FORMAT = 'shiguang-materials-v1';
 export const MATERIAL_PACK_MAX = 256 * 1024 * 1024;
+export const MATERIAL_PACK_IMPORT_MAX_ITEMS = 500;
 const MAX_ITEMS = 200, MAX_IMAGE = 16 * 1024 * 1024;
 const imagePath = /^\/(uploads|materials)\/[a-zA-Z0-9_-][a-zA-Z0-9._-]*\.(png|jpg|jpeg|webp)$/;
 const text = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
@@ -70,8 +71,10 @@ export async function readMaterialPack(input, directory) {
   const staged = await readArchive(bounded(), directory);
   const snapshot = staged.manifest.snapshot;
   if (snapshot.format !== MATERIAL_PACK_FORMAT || Object.keys(snapshot).some(k => !['format', 'assets'].includes(k)) ||
-      !Array.isArray(snapshot.assets) || !snapshot.assets.length || snapshot.assets.length > MAX_ITEMS)
+      !Array.isArray(snapshot.assets) || !snapshot.assets.length)
     throw fail('请选择拾光素材包，完整资料备份请从备份入口恢复。');
+  if (snapshot.assets.length > MATERIAL_PACK_IMPORT_MAX_ITEMS)
+    throw fail('每次最多导入 500 件素材，请选择较小的素材包。', 413);
   const paths = new Set();
   for (const asset of snapshot.assets) {
     if (!asset || typeof asset !== 'object' || !/^\/uploads\/[a-f0-9]{64}\.(png|jpg|jpeg|webp)$/.test(asset.src)) throw fail('素材包图片路径无效。');

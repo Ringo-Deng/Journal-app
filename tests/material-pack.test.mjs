@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import { exportMaterialPack, readMaterialPack, importMaterialPack, materialPackMetadata } from '../local/material-pack.mjs';
-import { digest } from '../local/backup-archive.mjs';
+import { digest, writeArchive } from '../local/backup-archive.mjs';
 
 async function fixture(t) {
   const root=await mkdtemp(join(tmpdir(),'material-pack-test-'));
@@ -121,4 +121,35 @@ test('real API imports append-only, exports selected metadata and survives resta
  const persisted=await(await fetch(base+'/api/materials')).json();assert.equal(persisted.length,initial.length+1);
  assert.equal(persisted.find(a=>a.id===added.id).group,'植物');
  await stop();
+});
+
+
+test('combined packs over 200 entries import once, deduplicate and preserve existing metadata', async t => {
+  const f = await fixture(t);
+  const assets = Array.from({ length: 411 }, (_, index) => ({ ...f.packed.manifest.snapshot.assets[0], name: `素材 ${index}` }));
+  const combined = await writeArchive({ data: join(f.root, 'export/source'), publicDir: f.publicDir,
+    directory: join(f.root, 'combined'), snapshot: { format: 'shiguang-materials-v1', assets }, appVersion: 'test', scope: 'journals' });
+  const staged = await readMaterialPack(createReadStream(combined.archive), join(f.root, 'combined-read'));
+  assert.equal(staged.manifest.snapshot.assets.length, 411);
+  let saved = [];
+  const result = await importMaterialPack({ staged, existing: [], allAssets: [], data: f.dest, publicDir: f.publicDir,
+    writeAssets: async value => { saved = value; }, registerTaxonomy: async () => {} });
+  assert.deepEqual(result, { added: 1, skipped: 410 });
+  assert.equal(saved[0].name, '素材 0');
+  const repeated = await importMaterialPack({ staged, existing: saved, allAssets: saved, data: f.dest, publicDir: f.publicDir,
+    writeAssets: async () => assert.fail('must not rewrite imported metadata'), registerTaxonomy: async () => assert.fail('must not add taxonomy') });
+  assert.deepEqual(repeated, { added: 0, skipped: 411 });
+});
+
+test('import accepts 500 entries but rejects 501 before writing to the library', async t => {
+  const f = await fixture(t);
+  for (const count of [500, 501]) {
+    const assets = Array.from({ length: count }, () => f.packed.manifest.snapshot.assets[0]);
+    const packed = await writeArchive({ data: join(f.root, 'export/source'), publicDir: f.publicDir,
+      directory: join(f.root, `limit-${count}`), snapshot: { format: 'shiguang-materials-v1', assets }, appVersion: 'test', scope: 'journals' });
+    const reading = readMaterialPack(createReadStream(packed.archive), join(f.root, `read-${count}`));
+    if (count === 500) assert.equal((await reading).manifest.snapshot.assets.length, 500);
+    else await assert.rejects(reading, /最多导入 500/);
+  }
+  assert.deepEqual(await readdir(f.dest), []);
 });

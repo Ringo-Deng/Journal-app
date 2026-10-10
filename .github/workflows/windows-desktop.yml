@@ -21,7 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Desktop and image regression tests
-        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs
+        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs tests/material-pack.test.mjs
       - run: npm run desktop:windows
       - name: Archive and extract delivery package
         shell: pwsh
