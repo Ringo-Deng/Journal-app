@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { availablePort, backendEnvironment, isInternalURL } from './runtime.mjs';
 import { probePageTurnAudio } from './audio-probe.mjs';
+import { createDesktopUpdates } from './updates.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -16,6 +17,39 @@ const backendReplies = new Map();
 const closeReplies = new Map();
 let diagnostic = '';
 let checkingAudio = false;
+let updates;
+let updatePromptOpen = false;
+function updateMenu(state) {
+  const item = Menu.getApplicationMenu()?.getMenuItemById('check-updates');
+  if (item) {
+    item.label = state.status === 'ready' ? `重启更新至 ${state.version}`
+      : state.status === 'checking' ? '正在检查更新…'
+      : state.status === 'downloading' ? `正在下载更新 ${state.percent || 0}%` : '检查更新';
+    item.enabled = !['checking', 'downloading'].includes(state.status);
+  }
+  if (state.status === 'ready') void offerUpdate();
+}
+async function offerUpdate() {
+  if (updatePromptOpen || closing || exiting || !window || window.isDestroyed()) return;
+  updatePromptOpen = true;
+  try {
+    const { response } = await dialog.showMessageBox(window, { type: 'info',
+      message: `新版 ${updates.state.version} 已下载`,
+      detail: '重启前会先保存手帐。选择稍后，将在正常退出时安装更新。',
+      buttons: ['重启更新', '稍后'], defaultId: 1, cancelId: 1 });
+    if (response === 0) await closeSafely(true);
+  } finally { updatePromptOpen = false; }
+}
+async function checkUpdates() {
+  if (!updates || closing || exiting) return;
+  if (updates.state.status === 'ready') { await offerUpdate(); return; }
+  const state = await updates.check();
+  if (window.isDestroyed() || ['ready', 'downloading'].includes(state.status)) return;
+  await dialog.showMessageBox(window, { type: state.status === 'error' ? 'warning' : 'info',
+    message: state.status === 'error' ? '暂时无法检查更新' : '当前已是最新版本',
+    detail: state.status === 'error' ? '当前版本可以继续使用，请稍后重试。\n' + state.message : `当前版本：${pkg.version}`,
+    buttons: ['知道了'] });
+}
 
 async function checkPageTurnAudio() {
   if (checkingAudio || closing || exiting || !window || window.isDestroyed()) return;
@@ -45,7 +79,7 @@ function backendRequest(type) {
   });
 }
 
-async function closeSafely() {
+async function closeSafely(restartForUpdate = false) {
   if (closing || exiting || !window) return;
   closing = true;
   try {
@@ -63,6 +97,7 @@ async function closeSafely() {
     const result = await backendRequest('desktop-shutdown');
     if (!result.ok) throw Error('仍有图片处理、备份或保存任务，请等待完成后再退出。');
     exiting = true;
+    updates?.install(restartForUpdate);
     window.destroy();
     app.quit();
   } catch (error) {
@@ -124,12 +159,21 @@ async function start() {
   window.on('close', event => { if (!exiting) { event.preventDefault(); void closeSafely(); } });
   window.once('ready-to-show', () => window.show());
   await window.loadURL(`${origin}/?build=${encodeURIComponent(pkg.version)}`);
+  // Mac and development runs keep the existing download workflow. No credentials ship.
+  if (process.platform === 'win32' && app.isPackaged && !process.env.SHIGUANG_DESKTOP_TEST_DIR) {
+    try {
+      const { default: electronUpdater } = await import('electron-updater');
+      updates = createDesktopUpdates(electronUpdater.autoUpdater, updateMenu);
+    } catch (error) { console.warn('自动更新初始化失败', error); }
+  }
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: '拾光手帐', submenu: [{ label: '打开资料文件夹', click: () => shell.openPath(app.getPath('userData')) },
+      ...(updates ? [{ id: 'check-updates', label: '检查更新', click: () => void checkUpdates() }] : []),
       { label: '检查翻页音效', click: () => checkPageTurnAudio() },
       { type: 'separator' }, { label: '退出拾光手帐', accelerator: 'CmdOrCtrl+Q', click: () => closeSafely() }] },
     { role: 'editMenu' }, { role: 'windowMenu' },
   ]));
+  if (updates) setTimeout(() => { if (!closing && !exiting) void updates.check(); }, 10000).unref();
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();

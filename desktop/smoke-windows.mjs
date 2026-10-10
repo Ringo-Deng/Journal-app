@@ -20,7 +20,7 @@ let main = await readFile(mainPath, 'utf8');
 main = "import { appendFileSync } from 'node:fs';\nconst trace = message => appendFileSync(process.env.SMOKE_TRACE, JSON.stringify({ time: Date.now(), pid: process.pid, message }) + '\\n');\n" + main;
 for (const [needle, event] of [
   ['async function start() {', 'start'],
-  ['async function closeSafely() {', 'close:begin'],
+  ['async function closeSafely(restartForUpdate = false) {', 'close:begin'],
   ["const result = await backendRequest('desktop-shutdown');", 'close:backend-replied'],
   ['exiting = true;', 'close:exiting'],
   ['window.destroy();', 'close:destroyed'],
@@ -33,6 +33,9 @@ import { writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
+import electronUpdater from 'electron-updater';
+import { createDesktopUpdates } from './updates.mjs';
+assert.equal(typeof electronUpdater.autoUpdater.checkForUpdates, 'function');
 let phase = 'entry', failed = false, audioDialog = '';
 function diagnostic(error) { if (failed) return; failed = true; writeFileSync(process.env.SMOKE_RESULT, JSON.stringify({ phase, error: String(error), windows: BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), loading: w.webContents.isLoading() })) })); }
 dialog.showErrorBox = (title, message) => { diagnostic(title + ': ' + message); app.exit(3); };
@@ -64,6 +67,16 @@ app.on('browser-window-created', (_event, window) => {
     audioMenu.click(); // Electron's MenuItem wrapper does not return the async handler promise.
     for (let i = 0; i < 200 && !audioDialog; i++) await new Promise(resolve => setTimeout(resolve, 50));
     assert.ok(audioDialog.includes('编辑翻页') && audioDialog.includes('阅读音效二'), 'audio check result missing');
+    if (process.env.SHIGUANG_SMOKE_UPDATE_URL && process.env.SMOKE_REVISION === '0') {
+      phase = 'update-download';
+      const updater = electronUpdater.autoUpdater;
+      updater.setFeedURL({ provider: 'generic', url: process.env.SHIGUANG_SMOKE_UPDATE_URL });
+      const updates = createDesktopUpdates(updater);
+      const result = await updates.check();
+      assert.equal(result.status, 'ready', JSON.stringify(result));
+      assert.equal(updater.autoInstallOnAppQuit, false);
+      console.log('Installed updater: newer version detected, installer downloaded and checksum verified; no automatic install before save.');
+    }
     phase = 'save';
     const origin = new URL(window.webContents.getURL()).origin;
     const health = await (await fetch(origin + '/api/health')).json();

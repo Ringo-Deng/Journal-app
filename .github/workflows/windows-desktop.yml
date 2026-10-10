@@ -12,7 +12,7 @@ permissions:
 jobs:
   package:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,7 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Desktop and image regression tests
-        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs tests/material-pack.test.mjs
+        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/desktop-updates.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs tests/material-pack.test.mjs
       - run: npm run desktop:windows
       - name: Archive and extract delivery package
         shell: pwsh
@@ -33,9 +33,15 @@ jobs:
           "PACKAGE_NAME=shiguang-journal-v$version-windows-x64" >> $env:GITHUB_ENV
       - name: Start extracted app with isolated data and verify restart
         run: node desktop/smoke-windows.mjs 'build/windows-extracted/拾光手帐-win32-x64'
+      - name: Verify installed app and update metadata
+        run: node desktop/smoke-windows-installer.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PACKAGE_NAME }}
-          path: build/desktop/*-windows-x64.zip
+          path: |
+            build/desktop/*-windows-x64.zip
+            build/desktop/installer/*.exe
+            build/desktop/installer/*.blockmap
+            build/desktop/installer/latest.yml
           if-no-files-found: error
           retention-days: 30

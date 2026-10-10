@@ -1,4 +1,5 @@
 import { packager } from '@electron/packager';
+import { build, Platform, Arch } from 'electron-builder';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { cp, mkdir, mkdtemp, readFile, writeFile, access, readdir, rm } from 'node:fs/promises';
@@ -53,8 +54,9 @@ async function copyDependency(name, from = root) {
   }
 }
 await copyDependency('sharp');
+await copyDependency('electron-updater');
 await writeFile(join(stage, 'package.json'), JSON.stringify({ name: pkg.name, productName: '拾光手帐',
-  version: pkg.version, private: true, type: 'module', main: 'desktop/main.mjs', dependencies: { sharp: pkg.dependencies.sharp } }, null, 2));
+  version: pkg.version, private: true, type: 'module', main: 'desktop/main.mjs', dependencies: { sharp: pkg.dependencies.sharp, 'electron-updater': pkg.dependencies['electron-updater'] } }, null, 2));
 // Fail before packaging if the installed native dependency cannot process images.
 const { default: sharp } = await import('sharp');
 await sharp({ create: { width: 2, height: 2, channels: 4, background: '#ffffff' } }).png().toBuffer();
@@ -63,5 +65,16 @@ const apps = await packager({ dir: stage, out: output, name: '拾光手帐', pla
   asar: false, prune: false, overwrite: true,
   win32metadata: { CompanyName: '拾光手帐', FileDescription: '拾光手帐', ProductName: '拾光手帐' } });
 await cp(join(root, 'docs/windows-desktop.md'), join(apps[0], '使用说明.md'));
+// prepackaged bypasses builder's afterPack hook, so write its update configuration explicitly.
+const publish = { provider: 'github', owner: 'Ringo-Deng', repo: 'Journal-app', releaseType: 'release' };
+await writeFile(join(apps[0], 'resources/app-update.yml'), JSON.stringify({ ...publish, updaterCacheDirName: 'shiguang-journal-updater' }));
+await build({ targets: Platform.WINDOWS.createTarget('nsis', Arch.x64), prepackaged: apps[0], publish: 'never', config: {
+  appId: 'com.shiguang.journal', productName: '拾光手帐', electronVersion: pkg.devDependencies.electron,
+  directories: { output: join(output, 'installer') }, publish,
+  artifactName: 'shiguang-journal-v${version}-windows-x64-setup.${ext}',
+  win: { executableName: '拾光手帐', signAndEditExecutable: false },
+  nsis: { oneClick: true, perMachine: false, allowElevation: false, packElevateHelper: false,
+    deleteAppDataOnUninstall: false, differentialPackage: true, runAfterFinish: false },
+} });
 await rm(stage, { recursive: true, force: true });
 console.log(`Windows 测试应用：${apps[0]}`);
