@@ -14,13 +14,20 @@ const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
 pkg.main = 'desktop/smoke-entry.mjs';
 await writeFile(pkgPath, JSON.stringify(pkg));
 await writeFile(join(root, pkg.main), `
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { writeFile } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-const timeout = setTimeout(() => app.exit(2), 90000);
+let phase = 'entry';
+function diagnostic(error) { writeFileSync(process.env.SMOKE_RESULT, JSON.stringify({ phase, error: String(error), windows: BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), loading: w.webContents.isLoading() })) })); }
+dialog.showErrorBox = (title, message) => { diagnostic(title + ': ' + message); app.exit(3); };
+dialog.showMessageBox = async (...args) => { const options = args.at(-1); diagnostic(options.message + ': ' + options.detail); app.exit(4); return { response: 0 }; };
+const timeout = setTimeout(() => { diagnostic('smoke timeout'); app.exit(2); }, 90000);
 app.on('browser-window-created', (_event, window) => {
+  phase = 'window-created';
   window.webContents.once('did-finish-load', () => { void (async () => {
+    phase = 'page-loaded';
     await sharp({ create: { width: 4, height: 4, channels: 4, background: '#fff' } }).png().toBuffer();
     let ready = false;
     for (let i = 0; i < 120; i++) {
@@ -29,6 +36,7 @@ app.on('browser-window-created', (_event, window) => {
       await new Promise(r => setTimeout(r, 250));
     }
     assert.ok(ready, 'React editor did not mount');
+    phase = 'editor-mounted';
     const origin = new URL(window.webContents.getURL()).origin;
     const health = await (await fetch(origin + '/api/health')).json();
     assert.equal(health.appVersion, app.getVersion());
@@ -41,8 +49,9 @@ app.on('browser-window-created', (_event, window) => {
     const reread = await (await fetch(origin + '/api/state')).json();
     assert.equal(reread.revision, result.revision);
     await writeFile(process.env.SMOKE_RESULT, JSON.stringify({ version: health.appVersion, revision: reread.revision, windows: BrowserWindow.getAllWindows().length }));
+    phase = 'closing';
     window.close(); // Exercise the real renderer flush and utility-process shutdown.
-  })().catch(error => { console.error(error); app.exit(1); }); });
+  })().catch(error => { diagnostic(error.stack || error); app.exit(1); }); });
 });
 app.on('will-quit', () => clearTimeout(timeout));
 await import('./main.mjs');
@@ -54,7 +63,12 @@ for (let revision = 0; revision < 2; revision++) {
       SHIGUANG_DESKTOP_TEST_DIR: join(temp, 'profile'), SMOKE_REVISION: String(revision), SMOKE_RESULT: resultPath }, stdio: 'inherit' });
     const timer = setTimeout(() => { child.kill(); fail(Error('Windows desktop smoke timed out')); }, 120000);
     child.once('error', error => { clearTimeout(timer); fail(error); });
-    child.once('exit', code => { clearTimeout(timer); if (code === 0) ok(); else fail(Error(`App exited ${code}`)); });
+    child.once('exit', async code => {
+      clearTimeout(timer);
+      if (code === 0) { ok(); return; }
+      const diagnostic = await readFile(resultPath, 'utf8').catch(() => 'no diagnostic file');
+      fail(Error(`App exited ${code}: ${diagnostic}`));
+    });
   });
   const result = JSON.parse(await readFile(resultPath, 'utf8'));
   assert.equal(result.version, pkg.version);
