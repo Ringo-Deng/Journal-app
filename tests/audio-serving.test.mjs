@@ -39,6 +39,22 @@ test('production HTTP serves all page-turn WAV files intact with an audio MIME t
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'audio/wav');
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
-    assert.deepEqual(Buffer.from(await response.arrayBuffer()), await readFile(new URL('../public/sounds/' + file, import.meta.url)));
+    const bytes = await readFile(new URL('../public/sounds/' + file, import.meta.url));
+    assert.equal(response.headers.get('content-length'), String(bytes.length));
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+    for (const [range, start, end] of [['bytes=0-43', 0, 43], ['bytes=44-', 44, bytes.length - 1], ['bytes=-16', bytes.length - 16, bytes.length - 1]]) {
+      const partial = await fetch(origin + '/sounds/' + file + '?audio=2', { headers: { Range: range } });
+      assert.equal(partial.status, 206);
+      assert.equal(partial.headers.get('content-range'), `bytes ${start}-${end}/${bytes.length}`);
+      assert.equal(partial.headers.get('content-length'), String(end - start + 1));
+      assert.deepEqual(Buffer.from(await partial.arrayBuffer()), bytes.subarray(start, end + 1));
+    }
+    const invalid = await fetch(origin + '/sounds/' + file, { headers: { Range: `bytes=${bytes.length}-` } });
+    assert.equal(invalid.status, 416);
+    assert.equal(invalid.headers.get('content-range'), `bytes */${bytes.length}`);
+    const head = await fetch(origin + '/sounds/' + file, { method: 'HEAD' });
+    assert.equal(head.headers.get('content-length'), String(bytes.length));
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
   }
 });
