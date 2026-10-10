@@ -44,7 +44,7 @@ app.on('browser-window-created', (_event, window) => {
     await sharp({ create: { width: 4, height: 4, channels: 4, background: '#fff' } }).png().toBuffer();
     let ready = false;
     for (let i = 0; i < 120; i++) {
-      ready = await window.webContents.executeJavaScript("document.querySelectorAll('.build-version').length === 1 && document.querySelectorAll('button').length > 0");
+      ready = window.isVisible() && await window.webContents.executeJavaScript("document.querySelectorAll('.build-version').length === 1 && document.querySelector('button[aria-label=备份与恢复]')?.disabled === false");
       if (ready) break;
       await new Promise(r => setTimeout(r, 250));
     }
