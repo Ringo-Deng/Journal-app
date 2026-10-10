@@ -32,11 +32,11 @@ test('a spread-level line pattern cannot offset a different pattern on an indivi
   assert.match(rules('.notebook-page-layer.paper-blank>.paper-ruling'), /background-image:none/);
 });
 
-test('saved images from the fixed-pixel ruling renderer expire without changing notebook data', () => {
+test('saved images from the faint ruling renderer expire without changing notebook data', () => {
   const book = { id: 'ruling-cache', paperStyle: 'grid', spreads: [{ id: 'a', elements: [], days: [] }] };
   const before = structuredClone(book);
   const input = JSON.parse(readingJpgInput(book, [], 0));
-  assert.ok(input.version > 10);
-  assert.notEqual(JSON.stringify(input), JSON.stringify({ ...input, version: 10 }));
+  assert.ok(input.version > 11);
+  assert.notEqual(JSON.stringify(input), JSON.stringify({ ...input, version: 11 }));
   assert.deepEqual(book, before);
 });

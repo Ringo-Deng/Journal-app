@@ -3327,6 +3327,10 @@ fieldset.book-tools{border-top:0;}
 /* Match the 1000px spread reference used by text: capture/export resolution
    must not make ruling denser or thinner than the editable paper. */
 .notebook-page-layer{--paper-rule-width:.1cqw;--paper-dot-gap:1.8cqw;}
+/* Reading JPGs are reduced again for thumbnails and 3D textures. Give their
+   ruling enough contrast and stroke coverage to survive that downsampling. */
+.reading-jpg-source{--reading-ruling-light:#47556955;--reading-ruling-dark:#ffffff66;}
+.reading-jpg-source .notebook-page-layer{--paper-rule-width:.14cqw;}
 .notebook-page-layer.ruling-small{--paper-line-gap:2.4cqw;--paper-line-offset:.8cqw;--paper-grid-gap:1.8cqw;}
 .notebook-page-layer.ruling-medium{--paper-line-gap:3.2cqw;--paper-line-offset:1.2cqw;--paper-grid-gap:2.4cqw;}
 .notebook-page-layer.ruling-large{--paper-line-gap:4cqw;--paper-line-offset:1.6cqw;--paper-grid-gap:3cqw;}
