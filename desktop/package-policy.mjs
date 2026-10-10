@@ -2,7 +2,7 @@ const native = new Set(['local/segment', 'local/cutout', 'local/clean-paper', 'l
 export function distributableSource(path) {
   if (path.split('/').some(part => part.startsWith('.') || ['data', 'node_modules'].includes(part))) return false;
   return native.has(path) || /^(local|lib)\/[^/]+\.mjs$/.test(path) ||
-    /^desktop\/(main|runtime|audio-probe|updates)\.mjs$/.test(path) || path === 'desktop/preload.cjs' || path.startsWith('public/');
+    /^desktop\/(main|runtime|audio-probe|updates|mac-updates)\.mjs$/.test(path) || path === 'desktop/preload.cjs' || path.startsWith('public/');
 }
 
 export function distributableWindowsSource(path) {

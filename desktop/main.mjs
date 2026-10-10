@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { availablePort, backendEnvironment, isInternalURL } from './runtime.mjs';
 import { probePageTurnAudio } from './audio-probe.mjs';
 import { createDesktopUpdates } from './updates.mjs';
+import { createMacUpdates } from './mac-updates.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -23,16 +24,32 @@ function updateMenu(state) {
   const item = Menu.getApplicationMenu()?.getMenuItemById('check-updates');
   if (item) {
     item.label = state.status === 'ready' ? `重启更新至 ${state.version}`
+      : state.status === 'available' ? `下载新版 ${state.version}…`
       : state.status === 'checking' ? '正在检查更新…'
       : state.status === 'downloading' ? `正在下载更新 ${state.percent || 0}%` : '检查更新';
     item.enabled = !['checking', 'downloading'].includes(state.status);
   }
-  if (state.status === 'ready') void offerUpdate();
+  if (['ready', 'available'].includes(state.status)) void offerUpdate();
 }
 async function offerUpdate() {
   if (updatePromptOpen || closing || exiting || !window || window.isDestroyed()) return;
   updatePromptOpen = true;
   try {
+    const state = updates.state;
+    if (state.status === 'available') {
+      const { response } = await dialog.showMessageBox(window, { type: 'info',
+        message: `发现新版 ${state.version}`,
+        detail: '点击下载将在浏览器下载 Mac 版。下载完成后，请先正常退出拾光手帐，再解压并替换原应用。手帐资料保存在独立目录，无需删除。',
+        buttons: ['下载新版', '稍后'], defaultId: 1, cancelId: 1 });
+      if (response === 0 && !closing && !exiting) {
+        try { await shell.openExternal(state.url); }
+        catch {
+          if (!window.isDestroyed()) await dialog.showMessageBox(window, { type: 'warning',
+            message: '暂时无法打开下载链接', detail: '请稍后从“拾光手帐”菜单重试下载。', buttons: ['知道了'] });
+        }
+      }
+      return;
+    }
     const { response } = await dialog.showMessageBox(window, { type: 'info',
       message: `新版 ${updates.state.version} 已下载`,
       detail: '重启前会先保存手帐。选择稍后，将在正常退出时安装更新。',
@@ -42,9 +59,9 @@ async function offerUpdate() {
 }
 async function checkUpdates() {
   if (!updates || closing || exiting) return;
-  if (updates.state.status === 'ready') { await offerUpdate(); return; }
+  if (['ready', 'available'].includes(updates.state.status)) { await offerUpdate(); return; }
   const state = await updates.check();
-  if (window.isDestroyed() || ['ready', 'downloading'].includes(state.status)) return;
+  if (closing || exiting || window.isDestroyed() || ['ready', 'available', 'downloading'].includes(state.status)) return;
   await dialog.showMessageBox(window, { type: state.status === 'error' ? 'warning' : 'info',
     message: state.status === 'error' ? '暂时无法检查更新' : '当前已是最新版本',
     detail: state.status === 'error' ? '当前版本可以继续使用，请稍后重试。\n' + state.message : `当前版本：${pkg.version}`,
@@ -97,7 +114,7 @@ async function closeSafely(restartForUpdate = false) {
     const result = await backendRequest('desktop-shutdown');
     if (!result.ok) throw Error('仍有图片处理、备份或保存任务，请等待完成后再退出。');
     exiting = true;
-    updates?.install(restartForUpdate);
+    updates?.install?.(restartForUpdate);
     window.destroy();
     app.quit();
   } catch (error) {
@@ -159,7 +176,10 @@ async function start() {
   window.on('close', event => { if (!exiting) { event.preventDefault(); void closeSafely(); } });
   window.once('ready-to-show', () => window.show());
   await window.loadURL(`${origin}/?build=${encodeURIComponent(pkg.version)}`);
-  // Mac and development runs keep the existing download workflow. No credentials ship.
+  // Mac only checks public release metadata; users replace the bundle themselves.
+  if (process.platform === 'darwin' && app.isPackaged && !process.env.SHIGUANG_DESKTOP_TEST_DIR) {
+    updates = createMacUpdates(pkg.version, process.arch, updateMenu);
+  }
   if (process.platform === 'win32' && app.isPackaged && !process.env.SHIGUANG_DESKTOP_TEST_DIR) {
     try {
       const { default: electronUpdater } = await import('electron-updater');
@@ -173,7 +193,7 @@ async function start() {
       { type: 'separator' }, { label: '退出拾光手帐', accelerator: 'CmdOrCtrl+Q', click: () => closeSafely() }] },
     { role: 'editMenu' }, { role: 'windowMenu' },
   ]));
-  if (updates) setTimeout(() => { if (!closing && !exiting) void updates.check(); }, 10000).unref();
+  if (updates) setTimeout(() => { if (!closing && !exiting && updates.state.status === 'idle') void updates.check(); }, 10000).unref();
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
