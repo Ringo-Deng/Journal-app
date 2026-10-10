@@ -3324,12 +3324,19 @@ fieldset.book-tools{border-top:0;}
 .notebook-page-layer{position:absolute;top:0;bottom:0;width:50%;background:var(--paper);overflow:hidden;pointer-events:none;}
 .notebook-page-layer.left-paper{left:0;border-radius:5px 0 0 5px;}
 .notebook-page-layer.right-paper{left:50%;border-radius:0 5px 5px 0;}
-.notebook-page-layer>.paper-ruling{position:absolute;inset:0;}
+/* Match the 1000px spread reference used by text: capture/export resolution
+   must not make ruling denser or thinner than the editable paper. */
+.notebook-page-layer{--paper-rule-width:.1cqw;--paper-dot-gap:1.8cqw;}
+.notebook-page-layer.ruling-small{--paper-line-gap:2.4cqw;--paper-line-offset:.8cqw;--paper-grid-gap:1.8cqw;}
+.notebook-page-layer.ruling-medium{--paper-line-gap:3.2cqw;--paper-line-offset:1.2cqw;--paper-grid-gap:2.4cqw;}
+.notebook-page-layer.ruling-large{--paper-line-gap:4cqw;--paper-line-offset:1.6cqw;--paper-grid-gap:3cqw;}
+.notebook-page-layer>.paper-ruling{position:absolute;inset:0;background-position:0 0;}
+.notebook-page-layer.paper-lines>.paper-ruling{background-position:0 var(--paper-line-offset);}
 .notebook-page-header{position:absolute;top:0;left:0;width:100%;white-space:pre-wrap;line-height:1.35;padding-top:1.5%;overflow:hidden;}
 .notebook-page-layer.paper-blank>.paper-ruling{background-image:none;}
-.notebook-page-layer.paper-lines>.paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 calc(var(--paper-line-gap,32px) - 1px),var(--ruling) calc(var(--paper-line-gap,32px) - 1px) var(--paper-line-gap,32px));background-size:auto;}
-.notebook-page-layer.paper-grid>.paper-ruling{background-image:linear-gradient(var(--ruling) 1px,transparent 1px),linear-gradient(90deg,var(--ruling) 1px,transparent 1px);background-size:var(--paper-grid-gap,24px) var(--paper-grid-gap,24px);}
-.notebook-page-layer.paper-dots>.paper-ruling{background-image:radial-gradient(var(--ruling) 1px,transparent 1px);background-size:18px 18px;}
+.notebook-page-layer.paper-lines>.paper-ruling{background-image:repeating-linear-gradient(0deg,transparent 0 calc(var(--paper-line-gap) - var(--paper-rule-width)),var(--ruling) calc(var(--paper-line-gap) - var(--paper-rule-width)) var(--paper-line-gap));background-size:auto;}
+.notebook-page-layer.paper-grid>.paper-ruling{background-image:linear-gradient(var(--ruling) var(--paper-rule-width),transparent var(--paper-rule-width)),linear-gradient(90deg,var(--ruling) var(--paper-rule-width),transparent var(--paper-rule-width));background-size:var(--paper-grid-gap) var(--paper-grid-gap);}
+.notebook-page-layer.paper-dots>.paper-ruling{background-image:radial-gradient(circle,var(--ruling) var(--paper-rule-width),transparent var(--paper-rule-width));background-size:var(--paper-dot-gap) var(--paper-dot-gap);}
 
 /* Quiet labeled navigation and a single editing toolbar. */
 .app-shell.compact-shell{grid-template-columns:76px minmax(0,1fr);}
