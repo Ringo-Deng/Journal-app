@@ -63,7 +63,7 @@
 | 跨页预览、排序、删除与图片导出 | `components/notebook-page-overview.tsx` 供编辑索引与欣赏四宫格共用，支持拖动调整普通跨页顺序、按跨页 ID 多选并确认删除；`app/page.tsx` 经 `lib/notebook-pages.ts` 调整页面位置，排序与删除仍进入原 `change` 保存及撤销流；`components/notebook-image-export.tsx` 串行生成高清 PNG，多页打包 ZIP |
 | 阅读图片缓存 | `lib/reading-jpg.ts`：内页/封面渲染版本；`components/book3d/reading-textures.tsx`：纹理生成及预加载；修改渲染时核查对应缓存版本 |
 | Mac / Windows 桌面 | `desktop/main.mjs` 使用 Electron 独立窗口和 utility process 运行原本地服务；`desktop/preload.cjs` → `lib/desktop-close.ts` → `app/page.tsx` 在退出前清空原保存队列，服务忙时拒绝退出；桌面数据独立于源码目录，`desktop/package-mac.mjs` 按白名单生成 Apple 芯片 Mac 测试包，`desktop/package-windows.mjs` 在 Windows x64 生成免安装测试包，`desktop/smoke-windows.mjs` 验证解压副本的隔离启动与保存回读 |
-| 介绍与下载页 | `website/index.template.html` 提供独立介绍页；`desktop/package-intro.mjs` 从当前版本应用 ZIP 和显式指定的素材合集生成本地分享目录，不自动发布 |
+| 介绍与下载页 | `website/index.template.html` 提供独立介绍页；`desktop/package-intro.mjs` 从当前版本 Mac / Windows 应用 ZIP 和显式指定的素材合集生成含三个下载入口的本地分享目录，不自动发布 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
 
 ### 3.2 修改前要追清的相关数据流
