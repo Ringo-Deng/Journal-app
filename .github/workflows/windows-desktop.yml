@@ -1,0 +1,41 @@
+name: Windows desktop
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'package.json'
+      - '.github/workflows/windows-desktop.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - run: npm ci
+      - name: Desktop and image regression tests
+        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs
+      - run: npm run desktop:windows
+      - name: Archive and extract delivery package
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $zip = "build/desktop/shiguang-journal-v$version-windows-x64.zip"
+          Compress-Archive -Path 'build/desktop/拾光手帐-win32-x64' -DestinationPath $zip
+          Expand-Archive -Path $zip -DestinationPath 'build/windows-extracted'
+          "PACKAGE_NAME=shiguang-journal-v$version-windows-x64" >> $env:GITHUB_ENV
+      - name: Start extracted app with isolated data and verify restart
+        run: node desktop/smoke-windows.mjs 'build/windows-extracted/拾光手帐-win32-x64'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: build/desktop/*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30

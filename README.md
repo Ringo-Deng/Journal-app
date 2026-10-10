@@ -194,10 +194,14 @@ AI 可处理全部素材、筛选结果或已选素材，按“风格＋用途�
 - 桌面数据：`~/Library/Application Support/ShiguangJournalDesktop/data`；AI 配置在同级 `config`。替换 App 不替换这个目录。应用菜单可打开资料文件夹。
 - 首次运行为空白资料，不自动读取源码版的 `data/` 或 AI 设置。旧版先导出「完整资料备份」，再在 App 内追加恢复；保留原资料及备份，验证后再决定是否继续使用旧版。AI 密钥需单独设置，不包含在分享包内。
 - 退出会先等待手帐保存；保存冲突、失败或后台仍在处理时保留窗口。只允许一份桌面实例；源码版与桌面版使用不同数据目录。
-- 手动更新：正常退出旧 App，再替换应用程序中的 App。暂不提供自动更新，暂未支持 Intel Mac 或 Windows 桌面安装包。
+- 手动更新：正常退出旧 App，再替换应用程序中的 App。暂不提供自动更新，暂未支持 Intel Mac。Windows 桌面测试包见下节。
 
 打包按受控源码及构建文件白名单收集，只带后台所需的 `sharp` 依赖及其原生模块，不收集工作区私有数据、配置或 Git 历史。测试必须使用 `SHIGUANG_DESKTOP_TEST_DIR` 指定隔离目录，禁止使用正式资料做自动化保存测试。
 
 ## 素材包分享
 
 在素材库勾选已入库的处理结果，点击「导出所选素材包」；朋友在素材库点击「导入素材包」即可追加使用。保留成品图片、分类和标签，不带原始整图或手帐；重复图片会跳过。每包最多 200 件、256 MB，双方需要 v0.1.264 或更新版本。详见 [素材包使用说明](docs/material-packs.md)。
+
+## Windows 桌面测试版
+
+Windows x64 版复用现有桌面窗口和退出保存流程，内置运行环境，解压后双击「拾光手帐.exe」。在 Windows 上执行 `npm run desktop:windows` 打包；GitHub Actions「Windows desktop」提供构建和隔离自动检查，通过后可下载 ZIP。资料在 `%APPDATA%\ShiguangJournalDesktop`，不随程序替换。首版未签名，仍需人工功能验收。详见 [Windows 使用与验证说明](docs/windows-desktop.md)。

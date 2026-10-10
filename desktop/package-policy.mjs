@@ -4,3 +4,7 @@ export function distributableSource(path) {
   return native.has(path) || /^(local|lib)\/[^/]+\.mjs$/.test(path) ||
     /^desktop\/(main|runtime)\.mjs$/.test(path) || path === 'desktop/preload.cjs' || path.startsWith('public/');
 }
+
+export function distributableWindowsSource(path) {
+  return distributableSource(path) && !native.has(path);
+}

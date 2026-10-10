@@ -1,6 +1,6 @@
 {
   "name": "shiguang-journal",
-  "version": "0.1.265",
+  "version": "0.1.266",
   "private": true,
   "engines": {
     "node": ">=22.21.0"
@@ -14,7 +14,8 @@
     "service": "node local/server-bootstrap.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "desktop:dev": "npm run build && install-electron && electron desktop/main.mjs",
-    "desktop:mac": "npm run build && node desktop/package-mac.mjs"
+    "desktop:mac": "npm run build && node desktop/package-mac.mjs",
+    "desktop:windows": "npm run build && node desktop/package-windows.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
