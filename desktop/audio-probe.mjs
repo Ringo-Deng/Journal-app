@@ -1,4 +1,4 @@
-// Runs inside the isolated packaged renderer, with its real HTTP/audio stack.
+// Runs inside the packaged renderer, with its real HTTP/audio stack.
 // Playback completion proves the media pipeline, not the host speaker volume.
 export async function probePageTurnAudio() {
   const files = ['mixkit-page-turn-single-1104.wav',

@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { availablePort, backendEnvironment, isInternalURL } from './runtime.mjs';
+import { probePageTurnAudio } from './audio-probe.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -14,6 +15,25 @@ let backendExited = false;
 const backendReplies = new Map();
 const closeReplies = new Map();
 let diagnostic = '';
+let checkingAudio = false;
+
+async function checkPageTurnAudio() {
+  if (checkingAudio || closing || exiting || !window || window.isDestroyed()) return;
+  checkingAudio = true;
+  try {
+    const report = await window.webContents.executeJavaScript(`(${probePageTurnAudio.toString()})().then(results => ({ results }), error => ({ error: String(error?.message || error) }))`, true);
+    if (report.error) throw Error(report.error);
+    const results = report.results;
+    if (!window.isDestroyed()) await dialog.showMessageBox(window, { type: 'info',
+      message: '三段翻页音效已完成播放',
+      detail: '如果刚才听到了声音，但翻页时没有声音，请反馈是编辑还是 3D 阅读。\n如果刚才仍然无声，请检查系统声音设置中拾光手帐使用的输出设备（扬声器、耳机或显示器）。\n\n' +
+        results.map((result, i) => `${['编辑翻页', '阅读音效一', '阅读音效二'][i]}：${result.played.toFixed(2)} 秒`).join('\n'),
+      buttons: ['知道了'] });
+  } catch (error) {
+    if (!window.isDestroyed()) await dialog.showMessageBox(window, { type: 'warning', message: '翻页音效检查失败',
+      detail: '请将下面的信息反馈给开发者：\n\n' + String(error?.message || error), buttons: ['知道了'] });
+  } finally { checkingAudio = false; }
+}
 
 function backendRequest(type) {
   if (backendExited) return Promise.reject(Error('本地服务已退出'));
@@ -106,6 +126,7 @@ async function start() {
   await window.loadURL(`${origin}/?build=${encodeURIComponent(pkg.version)}`);
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: '拾光手帐', submenu: [{ label: '打开资料文件夹', click: () => shell.openPath(app.getPath('userData')) },
+      { label: '检查翻页音效', click: () => checkPageTurnAudio() },
       { type: 'separator' }, { label: '退出拾光手帐', accelerator: 'CmdOrCtrl+Q', click: () => closeSafely() }] },
     { role: 'editMenu' }, { role: 'windowMenu' },
   ]));

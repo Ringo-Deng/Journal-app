@@ -44,6 +44,6 @@ test('closing fails safely for conflict, failed write and a stalled write', asyn
 test('Windows packages keep the portable engine and exclude Mac executables', () => {
   for (const path of ['local/segment', 'local/cutout', 'local/clean-paper', 'local/material-palette'])
     assert.equal(distributableWindowsSource(path), false, path);
-  for (const path of ['local/portable-image-tools.mjs', 'local/portable-sips.mjs', 'desktop/main.mjs'])
+  for (const path of ['local/portable-image-tools.mjs', 'local/portable-sips.mjs', 'desktop/main.mjs', 'desktop/audio-probe.mjs'])
     assert.equal(distributableWindowsSource(path), true, path);
 });

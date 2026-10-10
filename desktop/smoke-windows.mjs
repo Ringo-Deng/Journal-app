@@ -28,15 +28,19 @@ for (const [needle, event] of [
 ]) main = main.replace(needle, needle + " trace({ event: '" + event + "', closing, exiting, window: !!window, destroyed: window?.isDestroyed() });");
 await writeFile(mainPath, main);
 await writeFile(join(root, pkg.main), `
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, Menu } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-let phase = 'entry', failed = false;
+let phase = 'entry', failed = false, audioDialog = '';
 function diagnostic(error) { if (failed) return; failed = true; writeFileSync(process.env.SMOKE_RESULT, JSON.stringify({ phase, error: String(error), windows: BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), loading: w.webContents.isLoading() })) })); }
 dialog.showErrorBox = (title, message) => { diagnostic(title + ': ' + message); app.exit(3); };
-dialog.showMessageBox = async (...args) => { const options = args.at(-1); diagnostic(options.message + ': ' + options.detail); app.exit(4); return { response: 0 }; };
+dialog.showMessageBox = async (...args) => {
+  const options = args.at(-1);
+  if (phase === 'audio-menu' && options.message === '三段翻页音效已完成播放') { audioDialog = options.detail; return { response: 0 }; }
+  diagnostic(options.message + ': ' + options.detail); app.exit(4); return { response: 0 };
+};
 const timeout = setTimeout(() => { diagnostic('smoke timeout'); app.exit(2); }, 90000);
 app.on('browser-window-created', (_event, window) => {
   phase = 'window-created';
@@ -54,6 +58,12 @@ app.on('browser-window-created', (_event, window) => {
     phase = 'audio';
     const audio = await window.webContents.executeJavaScript(${JSON.stringify('(' + probePageTurnAudio.toString() + ')()')}, true);
     console.log('Packaged audio:', JSON.stringify(audio));
+    phase = 'audio-menu';
+    const audioMenu = Menu.getApplicationMenu().items.find(item => item.label === '拾光手帐').submenu.items.find(item => item.label === '检查翻页音效');
+    assert.ok(audioMenu, 'audio check menu missing');
+    await audioMenu.click();
+    assert.ok(audioDialog.includes('编辑翻页') && audioDialog.includes('阅读音效二'), 'audio check result missing');
+    phase = 'save';
     const origin = new URL(window.webContents.getURL()).origin;
     const health = await (await fetch(origin + '/api/health')).json();
     assert.equal(health.appVersion, app.getVersion());
