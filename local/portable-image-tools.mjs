@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
+import { portablePointMask } from "./portable-point-mask.mjs";
 
 const MAX_INPUT_PIXELS = 40_000_000;
 const MAX_EDGE = 2400;
@@ -313,12 +314,31 @@ async function writeComponents(image, outputDir, engine) {
   };
 }
 
-export async function segmentPortable(input, outputDir, mode = "auto", tolerance = 28, rect) {
+export async function segmentPortable(input, outputDir, mode = "auto", tolerance = 28, rect, point) {
   const source = await decodeImage(input);
   const image = cropImage(source, rect);
   if (mode === "crop") return writeWhole(image, outputDir, "Windows 框选保留原底");
 
   const transparent = hasTransparency(image);
+  if (mode === "point" && !transparent) {
+    const edgeBackground = chooseBackground(image);
+    const paper = dominantOpaqueColor(image, false);
+    // A grid or printed frame can occupy the crop's entire outermost edge.
+    // Prefer a strongly represented lighter paper colour in that specific case.
+    const background = paper && paper.share >= 0.3 && Math.min(...paper.color) >= 150
+      && (!edgeBackground || paper.color.reduce((a, b) => a + b, 0) > edgeBackground.color.reduce((a, b) => a + b, 0) + 30)
+      ? paper : edgeBackground;
+    const localPoint = Array.isArray(point) && point.length === 2
+      ? [
+          (point[0] * source.width - Math.floor((rect?.[0] || 0) * source.width)) / image.width,
+          (point[1] * source.height - Math.floor((rect?.[1] || 0) * source.height)) / image.height,
+        ]
+      : null;
+    const subject = portablePointMask(image, background?.color, Number(tolerance) || 28, localPoint);
+    // Keep the padded crop dimensions: the API uses this same rectangle to
+    // position the preview mask over the original image.
+    return writeWhole(subject, outputDir, "Windows 点选主体分离");
+  }
   let processed = image,
     removed = 0;
   if (!transparent || ["paper", "dense", "single", "point", "ai"].includes(mode)) {

@@ -1139,10 +1139,10 @@ const server = http.createServer(async (req, res) => {
       try {
         result = await runSegmentTool({
           backend:imageCapabilities.backend,root,input:source,outputDir:resolve(data,'uploads'),
-          mode:'point',tolerance:28,rect:located.bounds,options:{timeout:120000,maxBuffer:1024*1024},
+          mode:'point',tolerance:28,rect:located.bounds,point:input.point.map(Number),options:{timeout:120000,maxBuffer:1024*1024},
         });
       } catch {
-        throw error('已经找到点击的素材，但精细抠图没有完成。原有结果未改动，请再点一次或使用框选补漏。', 422);
+        throw error('已经找到点击的素材，但精细抠图没有完成。原有结果未改动，请点在主体中央，或使用吸附套索／框选补漏。', 422);
       }
       const outputItem = result.items?.[0];
       if (!outputItem?.file) throw error('没有抠出完整素材，请再点一次或使用框选补漏。', 422);
@@ -1155,7 +1155,7 @@ const server = http.createServer(async (req, res) => {
       await materialWrite(async () => {
         const current = consolidatedJobs(materialJobs).find((entry) => entry.source === input.src);
         if (!current) throw error('这条处理记录已删除，请重新导入原图。', 409);
-        job = {...current,engine:'点选定位 · 本机精细抠图',items:[...current.items,item]};
+        job = {...current,engine:imageCapabilities.backend==='portable'?'点选定位 · Windows 主体分离':'点选定位 · 本机精细抠图',items:[...current.items,item]};
         materialJobs = [job, ...materialJobs.filter((entry) => entry.source !== input.src)];
         await atomic('material-jobs.json', materialJobs);
       });

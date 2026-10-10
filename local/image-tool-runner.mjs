@@ -15,6 +15,7 @@ export async function runSegmentTool({
   mode,
   tolerance,
   rect,
+  point,
   options,
 }) {
   if (backend === "native") {
@@ -25,7 +26,7 @@ export async function runSegmentTool({
     );
     return JSON.parse(output.stdout);
   }
-  if (backend === "portable") return segmentPortable(input, outputDir, mode, tolerance, rect);
+  if (backend === "portable") return segmentPortable(input, outputDir, mode, tolerance, rect, point);
   throw Error("当前系统没有可用的本地图像处理引擎。");
 }
 
