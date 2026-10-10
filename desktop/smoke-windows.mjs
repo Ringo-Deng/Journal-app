@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
+import { probePageTurnAudio } from './audio-probe.mjs';
 const source = resolve(process.argv[2]);
 const temp = await mkdtemp(join(tmpdir(), 'shiguang-windows-'));
 const install = join(temp, '中文 installation');
@@ -32,8 +33,8 @@ import { writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-let phase = 'entry';
-function diagnostic(error) { writeFileSync(process.env.SMOKE_RESULT, JSON.stringify({ phase, error: String(error), windows: BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), loading: w.webContents.isLoading() })) })); }
+let phase = 'entry', failed = false;
+function diagnostic(error) { if (failed) return; failed = true; writeFileSync(process.env.SMOKE_RESULT, JSON.stringify({ phase, error: String(error), windows: BrowserWindow.getAllWindows().map(w => ({ url: w.webContents.getURL(), loading: w.webContents.isLoading() })) })); }
 dialog.showErrorBox = (title, message) => { diagnostic(title + ': ' + message); app.exit(3); };
 dialog.showMessageBox = async (...args) => { const options = args.at(-1); diagnostic(options.message + ': ' + options.detail); app.exit(4); return { response: 0 }; };
 const timeout = setTimeout(() => { diagnostic('smoke timeout'); app.exit(2); }, 90000);
@@ -50,6 +51,9 @@ app.on('browser-window-created', (_event, window) => {
     }
     assert.ok(ready, 'React editor did not mount');
     phase = 'editor-mounted';
+    phase = 'audio';
+    const audio = await window.webContents.executeJavaScript(${JSON.stringify('(' + probePageTurnAudio.toString() + ')()')}, true);
+    console.log('Packaged audio:', JSON.stringify(audio));
     const origin = new URL(window.webContents.getURL()).origin;
     const health = await (await fetch(origin + '/api/health')).json();
     assert.equal(health.appVersion, app.getVersion());
@@ -61,7 +65,7 @@ app.on('browser-window-created', (_event, window) => {
     assert.equal(result.revision, state.revision + 1);
     const reread = await (await fetch(origin + '/api/state')).json();
     assert.equal(reread.revision, result.revision);
-    await writeFile(process.env.SMOKE_RESULT, JSON.stringify({ version: health.appVersion, revision: reread.revision, windows: BrowserWindow.getAllWindows().length }));
+    await writeFile(process.env.SMOKE_RESULT, JSON.stringify({ version: health.appVersion, revision: reread.revision, audio, windows: BrowserWindow.getAllWindows().length }));
     phase = 'closing';
     window.close(); // Exercise the real renderer flush and utility-process shutdown.
   })().catch(error => { diagnostic(error.stack || error); app.exit(1); }); });
@@ -87,6 +91,7 @@ for (let revision = 0; revision < 2; revision++) {
   const result = JSON.parse(await readFile(resultPath, 'utf8'));
   assert.equal(result.version, pkg.version);
   assert.equal(result.revision, revision + 1);
+  assert.equal(result.audio.length, 3);
   const disk = JSON.parse(await readFile(join(temp, 'profile/data/journal.json'), 'utf8'));
   assert.equal(disk.revision, revision + 1);
 }

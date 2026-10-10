@@ -43,6 +43,10 @@ export function usePageTurnSound({
     sounds.backward.pause();
     const audio = direction === 1 ? sounds.forward : sounds.backward;
     if (audio.readyState > 0) audio.currentTime = 0;
-    void audio.play().catch(() => undefined);
+    void audio.play().catch((error: unknown) => {
+      // Pausing for another turn intentionally cancels an in-flight play request.
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.warn("翻页音效播放失败", audio.currentSrc || audio.src, error);
+    });
   }, []);
 }

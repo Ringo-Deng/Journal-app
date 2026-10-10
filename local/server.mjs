@@ -407,6 +407,7 @@ const mime = {
   '.otf': 'font/otf',
   '.ttf': 'font/ttf',
   '.ico': 'image/x-icon',
+  '.wav': 'audio/wav',
 };
 async function serve(res, path, base) {
   const absolute = resolve(base, '.' + path);
