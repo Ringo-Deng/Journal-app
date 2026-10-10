@@ -20,9 +20,8 @@ await mkdir(join(output, 'assets'), { recursive: true });
 await copyFile(appSource, join(output, 'downloads', appFile));
 await copyFile(windowsSource, join(output, 'downloads', windowsFile));
 await copyFile(materialSource, join(output, 'downloads', materialFile));
-for (const [source, target] of [['asset-088-cut.png', 'flower.png'], ['asset-077-cut.png', 'manuscript.png']])
-  await copyFile(join(root, 'public/materials', source), join(output, 'assets', target));
-await copyFile(join(root, 'website/assets/green-collage-example.png'), join(output, 'assets/green-collage-example.png'));
+for (const name of ['green-collage-example.png', 'material-library-preview.png'])
+  await copyFile(join(root, 'website/assets', name), join(output, 'assets', name));
 const size = bytes => `${Math.round(bytes / 1024 / 1024)} MB`;
 const downloadBase = process.argv[3] || 'downloads';
 if (downloadBase !== 'downloads' && !/^https:\/\/github\.com\/Ringo-Deng\/Journal-app\/releases\/download\/v[0-9.]+$/.test(downloadBase)) throw Error('下载地址必须使用本仓库的版本 Release。');
