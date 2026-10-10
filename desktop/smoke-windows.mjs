@@ -61,7 +61,8 @@ app.on('browser-window-created', (_event, window) => {
     phase = 'audio-menu';
     const audioMenu = Menu.getApplicationMenu().items.find(item => item.label === '拾光手帐').submenu.items.find(item => item.label === '检查翻页音效');
     assert.ok(audioMenu, 'audio check menu missing');
-    await audioMenu.click();
+    audioMenu.click(); // Electron's MenuItem wrapper does not return the async handler promise.
+    for (let i = 0; i < 200 && !audioDialog; i++) await new Promise(resolve => setTimeout(resolve, 50));
     assert.ok(audioDialog.includes('编辑翻页') && audioDialog.includes('阅读音效二'), 'audio check result missing');
     phase = 'save';
     const origin = new URL(window.webContents.getURL()).origin;
