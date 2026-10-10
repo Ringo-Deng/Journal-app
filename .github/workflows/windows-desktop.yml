@@ -21,7 +21,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Desktop and image regression tests
-        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/desktop-updates.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs tests/material-pack.test.mjs
+        run: node --experimental-strip-types --test tests/desktop.test.mjs tests/desktop-updates.test.mjs tests/portable-image-tools.test.mjs tests/portable-sips.test.mjs tests/version-display.test.mjs tests/material-pack.test.mjs tests/pinterest-network.test.mjs tests/pinterest-import.test.mjs tests/pinterest-image-import.test.mjs tests/pinterest-preview.test.mjs tests/pinterest-resolve-compat.test.mjs
+      - name: Pinterest networking in the Electron utility process
+        run: npx electron tests/pinterest-desktop-smoke.mjs
       - run: npm run desktop:windows
       - name: Archive and extract delivery package
         shell: pwsh

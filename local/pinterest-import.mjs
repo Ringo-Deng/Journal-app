@@ -1,3 +1,5 @@
+import { pinterestFetch } from './pinterest-network.mjs';
+
 const PIN_ID_RE = /^\d{6,30}$/;
 const ALLOWED_IMAGE_HOST = /(^|\.)pinimg\.com$/i;
 const IMAGE_SIZE_PATH_RE = /\/(?:originals|\d{1,5}x(?:\d{1,5})?)\//i;
@@ -52,7 +54,7 @@ export async function resolvePinterestInput(value, timeoutMs = 15000) {
   for (let redirectCount = 0; redirectCount < 5; redirectCount++) {
     let response;
     try {
-      response = await fetch(current, {
+      response = await pinterestFetch(current, {
         redirect: 'manual',
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152 Safari/537.36' },
         signal: AbortSignal.timeout(timeoutMs),
@@ -158,7 +160,7 @@ async function fetchText(url, timeoutMs = 15000) {
   let last;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(url, {
+      const response = await pinterestFetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152 Safari/537.36', 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7' },
         signal: AbortSignal.timeout(timeoutMs),
@@ -207,7 +209,7 @@ async function fetchImage(url) {
   let last;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(url, {
+      const response = await pinterestFetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' },
         signal: AbortSignal.timeout(20000),
