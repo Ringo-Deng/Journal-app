@@ -66,7 +66,7 @@
 | 介绍与下载页 | `website/index.template.html` 提供独立介绍页；`desktop/package-intro.mjs` 从当前版本 Mac / Windows 应用 ZIP 和显式指定的素材合集生成含三个下载入口的本地分享目录，不自动发布 |
 | 安装包示例本 | `public/examples/starry-collage/` 保存已去除照片与正文的示例素材及布局；`local/server.mjs` 在桌面启动时调用 `local/example-notebook.mjs`，仅在没有现存手帐或 previous 文件时初始化，图片进入原 uploads 与备份链路 |
 | 应用版本 | `package.json.version` 为权威来源，`package-lock.json` 同步；`app/layout.tsx`、`local/server-bootstrap.mjs` 与 `local/stamp-dist.mjs` 读取该值 |
-| 应用图标 | `public/app-icon.png` 为奶油铜版画羽毛笔图标；`public/brand-icon.png` 供 `app/page.tsx` 左侧栏标识使用，`public/favicon.svg` 与 `app/layout.tsx` 提供浏览器图标；`public/app-icon.icns` / `.ico` 分别由 Mac / Windows 打包入口使用，`desktop/main.mjs` 使用 PNG 设置窗口与 Mac Dock 图标 |
+| 应用图标 | `public/app-icon.png` 为奶油铜版画羽毛笔图标；`public/brand-icon.png` 为透明底羽毛笔，供 `app/page.tsx` 左侧栏标识使用，`public/favicon.svg` 与 `app/layout.tsx` 提供浏览器图标；`public/app-icon.icns` / `.ico` 分别由 Mac / Windows 打包入口使用，`desktop/main.mjs` 使用 PNG 设置窗口与 Mac Dock 图标 |
 
 ### 3.2 修改前要追清的相关数据流
 
