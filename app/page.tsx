@@ -1,4 +1,5 @@
 'use client';
+import packageJson from '../package.json';
 import { promptLayerName } from '../lib/desktop-prompt';
 import { prepareDesktopClose } from '../lib/desktop-close';
 import StationeryCover from '@/components/stationery-cover';
@@ -2127,7 +2128,7 @@ export default function Home() {
     >
       <input ref={canvasPhotoInput} type="file" accept="image/*" multiple hidden onChange={e=>void upload(e.target.files,false,true)}/>
       <aside className="rail" aria-label="主要功能">
-        <div className="brand">s.</div>
+        <div className="brand"><img src={`/brand-icon.png?v=${packageJson.version}`} alt="拾光手帐" width={36} height={36} /></div>
         <button className={view==='library'?'active':''} aria-label="笔记库" onClick={()=>{if(reading)switchMode('edit');setView('library');setLibraryOpen(false);setPanel(null);setSelected(null);}}><BookOpen/><span>笔记库</span></button>
         <button className={reading&&view!=='library'?'active':''} aria-label={reading?'退出欣赏':'欣赏'} disabled={!book||busy} onClick={()=>switchMode(reading?'edit':'read')}><Eye/><span>{reading?'返回编辑':'欣赏'}</span></button>
         <button className={modal==='studio'?'active':''} aria-label="素材工作台" onClick={()=>{setMaterialStudioNotice('');setMaterialStudioTargetSource('');setModal('studio')}}><Sticker/><span>素材<br/>工作台</span></button>

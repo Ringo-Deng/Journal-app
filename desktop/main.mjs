@@ -10,6 +10,7 @@ import { createMacUpdates } from './mac-updates.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+const appIcon = resolve(root, 'public/app-icon.png');
 // A stable directory across releases; deliberately separate from the source edition.
 app.setPath('userData', process.env.SHIGUANG_DESKTOP_TEST_DIR || resolve(app.getPath('appData'), 'ShiguangJournalDesktop'));
 let window, backend, origin, closing = false, exiting = false;
@@ -134,6 +135,7 @@ ipcMain.on('journal:close-result', (event, id, success) => {
 async function start() {
   const stamp = (await readFile(resolve(root, 'dist/client/.shiguang-version'), 'utf8')).trim();
   if (stamp !== pkg.version) throw Error('页面构建版本与应用不一致，请重新打包。');
+  if (process.platform === 'darwin') app.dock.setIcon(appIcon);
   await mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 });
   // Stable origin preserves browser-side reading positions and preferences.
   const port = await availablePort(process.env.SHIGUANG_DESKTOP_TEST_DIR ? 14330 : 14329);
@@ -165,7 +167,7 @@ async function start() {
   }
   if (!healthy) throw Error('本地服务启动超时。');
   window = new BrowserWindow({ width: 1380, height: 920, minWidth: 900, minHeight: 650,
-    title: '拾光手帐', show: false, backgroundColor: '#f6f2eb',
+    title: '拾光手帐', icon: appIcon, show: false, backgroundColor: '#f6f2eb',
     webPreferences: { preload: resolve(root, 'desktop/preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));

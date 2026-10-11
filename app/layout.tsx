@@ -22,6 +22,10 @@ import './app-settings.css';
 export const metadata: Metadata = {
   title: '拾光 · 私人手帐',
   description: '用照片与只言片语，收藏每一天。',
+  icons: {
+    icon: { url: `/favicon.svg?v=${packageJson.version}`, type: 'image/svg+xml' },
+    shortcut: { url: `/app-icon.ico?v=${packageJson.version}`, type: 'image/x-icon' },
+  },
 };
 
 export default function RootLayout({

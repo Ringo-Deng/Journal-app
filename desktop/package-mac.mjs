@@ -57,6 +57,7 @@ await writeFile(join(stage, 'package.json'), JSON.stringify({ name: pkg.name, pr
   version: pkg.version, private: true, type: 'module', main: 'desktop/main.mjs', dependencies: { sharp: pkg.dependencies.sharp } }, null, 2));
 const apps = await packager({ dir: stage, out: output, name: '拾光手帐', platform: 'darwin', arch: 'arm64',
   electronVersion: pkg.devDependencies.electron, appVersion: pkg.version, appBundleId: 'com.shiguang.journal',
+  icon: join(root, 'public/app-icon.icns'),
   extendInfo: { LSMinimumSystemVersion: '26.0' }, asar: false, prune: false, overwrite: true, osxSign: false, osxNotarize: false });
 const app = join(apps[0], '拾光手帐.app');
 // Ad-hoc signature for local testing. This is NOT Developer ID signing/notarization.
