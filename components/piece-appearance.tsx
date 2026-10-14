@@ -44,7 +44,7 @@ export function pieceClasses(p:Piece) {
 export function PhotoArtwork({piece:p,alt='',maskPreview}:{piece:Piece;alt?:string;maskPreview?:{shape:string;ratio:number;photoRotation?:number}}) {
   if(maskPreview)return <PhotoMaskPreview piece={p} {...maskPreview}/>;
   return <div className={`photo-window ${p.frame==='plain'||p.frame==='cutout'||p.frame==='masked'?'natural-photo':''}`}>
-    <img draggable={false} src={p.src} alt={alt} style={{objectPosition:`${p.crop??50}% ${p.cropY??50}%`,transform:`scale(${(p.cropZoom??1)*(p.flipX?-1:1)},${(p.cropZoom??1)*(p.flipY?-1:1)})`,transformOrigin:`${p.crop??50}% ${p.cropY??50}%`}}/>
+    <img draggable={false} src={p.src} alt={alt} style={{objectFit:p.photoFit==='contain'?'contain':undefined,objectPosition:`${p.crop??50}% ${p.cropY??50}%`,transform:`scale(${(p.cropZoom??1)*(p.flipX?-1:1)},${(p.cropZoom??1)*(p.flipY?-1:1)})`,transformOrigin:`${p.crop??50}% ${p.cropY??50}%`}}/>
   </div>;
 }
 export function TapeArtwork({piece:p}:{piece:Piece}) {

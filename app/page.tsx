@@ -52,6 +52,8 @@ import MaterialStudio from '@/components/material-studio';
 import MaterialImporter from '@/components/material-importer';
 import MaterialLibrary from '@/components/material-library';
 import PhotoLibrary,{type PhotoLibraryItem} from '@/components/photo-library';
+import PhotoBookCreator from '@/components/photo-book-creator';
+import type { PhotoBookPhoto } from '@/lib/photo-book';
 import LayerRowActions from '@/components/layer-row-actions';
 import {isPieceHidden,pieceGroupName,pieceLayerName,reorderLayerBlock,withLayerMeta} from '@/lib/layer-meta';
 import {leafFrame} from '@/lib/page-motion';
@@ -249,6 +251,7 @@ export default function Home() {
   const [textRange,setTextRange]=useState<TextSelection|null>(null);
   const [templateName,setTemplateName]=useState('我的照片拼贴');
   const [clusterBox,setClusterBox]=useState<Box|undefined>();
+  const [photoBookDraft, setPhotoBookDraft] = useState<PhotoBookPhoto[] | null>(null);
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [books, setBooks] = useState<Book[]>([]),
     [bookId, setBookId] = useState(''),
@@ -1409,6 +1412,26 @@ export default function Home() {
     changeSpread(currentSpread=>({...currentSpread,elements:[...currentSpread.elements,...pieces]}));
     setOpened(true);setReading(false);setLibraryOpen(false);setPanel(null);setModal(null);setMultiIds(pieces.length>1?pieces.map(piece=>piece.id):[]);setSelected(pieces[0]?.id||null);toast(`已将 ${pieces.length} 张照片放入当前跨页，可继续调整。`);return true;
   }
+  function startPhotoBook(photos: PhotoBookPhoto[] = []) {
+    if (!ready || busy || uploading || writing.current || saveBlocked.current) { toast('请先完成当前操作或解决保存问题。'); return; }
+    finishEditing();
+    setModal(null);
+    setPhotoBookDraft(photos);
+  }
+  async function applyPhotoBook(created: Book) {
+    if (!ready || busy || uploading || writing.current || saveBlocked.current) throw Error('请先完成当前操作或解决保存问题，成册预览已保留。');
+    if (dirty.current) pending.current = booksRef.current;
+    await flush();
+    if (writing.current || pending.current || saveBlocked.current) throw Error('当前内容尚未保存，成册预览已保留，请稍后重试。');
+    if (booksRef.current.length >= 240) throw Error('笔记本数量已达上限，请先整理笔记库。');
+    if (booksRef.current.some(item => item.id === created.id)) throw Error('这本手帐已经创建，请到笔记库查看。');
+    change(all => [...all, created]);
+    enterBook(created);
+    setPage(0);setOpened(true);setReading(false);setView('workbench');setLibraryOpen(false);setPanel(null);setModal(null);
+    setSelected(null);setMultiIds([]);setEditingGroup(null);setInlineId(null);setCropping(false);scrollRestore.current=null;
+    setPhotoBookDraft(null);
+    toast(`已生成 ${created.spreads.length} 个跨页，照片可自由编辑；正在保存到本机。`);
+  }
   async function processPhotoLibraryItem(item:PhotoLibraryItem){
     const job=await api<{source:string}>('/materials/source',send('POST',{src:item.src,name:item.originalName}));
     setMaterialStudioNotice('照片原片仍保留在照片库中；可以在这里裁切或提取主体。');
@@ -1987,7 +2010,7 @@ export default function Home() {
         target.isContentEditable ||
         target.closest('[role="dialog"], [role="alertdialog"], [data-page-overview]') ||
         reading ||
-        modal ||
+        modal || photoBookDraft ||
         busy
       )
         return;
@@ -2211,7 +2234,7 @@ export default function Home() {
             <button className="quiet" aria-label="撤销调整" title="撤销" onClick={undo}><RotateCcw/><span>撤销</span></button><button className="quiet" aria-label="重做调整" title="重做" onClick={redo}><Redo2/><span>重做</span></button>
           </fieldset>
         </header>}
-        {!reading&&!libraryOpen&&!photoMaskDraft&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||designPreview||collageOpen?'hidden':undefined}}>
+        {!reading&&!libraryOpen&&!photoMaskDraft&&view!=='library'&&book&&<div className={`fixed-element-tools ${piece?'has-selection':'is-empty'}`} data-editor-ui="true" style={{visibility:!opened||modal||photoBookDraft||designPreview||collageOpen?'hidden':undefined}}>
           {piece ? <>
           <div className="cluster-tools">
             <span>{multiSelection?`已选 ${activeUnitCount} 个对象`:cluster?'已选 1 个组合':editingGroup?'正在编辑组内元素':'空白拖框 · ⌘/Ctrl 或 Shift 追加'}</span>
@@ -2224,7 +2247,7 @@ export default function Home() {
           <CollageTools onMask={()=>void startPhotoMask()} piece={piece} height={piece.h??(selectionSize.h||15)} onPatch={patch=>patchPiece(piece.id,patch)} onCaption={()=>addPhotoAttachment('caption')} onTape={()=>addPhotoAttachment('tape')} onCutout={()=>void cutout()} cropping={cropping} onCrop={()=>{setCropping(!cropping);if(piece.frame==='plain'||piece.frame==='cutout')patchPiece(piece.id,{h:piece.h||selectionSize.h,stretch:true});}} busy={busy} textRange={isCurrentTextSelection(textRange,piece)?textRange:null} onTextRange={setTextRange} onTextColor={colorText} onTextHighlight={highlightText}/></fieldset>}
           </> : <span className="selection-toolbar-placeholder">拖动纸面空白处可框选多个素材</span>}
         </div>}
-        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')} suspended={!!modal}/>}
+        {book&&spread&&<CollageStudio open={collageOpen} onClose={()=>setCollageOpen(false)} feel={spread.paperFeel||book.paperFeel} color={paper.color} onFeel={paperFeel=>changeSpread(s=>({...s,paperFeel,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperFeel}])):undefined}))} onColor={paperColor=>changeSpread(s=>({...s,paperColor,pages:s.pages?Object.fromEntries(Object.entries(s.pages).map(([side,p])=>[side,{...p,paperColor}])):undefined}))} onCream={()=>{changeSpread(creamTravel);toast('已应用奶油纸旅行风格，保留原有内容和位置。');}} onCheck={()=>void checkLayout()} onTidy={()=>void checkLayout(true)} templates={book.collageTemplates||[]} onInsert={insertCluster} onCut={cutSelection} cutRequest={clipboardCutRequest} pasteRequest={clipboardPasteRequest} onPasteUnavailable={()=>toast('剪贴板里还没有手帐素材。')} suspended={!!modal||!!photoBookDraft}/>}
         {!reading&&layoutReport&&<div className="layout-report" data-editor-ui="true"><span>{layoutReport.length?`${layoutReport.length} 处排版提示`:'未发现遮挡或越界'}</span>{layoutReport.slice(0,8).map((issue,i)=><button className="quiet" key={i} onClick={()=>{setMultiIds(issue.ids);setSelected(issue.ids[0]);}}>{issue.message}</button>)}{layoutReport.length>0&&<small>空间不足时可增加跨页；组内重叠请双击调整。</small>}<button className="quiet" aria-label="关闭排版提示" onClick={()=>setLayoutReport(null)}><X/></button></div>}
 
         {ready&&saveStatusNeedsAttention&&<div className={`journal-save-bar ${saved.startsWith('保存冲突')?'has-conflict':''}`}>
@@ -2245,7 +2268,7 @@ export default function Home() {
                 <h1>笔记库<span className="library-count">{books.length} 本</span></h1>
                 
               </div>
-<div className="library-head-actions"><button className="outline" onClick={()=>setModal('history')}>历史备份</button>              <button className="outline" onClick={() => {finishEditing();setModal('backup');}}>
+<div className="library-head-actions"><button className="primary" disabled={!ready||busy||uploading} onClick={()=>startPhotoBook()}><ImagePlus/>从照片做一本</button><button className="outline" onClick={()=>setModal('history')}>历史备份</button>              <button className="outline" onClick={() => {finishEditing();setModal('backup');}}>
                 <FolderOpen />
                 导入备份
               </button>              <button
@@ -2293,7 +2316,7 @@ export default function Home() {
                       {b.title}
                     </button>
                     <small>
-                      {bookFormat(b).name} · {b.spreads.reduce((n, s) => n + s.days.length, 0)} 篇记录
+                      {bookFormat(b).name} · {b.spreads.length} 个跨页{b.spreads.some(s=>s.elements.some(p=>p.kind==='photo'))?` · ${b.spreads.reduce((n,s)=>n+s.elements.filter(p=>p.kind==='photo').length,0)} 张照片`:''}{b.spreads.some(s=>s.days.length)?` · ${b.spreads.reduce((n,s)=>n+s.days.length,0)} 篇记录`:''}
                     </small>
                     <button
                       className="quiet library-book-settings"
@@ -3273,9 +3296,10 @@ export default function Home() {
         <DialogContent className="photo-library-dialog">
           <DialogTitle className="sr-only">照片库</DialogTitle>
           <DialogDescription className="sr-only">按拍摄时间浏览、导入并添加本机照片。</DialogDescription>
-          <PhotoLibrary onInsert={insertPhotoLibrary} onProcess={processPhotoLibraryItem} protectedSources={photoProtectedSources}/>
+          <PhotoLibrary onInsert={insertPhotoLibrary} onCreateBook={startPhotoBook} onProcess={processPhotoLibraryItem} protectedSources={photoProtectedSources}/>
         </DialogContent>
       </Dialog>
+      {photoBookDraft && <PhotoBookCreator initialPhotos={photoBookDraft} onClose={()=>setPhotoBookDraft(null)} onCreate={applyPhotoBook}/>}
       <PageMaterialCutter
         open={modal === 'material-cut'}
         target={pageMaterialCutTarget}

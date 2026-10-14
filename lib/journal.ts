@@ -64,6 +64,7 @@ export type Piece = {
   cropY?: number;
   cropZoom?: number;
   photoBorder?: number;
+  photoFit?: 'contain' | 'cover';
   cutoutOutline?: number;
   hideTape?: boolean;
   material?: 'paper' | 'photo' | 'botanical' | 'tape';

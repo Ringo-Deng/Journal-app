@@ -12,7 +12,7 @@ const day=(value:string)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:
 const month=(value:string)=>new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long'}).format(new Date(value));
 const size=(value:number)=>value>=1024*1024?`${(value/1024/1024).toFixed(1)} MB`:`${Math.max(1,Math.round(value/1024))} KB`;
 
-export default function PhotoLibrary({onInsert,onProcess,protectedSources}:{onInsert:(sources:string[])=>boolean;onProcess:(item:PhotoLibraryItem)=>Promise<void>;protectedSources:string[]}){
+export default function PhotoLibrary({onInsert,onProcess,onCreateBook,protectedSources}:{onCreateBook?:(items:PhotoLibraryItem[])=>void;onInsert:(sources:string[])=>boolean;onProcess:(item:PhotoLibraryItem)=>Promise<void>;protectedSources:string[]}){
  const photosInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null),restoreInput=useRef<HTMLInputElement>(null);
  const [items,setItems]=useState<PhotoLibraryItem[]>([]),[total,setTotal]=useState(0),[nextOffset,setNextOffset]=useState<number|null>(null),[selected,setSelected]=useState<string[]>([]),[preview,setPreview]=useState<PhotoLibraryItem|null>(null),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[message,setMessage]=useState('');
  async function load(reset=true){
@@ -59,6 +59,7 @@ export default function PhotoLibrary({onInsert,onProcess,protectedSources}:{onIn
    <span>{selected.length?`已选择 ${selected.length} 张`:'单击照片即可选择'}</span>
    <button className="quiet" disabled={busy||!items.length} onClick={()=>setSelected(items.map(item=>item.id))}><CheckCheck/>选择当前已加载照片</button>
    <button className="quiet" disabled={busy||!selected.length} onClick={()=>setSelected([])}>清空选择</button>
+   {onCreateBook&&<button className="primary" disabled={busy||!selected.length} onClick={()=>onCreateBook(items.filter(item=>selected.includes(item.id)))}><ImagePlus/>做成新笔记本</button>}
    <button className="primary" disabled={busy||!selected.length} onClick={insert}><Plus/>添加到当前跨页</button>
   </div>
   <div className="photo-library-scroll" aria-busy={loading||busy}>
